@@ -39,6 +39,10 @@ Environment variables, all optional:
 | `FAKE` | on | `FAKE=0` disables the simulated crowd |
 | `FAKE_N` | `58` | How many simulated attendees |
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
+| `DJ_PROFILES_PATH` | `data/songProfiles.json` | Override the preprocessed song-profile database |
+| `OPENAI_DJ_MODEL` | `gpt-5-mini` | Optional final-selector model |
+| `OPENAI_API_KEY` | — | Enables optional server-side AI selection; never used by the browser |
+| `DJ_AI_TOKEN` | — | Required in `X-DJ-Token` before the HTTP endpoint may spend AI credits |
 
 ```bash
 FAKE=0 node server.js            # real check-ins only
@@ -80,6 +84,27 @@ creates `data/songProfiles.json`. The live Node application consumes only that c
 profile database; it does not run librosa or call an LLM for song features. See
 [the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
 caching, audio-only testing, and full-library commands.
+
+## Adaptive song selection
+
+The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
+preprocessed profiles. It converts the room state into an explicit musical target,
+ranks eligible songs, explains its scores, and optionally lets OpenAI choose among
+only the top ten. AI is server-side and never required: missing keys, timeouts,
+invalid output, or unknown song IDs automatically fall back to the highest numeric
+score.
+
+```bash
+npm run select-song -- --scenario dancingGrowing
+npm run select-song -- --scenario socializing
+npm run select-song -- --scenario losingDanceFloor --json
+npm run select-song -- --list-scenarios
+```
+
+Add `--ai` to request the optional final judge. Without `data/songProfiles.json`, the
+CLI and API clearly fall back to fictional `data/songProfiles.example.json` records.
+The server also exposes `GET /api/dj/scenarios` and `POST /api/dj/select`; neither
+route changes the currently playing track. See [the DJ selection guide](docs/dj-selection.md).
 
 ## Making changes
 

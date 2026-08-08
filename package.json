@@ -5,13 +5,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
+    "check": "node --check server.js && node --check scripts/select-song.js",
+    "test": "node test/dj.test.js",
+    "select-song": "node scripts/select-song.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "express": "^4.19.2",
+    "openai": "^7.4.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.7.5"
   }
