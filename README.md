@@ -24,24 +24,30 @@ Then open **http://localhost:3000/dashboard.html**.
 
 | URL | What it is |
 |---|---|
-| `/dashboard.html` | Host dashboard — map, people, zones, radio |
-| `/owner.html` | Venue-owner sign up / log in (Supabase email+password) |
+| `/dashboard.html` | Host dashboard — map, people, zones, venues editor, radio, sign-in |
+| `/owner.html` | Standalone venue-owner page (the dashboard has the same sign-in built in) |
 | `/join.html` | What a phone sees after scanning |
 | `/qr/event.svg` | The single event-wide QR poster |
+| `/qr/venue/<id>.svg` | A specific venue's QR, e.g. `/qr/venue/stackt.svg` |
 | `/qr/<zone>.svg` | Per-zone poster, e.g. `/qr/northhall.svg` |
-| `/calibrate.html` | GPS calibration tool (see below) |
+| `/calibrate.html` | Two-point GPS calibration tool (see below) |
 | `/state.json` | The exact payload broadcast to clients — curl this to debug |
 
-### Venue-owner auth (Supabase)
+### Venue-owner accounts
 
-Attendees on `/join.html` stay anonymous. Only venue create/update/delete is gated.
+Attendees on `/join.html` stay anonymous — accounts only gate venue create/update/delete. Sign in
+from the **Sign in** button in the dashboard header; saving a venue prompts you automatically. The
+server picks one of three modes at boot (the log says which):
 
-1. Create a Supabase project; run `supabase/schema.sql` in the SQL editor.
-2. Auth → Providers → Email: turn **off** “Confirm email” for the hackathon.
-3. Copy `.env.example` → `.env` and fill `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-4. Restart `node server.js`, open `/owner.html`, sign up, then **Create new venue** (opens the existing editor on the dashboard).
+- **local** — the default, zero setup. Accounts live on the Pulse server itself in
+  `data/owners.json` (passwords scrypt-hashed, never stored). Sign up takes ten seconds and works
+  offline.
+- **supabase** — set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in `.env`
+  (create a project, run `supabase/schema.sql`, and turn **off** Confirm email under Auth →
+  Providers → Email). Accounts live in Supabase, ownership in its `venue_owners` table.
+- **off** — `AUTH_MODE=off` in `.env`. No accounts; venue writes are open to anyone with the page.
 
-Venue geometry still lives as JSON in `venues/`. Supabase only stores `venue_id → owner_id`. Without the env vars, writes stay open (logged as `[auth] DISABLED`).
+Venue geometry lives as JSON in `venues/` in every mode; auth only stores *who owns which venue*.
 
 Environment variables, all optional:
 
@@ -61,6 +67,8 @@ Environment variables, all optional:
 | `OPENAI_MODEL` | `gpt-5.4` | Vision model that reads the plan |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Vision model that reads the plan |
 | `VENUE` | first found | Which venue to start live |
+| `AUTH_MODE` | `local` | `off` opens venue writes; Supabase keys switch to hosted accounts |
+| `SUPABASE_URL` + `_ANON_KEY` + `_SERVICE_ROLE_KEY` | — | All three together enable Supabase auth |
 
 ```bash
 FAKE=0 node server.js            # real check-ins only
@@ -182,14 +190,18 @@ The host's browser is the only thing that touches audio. It broadcasts the deriv
 The **Venues** tab is a full editor, and the left rail on the Map tab switches between what you've
 built.
 
-1. **+ New venue**, give it a name.
+1. **+ New venue**, give it a name (you'll be asked to sign in the first time).
 2. **Drop in a floor plan image.** Zones are found automatically — no drawing required. The image is
    traced over, never rendered on the live map, and its proportions set the venue's `aspect`, which is
    what makes coordinates line up with the real site.
-3. **Confirm where it is.** Detection drops a pin on each opposite corner of the site. If the drawing
-   carried a scale bar, a north arrow or an address, those pins arrive already filled in — otherwise
-   supply the two coordinates yourself (paste from Google Maps) or stand there and capture.
-4. **Save**, or **Save & make active** to move the live event onto it.
+3. **Say where it is.** Type the address (or paste `lat, lon`, or press **I'm here now** on site) and
+   hit **Centre venue there** — one location is enough to turn GPS on, assuming a 120 m-wide site
+   unless a scale bar said otherwise. The **Check it on Google Maps** link shows exactly where the map
+   now sits. For metre accuracy, refine with the two corner pins: if the drawing carried a scale bar,
+   a north arrow or an address they arrive pre-filled; otherwise paste coordinates from Google Maps or
+   stand at a corner and capture.
+4. **Save**, or **Save & make active** to move the live event onto it. **Show check-in QR** gives the
+   venue its own scannable code (also available from the map's left rail).
 
 ### Editing what came back
 
@@ -463,8 +475,10 @@ Setting `PUBLIC_URL` still works and overrides all of this — worth doing if yo
 in advance, since it pins the URL regardless of how you open the page. Just remember quick tunnels
 get a new hostname on every restart, so a poster printed against an old one is waste paper.
 
-`/qr?zone=northhall` gives the per-zone poster; `/qr/event.svg` and `/qr/<zone>.svg` still return the
-bare SVG if you'd rather place it yourself.
+`/qr?zone=northhall` gives the per-zone poster and `/qr?v=<venueId>` a specific venue's poster
+(it warns if that venue isn't the live one — scans always join whatever is live). `/qr/event.svg`,
+`/qr/venue/<id>.svg` and `/qr/<zone>.svg` return the bare SVG if you'd rather place it yourself.
+The dashboard's **Check-in QR** button shows the same code in a modal, with the same warnings.
 
 To save one as a printable PNG:
 

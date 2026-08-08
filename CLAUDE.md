@@ -33,7 +33,8 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 - Phones send **one summarised float per 500ms**, never raw accelerometer samples. Raw 30Hz from 100 phones melts the server. GPS is throttled separately to one fix per second; step count rides on the accelerometer stream that's already being sampled.
 - Static files are served from `public/`. `server.js` and `venue.json` stay at the repo root and are deliberately not web-reachable.
 - State is in-memory only and dies with the process. No database for live crowd state. This is intentional.
-- **Venue-owner auth (Supabase)** is additive and optional until `SUPABASE_*` is set. Venue JSON stays in `venues/`; Supabase Postgres only holds `venue_owners (venue_id, owner_id)`. Gate create/update/delete/plan uploads — never join.html or the live map/metrics pipeline. Service role key is server-only; clients get anon key via `GET /auth/config`.
+- **Venue-owner auth has three modes**, picked at boot: `local` (default — accounts + ownership in `data/owners.json`, scrypt-hashed, endpoints under `/auth/*`), `supabase` (all three `SUPABASE_*` set; ownership in its `venue_owners` table), `off` (`AUTH_MODE=off`). Gate create/update/delete/plan uploads — never join.html or the live map/metrics pipeline. Service role key is server-only; clients learn the mode via `GET /auth/config`. The sign-in UI lives in the dashboard itself (modal, session shared with owner.html via localStorage `pulseOwnerSession`); don't reintroduce a redirect to a separate login page mid-save.
+- **Auth failures must be loud.** The original owner page hung on "Creating account…" forever when auth wasn't configured (null client, uncaught async throw). Every auth path needs: disabled buttons + on-screen reason when unavailable, a deadline on remote calls (a paused Supabase project hangs, never rejects), and errors landing in the UI rather than a dead promise.
 - `/state.json` returns the exact socket broadcast payload — use it to debug rendering without a browser.
 
 ## Design system
@@ -59,7 +60,7 @@ Do not swap these for defaults; they were chosen deliberately.
 
 ## Current state
 
-Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, two-point GPS calibration).
+Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, one-location GPS centring, two-point GPS calibration), venue-owner accounts (local by default, Supabase optional) with in-dashboard sign-in, and per-venue check-in QR codes surfaced in a dashboard modal.
 
 Also built: an offline Python song-profile generator and a deterministic-first Node
 song-selection engine. The selector accepts mock/future `CrowdState`, produces an
@@ -67,10 +68,15 @@ explicit target, ranks the preprocessed library, and can optionally use a server
 OpenAI final judge with mandatory deterministic fallback. It does not control the
 host deck yet.
 
-Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-zone QRs still work and set
-the starting zone. `venue.geo` maps GPS onto the normalized map via origin + span + bearing; it ships
-**uncalibrated** and must be set on site with `/calibrate.html` (two known points, solved against the
-fixed aspect ratio).
+Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-venue QRs exist too
+(`/qr/venue/:id.svg`, poster `/qr?v=<id>`, dashboard "Check-in QR" modal) — the `v` param is a label,
+not a router: scans always join whichever venue is live. Per-zone QRs still work and set the starting
+zone. `venue.geo` maps GPS onto the normalized map via origin + span + bearing. Two calibration paths:
+**one location** (editor "Where is it?" — address via `/geocode` (Nominatim, with shortened-name
+retries), pasted coords, or on-site fix; centres the map there with a 120 m default width and marks
+`calibrated + centered`) and **two pins** for metre accuracy (`/calibrate.html` or the editor pins).
+One-location is deliberately allowed to claim `calibrated`: the outline-rejection guard means a wrong
+centre degrades to "nobody moves", never "everyone scatters".
 
 GPS is deliberately fail-safe, and these guards exist because the zones are smaller than GPS error —
 do not loosen them without re-measuring:

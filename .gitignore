@@ -23,6 +23,10 @@ venues/*-plan.png
 .env
 .env.local
 
+# local venue-owner accounts: scrypt password hashes and live session tokens.
+# Machine-specific by definition and secret by content — never commit.
+/data/owners.json
+
 # editor / OS noise
 .DS_Store
 Thumbs.db

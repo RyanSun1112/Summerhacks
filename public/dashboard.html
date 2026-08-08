@@ -166,6 +166,20 @@
   .meter i{display:block;height:100%;background:var(--accent)}
   .chip{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border:1px solid var(--rule);border-radius:3px;color:var(--muted)}
   .dim{color:var(--muted);font-size:11px}
+
+  /* account + QR modals */
+  #acctBtn{margin-left:10px;font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);background:none;border:1px solid var(--rule);
+    padding:8px 13px;border-radius:4px;cursor:pointer;display:none;max-width:190px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #acctBtn:hover{color:var(--ink);border-color:var(--accent)}
+  .modal-back{position:fixed;inset:0;z-index:60;background:rgba(4,5,12,.62);backdrop-filter:blur(5px);
+    display:none;place-items:center}
+  .modal-back.on{display:grid}
+  .modal{background:var(--glass);border:1px solid var(--rule);border-radius:10px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55);padding:22px 22px 18px;backdrop-filter:blur(18px)}
+  .msgline{font-family:var(--mono);font-size:11px;min-height:1.2em;margin-top:9px;line-height:1.4}
+  .msgline.err{color:var(--warn)} .msgline.ok{color:var(--ok)}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -182,7 +196,7 @@
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
-  <a href="/owner.html" id="ownerLink" style="margin-left:10px;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none">Owner</a>
+  <button id="acctBtn" type="button">Sign in</button>
 </header>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -210,6 +224,7 @@
       <div class="lab">Venue</div>
       <div id="venueList"></div>
       <div id="gpsWarn" style="display:none;font-size:10.5px;line-height:1.45;color:var(--warn);margin-top:8px"></div>
+      <button class="vbtn" id="qrBtn">Check-in QR</button>
       <button class="vbtn" id="newVenueBtn">+ New venue</button>
     </div>
   </div>
@@ -291,7 +306,15 @@
 
       <div class="vsec">
         <span class="lab">2 · Where is it?</span>
-        <div class="vhint" id="geoStatus" style="margin:0">Right-click the spot in Google Maps and paste, or stand there and capture.</div>
+        <div class="vfield">
+          <label>Address, place, or "lat, lon"</label>
+          <input class="vin" id="geoCenter" placeholder="STACKT Market, Toronto">
+        </div>
+        <div class="vrowin">
+          <button class="vbtn" id="geoCenterGo">Centre venue there</button>
+          <button class="vbtn" id="geoCenterHere" title="Stand near the middle of the venue and press this">I'm here now</button>
+        </div>
+        <div class="vhint" id="geoStatus" style="margin:0">One location is enough to place people. For metre accuracy, refine with the pins below.</div>
         <div id="pinList"></div>
         <div class="vprob" id="calProb"></div>
       </div>
@@ -354,10 +377,54 @@
         <div class="vprob" id="edProb"></div>
         <button class="vbtn" id="edSave">Save venue</button>
         <button class="vbtn go" id="edSaveGo">Save &amp; make active</button>
+        <button class="vbtn" id="edQr" style="display:none">Show check-in QR</button>
       </div>
     </div>
 
    </div>
+  </div>
+</div>
+
+<!-- Venue-owner sign in. Merged into the dashboard so saving a venue never
+     bounces you to another page. Attendees never see this — join.html has no
+     account anywhere near it. -->
+<div class="modal-back" id="acctModal">
+  <div class="modal" style="width:330px">
+    <div class="lab">Venue owner</div>
+    <h2 style="font-size:17px;margin:6px 0 4px">Sign in</h2>
+    <div class="vhint" id="acctWhy" style="margin:0 0 10px"></div>
+    <div id="acctForm" style="display:flex;flex-direction:column;gap:9px">
+      <div class="vfield"><label>Email</label><input class="vin" id="acctEmail" type="email" autocomplete="username" placeholder="you@example.com"></div>
+      <div class="vfield"><label>Password</label><input class="vin" id="acctPass" type="password" autocomplete="current-password" placeholder="6+ characters"></div>
+      <div class="vrowin">
+        <button class="vbtn go" id="acctLogin" type="button">Log in</button>
+        <button class="vbtn" id="acctSignup" type="button">Sign up</button>
+      </div>
+    </div>
+    <div id="acctSigned" style="display:none;flex-direction:column;gap:9px">
+      <div class="vhint" style="margin:0">Signed in as <b id="acctWho" style="color:var(--ink)"></b></div>
+      <button class="vbtn" id="acctOut" type="button">Sign out</button>
+    </div>
+    <div class="msgline" id="acctMsg"></div>
+    <button class="vbtn" id="acctCancel" type="button" style="margin-top:6px">Close</button>
+  </div>
+</div>
+
+<!-- Check-in QR for any venue — the same code phones scan at the door. -->
+<div class="modal-back" id="qrModal">
+  <div class="modal" style="width:352px;text-align:center">
+    <div class="lab">Check-in QR</div>
+    <h2 id="qrVenueName" style="font-size:17px;margin:6px 0 3px"></h2>
+    <div class="vhint" id="qrNote" style="margin:0 0 12px"></div>
+    <div style="background:#fff;border-radius:10px;padding:12px;display:inline-block">
+      <img id="qrImg" alt="check-in QR code" style="width:236px;height:236px;display:block">
+    </div>
+    <div id="qrUrl" style="font-family:var(--mono);font-size:10.5px;color:var(--muted);word-break:break-all;margin-top:10px"></div>
+    <div class="vprob" id="qrWarn" style="margin-top:8px;text-align:left"></div>
+    <div class="vrowin" style="margin-top:13px">
+      <a class="vbtn" id="qrPoster" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;flex:1">Printable poster</a>
+      <button class="vbtn" id="qrClose" type="button" style="flex:1">Close</button>
+    </div>
   </div>
 </div>
 
@@ -373,39 +440,140 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,
 let venue=null, state=null, view='map';
 const smooth=new Map();
 
-/* ---- venue-owner auth (Supabase session shared with /owner.html) ----
-   Public map/metrics stay open. Only venue create/update/plan writes
-   send the Bearer token. Attendees never touch this. */
-let ownerSb=null, ownerToken=null, ownerAuthReady=null, ownerAuthOn=false;
+/* ---- venue-owner auth, lives right here in the dashboard ----
+   The server picks the mode: 'local' (accounts on the Pulse server itself,
+   zero setup — the default), 'supabase' (hosted), or 'off' (writes open).
+   Public map/metrics stay open. Only venue create/update/delete/plan writes
+   send the Bearer token. Attendees never touch this. The local session is
+   shared with /owner.html via localStorage. */
+const OWNER_LS='pulseOwnerSession';
+let ownerMode='off', ownerSb=null, ownerToken=null, ownerEmail=null, ownerAuthReady=null;
+const ownerAuthOn=()=>ownerMode!=='off';
 function ownerHeaders(extra){
   const h=Object.assign({},extra||{});
   if(ownerToken) h.Authorization='Bearer '+ownerToken;
   return h;
 }
+function ownerStore(s){ try{ s?localStorage.setItem(OWNER_LS,JSON.stringify(s)):localStorage.removeItem(OWNER_LS); }catch(e){} }
+// A paused Supabase project never rejects — it just hangs. Every remote auth
+// call gets a deadline so the UI can say what happened.
+function withDeadline(p,what){ let t;
+  return Promise.race([
+    Promise.resolve(p).finally(()=>clearTimeout(t)),
+    new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error(what+' timed out after 15s — the auth service may be paused.')),15000); })
+  ]);
+}
 ownerAuthReady=(async()=>{
   try{
     const cfg=await fetch('/auth/config').then(r=>r.json());
-    if(!cfg.url||!cfg.anonKey){ console.log('[owner-auth] server auth off — venue writes are open'); return false; }
-    if(typeof supabase==='undefined'){ console.warn('[owner-auth] supabase lib blocked'); return false; }
-    ownerAuthOn=true;
-    ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
-    const {data:{session}}=await ownerSb.auth.getSession();
-    ownerToken=session?session.access_token:null;
-    ownerSb.auth.onAuthStateChange((_e,s)=>{ ownerToken=s?s.access_token:null; });
-    if(ownerToken) console.log('[owner-auth] session present');
-    else console.log('[owner-auth] no session — venue saves need /owner.html login');
-    return !!ownerToken;
-  }catch(e){ console.warn('[owner-auth]',e); return false; }
+    ownerMode=cfg.mode||(cfg.enabled?'supabase':'off');
+    if(ownerMode==='local'){
+      let s=null; try{ s=JSON.parse(localStorage.getItem(OWNER_LS)||'null'); }catch(e){}
+      if(s&&s.token){
+        const r=await fetch('/auth/me',{headers:{Authorization:'Bearer '+s.token}}).catch(()=>null);
+        if(r&&r.ok){ ownerToken=s.token; ownerEmail=s.email; }
+        else if(r) ownerStore(null);                     // token died server-side
+      }
+    } else if(ownerMode==='supabase'){
+      if(typeof supabase==='undefined'){ console.warn('[owner-auth] supabase lib blocked'); ownerMode='off'; return false; }
+      ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
+      const {data:{session}}=await withDeadline(ownerSb.auth.getSession(),'Restoring session');
+      ownerToken=session?session.access_token:null;
+      ownerEmail=session&&session.user?session.user.email:null;
+      ownerSb.auth.onAuthStateChange((_e,s)=>{
+        ownerToken=s?s.access_token:null; ownerEmail=s&&s.user?s.user.email:null; renderAcct(); });
+    }
+    console.log('[owner-auth] mode',ownerMode,ownerToken?'— signed in as '+ownerEmail:'— signed out');
+  }catch(e){ console.warn('[owner-auth]',e); }
+  renderAcct();
+  return !!ownerToken;
 })();
+
+/* ---- account chip + modal ---- */
+function renderAcct(){
+  const b=$('#acctBtn');
+  if(!ownerAuthOn()){ b.style.display='none'; return; }
+  b.style.display='';
+  b.textContent=ownerToken?(ownerEmail||'Account'):'Sign in';
+  b.title=ownerToken?'Signed in as '+(ownerEmail||'?'):'Sign in to manage venues';
+}
+let acctResolve=null, acctBusy=false;
+function setAcctMsg(t,k){ const el=$('#acctMsg'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }
+function renderAcctModal(){
+  const signed=!!ownerToken;
+  $('#acctForm').style.display=signed?'none':'flex';
+  $('#acctSigned').style.display=signed?'flex':'none';
+  $('#acctWho').textContent=ownerEmail||'';
+}
+function openAcct(why){
+  return new Promise(res=>{
+    acctResolve=res;
+    $('#acctWhy').textContent=why||'';
+    setAcctMsg('');
+    renderAcctModal();
+    $('#acctModal').classList.add('on');
+    if(!ownerToken) $('#acctEmail').focus();
+  });
+}
+function closeAcct(ok){
+  $('#acctModal').classList.remove('on');
+  const r=acctResolve; acctResolve=null;
+  if(r) r(!!ok);
+}
+async function acctAuth(kind){
+  if(acctBusy) return;
+  const email=$('#acctEmail').value.trim(), password=$('#acctPass').value;
+  if(!email){ setAcctMsg('Enter an email address.','err'); return; }
+  if(password.length<6){ setAcctMsg('Password must be at least 6 characters.','err'); return; }
+  acctBusy=true; $('#acctLogin').disabled=$('#acctSignup').disabled=true;
+  setAcctMsg(kind==='signup'?'Creating account…':'Signing in…');
+  try{
+    if(ownerMode==='local'){
+      const r=await fetch(kind==='signup'?'/auth/signup':'/auth/login',{method:'POST',
+        headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+      const b=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+      ownerToken=b.token; ownerEmail=b.email;
+      ownerStore({token:b.token,email:b.email,userId:b.userId});
+    }else{
+      const call=kind==='signup'?ownerSb.auth.signUp({email,password})
+                                :ownerSb.auth.signInWithPassword({email,password});
+      const {data,error}=await withDeadline(call,kind==='signup'?'Sign up':'Sign in');
+      if(error) throw new Error(error.message);
+      if(!data.session) throw new Error('Account created — confirm the email first, or turn off Confirm email in Supabase Auth settings.');
+      ownerToken=data.session.access_token;
+      ownerEmail=(data.user&&data.user.email)||email;
+    }
+    renderAcct(); renderAcctModal();
+    setAcctMsg(kind==='signup'?'Account created.':'Signed in.','ok');
+    setTimeout(()=>closeAcct(true),350);
+  }catch(e){
+    let m=e.message||'Failed';
+    if(/failed to fetch|networkerror|load failed/i.test(m)) m='Could not reach the server — is it running?';
+    setAcctMsg(m,'err');
+  }finally{
+    acctBusy=false; $('#acctLogin').disabled=$('#acctSignup').disabled=false;
+  }
+}
+$('#acctLogin').addEventListener('click',()=>acctAuth('login'));
+$('#acctSignup').addEventListener('click',()=>acctAuth('signup'));
+$('#acctPass').addEventListener('keydown',e=>{ if(e.key==='Enter') acctAuth('login'); });
+$('#acctOut').addEventListener('click',async()=>{
+  if(ownerMode==='local'){ fetch('/auth/logout',{method:'POST',headers:ownerHeaders()}).catch(()=>{}); ownerStore(null); }
+  else if(ownerSb){ try{ await withDeadline(ownerSb.auth.signOut(),'Sign out'); }catch(e){} }
+  ownerToken=null; ownerEmail=null;
+  renderAcct(); renderAcctModal(); setAcctMsg('Signed out.','ok');
+});
+$('#acctCancel').addEventListener('click',()=>closeAcct(false));
+$('#acctModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) closeAcct(false); });
+$('#acctBtn').addEventListener('click',()=>openAcct(''));
+
 async function requireOwnerSession(action){
   await ownerAuthReady;
   if(ownerToken) return true;
-  // Server auth off => the write routes are open, so don't send anyone to a
-  // sign-in page that has no account system behind it.
-  if(!ownerAuthOn) return true;
-  if(confirm((action||'Editing venues')+' needs a venue-owner login.\n\nOpen the owner page now?'))
-    location.href='/owner.html';
-  return false;
+  // Server auth off => the write routes are open; just proceed.
+  if(!ownerAuthOn()) return true;
+  return openAcct((action||'Editing venues')+' needs a venue-owner account. Sign up takes ten seconds.');
 }
 
 /* ==========================================================
@@ -826,7 +994,7 @@ async function loadVenueList(){
   const warn=$('#gpsWarn');
   if(live&&!live.calibrated){
     warn.style.display='block';
-    warn.innerHTML='⚠ GPS is off — this venue isn\'t calibrated, so phones stay in the zone they checked in with. Set it in the Venues tab.';
+    warn.innerHTML='⚠ GPS is off — this venue has no location yet, so phones stay in their check-in zone. Venues tab → "Where is it?" → type the address.';
   } else warn.style.display='none';
 }
 
@@ -859,6 +1027,37 @@ $('#newVenueBtn').addEventListener('click',async()=>{
 });
 loadVenueList();
 
+/* ---- check-in QR ----
+   The QR itself is generated by the server per venue, so a freshly saved venue
+   has a code the moment it exists. The two ways a QR silently fails — encoding
+   localhost, or plain http — are told to your face here, same as /qr does. */
+function showQr(id){
+  if(!id){ return; }
+  const v=venueIndex.venues.find(x=>x.id===id);
+  $('#qrVenueName').textContent=v?v.name:id;
+  $('#qrNote').textContent = id===venueIndex.active
+    ? 'This venue is LIVE — scans join it right now.'
+    : 'Scans always join the LIVE venue. Make this one active before the event.';
+  $('#qrImg').src='/qr/venue/'+encodeURIComponent(id)+'.svg?t='+Date.now();
+  $('#qrUrl').textContent=location.origin+'/join.html?v='+encodeURIComponent(id);
+  $('#qrPoster').href='/qr?v='+encodeURIComponent(id);
+  $('#qrWarn').textContent =
+    /^(localhost|127\.|\[::1\]|::1)/.test(location.hostname)
+      ? 'You are on localhost, so this code points at THIS machine — phones scanning it get nothing. Start the tunnel (cloudflared), open the dashboard through the tunnel URL, and reopen this QR.'
+    : location.protocol==='http:'
+      ? 'Plain HTTP — phones will check in but motion and GPS stay blocked. Use the HTTPS tunnel URL.'
+      : '';
+  $('#qrModal').classList.add('on');
+}
+$('#qrBtn').addEventListener('click',()=>showQr(previewId||venueIndex.active));
+$('#qrClose').addEventListener('click',()=>$('#qrModal').classList.remove('on'));
+$('#qrModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) $('#qrModal').classList.remove('on'); });
+addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if($('#qrModal').classList.contains('on')) $('#qrModal').classList.remove('on');
+  else if($('#acctModal').classList.contains('on')) closeAcct(false);
+});
+
 // Deep-link from /owner.html — ?edit=new or ?edit=<venueId>
 (async()=>{
   const edit=new URLSearchParams(location.search).get('edit');
@@ -887,12 +1086,14 @@ function vedNew(){
   ed={name:'',subtitle:'',aspect:1.6,outline:RECT.map(p=>p.slice()),zones:[],showPlan:true,
       geo:{calibrated:false,origin:{lat:0,lon:0},spanX:100,spanY:62.5,bearing:0}};
   edId=null; edPlan=null; edSel=-1; edPins=[null,null];
+  $('#edQr').style.display='none';
   syncFormFromEd(); vedFit();
 }
 
 async function vedLoad(id){
   const v=await fetch('/venues/'+id).then(r=>r.json());
   ed=JSON.parse(JSON.stringify(v)); edId=id; edSel=-1; edPins=[null,null];
+  $('#edQr').style.display='';
   edPlan=null;
   const img=new Image();
   img.onload=()=>{ edPlan=img; vedDraw(); };
@@ -1227,8 +1428,13 @@ async function runDetect(){
     applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
     pinsFromGeo(); renderPins(); showGeoStatus(b.geo);
   }catch(e){
-    // never leave the user stuck: fall back to the local reader and say why
-    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
+    // never leave the user stuck: fall back to the local reader and say why.
+    // "Failed to fetch" is the browser's name for "the server never answered" —
+    // usually a restart mid-request (node --watch does this on every file save).
+    const msg=/failed to fetch|networkerror|load failed/i.test(e.message)
+      ? 'could not reach the server — it may have just restarted; press "Find zones again"'
+      : e.message;
+    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(msg)}</span> — fell back to the local reader.`);
   }finally{ $('#detAgain').disabled=false; }
 }
 
@@ -1572,7 +1778,7 @@ function capturePin(i,btn){
 function showGeoStatus(g){
   const el=$('#geoStatus');
   if(!g||!g.usable){
-    el.innerHTML='Nothing on the plan located it. Paste both corners from Google Maps, or stand there and capture.';
+    el.innerHTML='Nothing on the plan located it. Type the address above — one location is enough.';
     return;
   }
   const bits=[`<span class="vok">Read from the plan:</span> ${esc(g.from.join('; '))}.`];
@@ -1636,6 +1842,65 @@ function geoCheckLink(g){
      <span style="color:var(--muted)">the pin should land on your venue</span>`;
 }
 
+/* ---- one-location placement ----
+   The user asked for "just centred at one location". One point can't give
+   scale or rotation, so those come from whatever is already known (a scale
+   bar the AI read, a previous calibration) or a 120 m default. Good enough to
+   put dots on the right block; the outline rejection keeps a wrong guess
+   fail-safe, because off-site fixes are dropped rather than scattered. */
+function setCenterGeo(lat,lon,label){
+  const g=ed.geo||{};
+  const spanX=(g.spanX>10&&g.spanX<4000)?+(+g.spanX).toFixed(1):120;
+  const bearing=(typeof g.bearing==='number'&&isFinite(g.bearing))?g.bearing:0;
+  const spanY=+(spanX/ed.aspect).toFixed(1);
+  const b=rd(bearing), hx=0.5*spanX, hy=0.5*spanY;
+  ed.geo={calibrated:true,centered:true,
+    origin:{lat:+(lat-(hx*Math.cos(b)-hy*Math.sin(b))/M_DEG).toFixed(7),
+            lon:+(lon-(hx*Math.sin(b)+hy*Math.cos(b))/(M_DEG*Math.cos(rd(lat)))).toFixed(7)},
+    spanX,spanY,bearing};
+  pinsFromGeo(); renderPins();
+  $('#calProb').innerHTML=`<span class="vok">Centred on ${esc(label||lat.toFixed(5)+', '+lon.toFixed(5))}</span>`
+    +` — assuming the site is ${spanX} m wide. Save the venue to apply.`
+    +geoCheckLink(ed.geo);
+  vedDraw();
+}
+// Stricter than the pin parser: the whole string must be two numbers, so a
+// street address like "28 Bathurst St Unit 5" never reads as lat 28, lon 5.
+function parseLLStrict(s){
+  const m=String(s).trim().match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+  if(!m) return null;
+  const lat=+m[1],lon=+m[2];
+  return (Math.abs(lat)<=90&&Math.abs(lon)<=180)?{lat,lon}:null;
+}
+$('#geoCenterGo').addEventListener('click',async()=>{
+  const q=$('#geoCenter').value.trim();
+  if(!q){ $('#calProb').textContent='Type an address or paste coordinates first.'; return; }
+  const at=q.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);          // a pasted maps URL
+  const ll=at?{lat:+at[1],lon:+at[2]}:parseLLStrict(q);
+  if(ll){ setCenterGeo(ll.lat,ll.lon); return; }
+  $('#calProb').textContent='Looking up "'+q.slice(0,48)+'"…';
+  $('#geoCenterGo').disabled=true;
+  try{
+    const r=await fetch('/geocode?q='+encodeURIComponent(q));
+    const b=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+    setCenterGeo(b.lat,b.lon,b.display||q);
+  }catch(e){
+    $('#calProb').textContent=/failed to fetch/i.test(e.message)
+      ? 'Could not reach the server for the lookup — paste coordinates instead.' : e.message;
+  }finally{ $('#geoCenterGo').disabled=false; }
+});
+$('#geoCenterHere').addEventListener('click',()=>{
+  if(!navigator.geolocation){ $('#calProb').textContent='No location support in this browser.'; return; }
+  $('#calProb').textContent='Getting your position…';
+  navigator.geolocation.getCurrentPosition(
+    p=>setCenterGeo(+p.coords.latitude.toFixed(7),+p.coords.longitude.toFixed(7),
+                    'your position (±'+Math.round(p.coords.accuracy)+' m)'),
+    err=>{ $('#calProb').textContent=err.code===1?'Location permission denied.'
+      :'No fix. On a laptop indoors this often fails — type the address instead.'; },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0});
+});
+
 function solveGeo(){
   const [A,B]=edPins;
   if(!A||!B||A.lat==null||B.lat==null){
@@ -1660,17 +1925,29 @@ function solveGeo(){
 }
 
 /* ---- save ---- */
-async function edSaveVenue(activate){
+async function edSaveVenue(activate,retried){
   if(!(await requireOwnerSession('Saving a venue'))) return;
   ed.name=$('#edName').value.trim(); ed.subtitle=$('#edSub').value.trim();
   if(!ed.name){ $('#edProb').textContent='Give the venue a name first.'; return; }
   $('#edProb').textContent='';
-  const r=await fetch('/venues',{method:'POST',headers:ownerHeaders({'content-type':'application/json'}),
-                                 body:JSON.stringify(ed)});
-  const body=await r.json();
+  let r;
+  try{
+    r=await fetch('/venues',{method:'POST',headers:ownerHeaders({'content-type':'application/json'}),
+                             body:JSON.stringify(ed)});
+  }catch(e){ $('#edProb').textContent='Could not reach the server — is it running?'; return; }
+  const body=await r.json().catch(()=>({}));
   if(!r.ok){
-    if(r.status===401||r.status===403) $('#edProb').textContent=body.error||'Not allowed — log in at /owner.html';
-    else $('#edProb').textContent=(body.problems||[body.error]).join('\n');
+    // an expired session shouldn't cost the work in the editor: sign in again
+    // right here and retry the same save once
+    if(r.status===401&&!retried){
+      ownerToken=null; ownerEmail=null; ownerStore(null); renderAcct();
+      if(await requireOwnerSession('Your session expired. Saving this venue'))
+        return edSaveVenue(activate,true);
+      $('#edProb').textContent='Not saved — sign in and press Save again.';
+      return;
+    }
+    if(r.status===401||r.status===403) $('#edProb').textContent=body.error||'Not allowed — this venue belongs to another account.';
+    else $('#edProb').textContent=(body.problems||[body.error||('HTTP '+r.status)]).join('\n');
     return;
   }
   edId=body.id;
@@ -1680,11 +1957,13 @@ async function edSaveVenue(activate){
     if(!pr.ok){ const pb=await pr.json().catch(()=>({})); $('#edProb').textContent=pb.error||'Plan upload failed'; return; }
   }
   $('#edProb').innerHTML='<span class="vok">Saved as '+esc(edId)+'</span>';
+  $('#edQr').style.display='';
   if(activate){ await fetch('/venues/'+edId+'/activate',{method:'POST'}); previewId=null; $('#previewBar').classList.remove('on'); }
   loadVenueList();
 }
 $('#edSave').addEventListener('click',()=>edSaveVenue(false));
 $('#edSaveGo').addEventListener('click',()=>edSaveVenue(true));
+$('#edQr').addEventListener('click',()=>showQr(edId));
 
 /* ---- crowd settings ---- */
 $('#cwLiv').addEventListener('input',()=>$('#cwLivV').textContent=(+$('#cwLiv').value).toFixed(2));

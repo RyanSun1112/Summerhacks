@@ -182,25 +182,75 @@ async function authHeaders() {
   return h;
 }
 
+// Local mode: the Pulse server holds the accounts itself. Same five calls the
+// Supabase client exposes, backed by /auth/* — so the rest of the page cannot
+// tell the difference. The session is shared with the dashboard via
+// localStorage under the same key.
+const OWNER_LS = 'pulseOwnerSession';
+function localAdapter() {
+  const load = () => { try { return JSON.parse(localStorage.getItem(OWNER_LS) || 'null'); } catch { return null; } };
+  const save = s => s ? localStorage.setItem(OWNER_LS, JSON.stringify(s)) : localStorage.removeItem(OWNER_LS);
+  const asSession = s => ({ access_token: s.token, user: { id: s.userId, email: s.email } });
+  const call = async (path, body, token) => {
+    const r = await fetch(path, { method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+      body: body ? JSON.stringify(body) : undefined });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: { message: b.error || ('HTTP ' + r.status) } };
+    return { ok: b };
+  };
+  return { auth: {
+    async getSession() {
+      const s = load();
+      if (!s || !s.token) return { data: { session: null } };
+      const r = await fetch('/auth/me', { headers: { Authorization: 'Bearer ' + s.token } }).catch(() => null);
+      if (!r || !r.ok) { if (r) save(null); return { data: { session: null } }; }
+      return { data: { session: asSession(s) } };
+    },
+    onAuthStateChange() {},
+    async signInWithPassword({ email, password }) {
+      const r = await call('/auth/login', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signUp({ email, password }) {
+      const r = await call('/auth/signup', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signOut() {
+      const s = load();
+      if (s && s.token) await call('/auth/logout', null, s.token).catch(() => {});
+      save(null);
+    }
+  } };
+}
+
 async function init() {
-  if (typeof supabase === 'undefined') {
-    authOff('The Supabase library did not load (CDN blocked or offline).',
-            'Venue editing still works without an account — go to the dashboard.');
-    return;
-  }
   const cfgRes = await fetch('/auth/config').catch(() => null);
   const cfg = cfgRes ? await cfgRes.json().catch(() => ({})) : {};
-  if (!cfgRes || !cfgRes.ok || !cfg.url) {
-    authOff(
-      !cfgRes ? 'Could not reach the server.'
-        : cfg.error === 'auth not configured' || cfgRes.status === 503
-          ? 'Owner accounts are off on this server — no Supabase keys are set, so there is no account to create.'
-          : (cfg.error || 'Could not load auth config.'),
-      'This is optional. Venue create/edit/delete are open to everyone right now, so you can use the dashboard as-is. To turn accounts on, put SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in .env and restart.');
+  if (!cfgRes || (!cfgRes.ok && cfgRes.status !== 503)) {
+    authOff('Could not reach the server.', 'Start it with npm run dev, then reload.');
+    return;
+  }
+  if (cfg.mode === 'off' || (!cfg.enabled && !cfg.url)) {
+    authOff('Owner accounts are off on this server (AUTH_MODE=off) — there is no account to create.',
+      'Venue create/edit/delete are open to everyone right now, so you can use the dashboard as-is.');
     return;
   }
   setMsg($('#authHint'), '');
-  sb = supabase.createClient(cfg.url, cfg.anonKey);
+  if (cfg.mode === 'local') {
+    sb = localAdapter();
+  } else {
+    if (typeof supabase === 'undefined') {
+      authOff('The Supabase library did not load (CDN blocked or offline).',
+              'Venue editing still works without an account — go to the dashboard.');
+      return;
+    }
+    sb = supabase.createClient(cfg.url, cfg.anonKey);
+  }
   sb.auth.onAuthStateChange((_event, session) => {
     accessToken = session ? session.access_token : null;
   });

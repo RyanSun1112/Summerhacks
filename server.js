@@ -39,24 +39,83 @@ const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
 
-// -------------------------------------------------------------- supabase auth
-// Venue JSON stays on disk (venues/). Supabase only stores auth users + the
-// venue_id → owner_id mapping. Service role never leaves this process.
+// -------------------------------------------------------------- owner auth
+// Venue JSON stays on disk (venues/) in every mode. Three modes:
+//   supabase — SUPABASE_* set in .env: accounts live in Supabase, ownership in
+//              its venue_owners table. Service role never leaves this process.
+//   local    — the default: accounts + ownership live in data/owners.json on
+//              this machine, so sign-up works with zero external setup.
+//   off      — AUTH_MODE=off: venue writes stay open, no accounts anywhere.
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const AUTH_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY);
+const AUTH_MODE = (process.env.AUTH_MODE || '').toLowerCase() === 'off' ? 'off'
+  : (SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY) ? 'supabase' : 'local';
+const AUTH_ENABLED = AUTH_MODE !== 'off';
 
-const supabaseAuth = AUTH_ENABLED
+const supabaseAuth = AUTH_MODE === 'supabase'
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
-const supabaseAdmin = AUTH_ENABLED
+const supabaseAdmin = AUTH_MODE === 'supabase'
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
-if (!AUTH_ENABLED) {
-  console.warn('[auth] DISABLED — set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env');
-  console.warn('[auth] Venue create/update/delete stay open until auth is configured.');
+// Local accounts. Passwords are scrypt-hashed with a per-user salt; sessions
+// are random tokens. Persisted to disk because `node --watch` restarts on
+// every file edit, and being signed out each time would make the editor
+// unusable during development.
+const OWNERS_PATH = process.env.OWNERS_PATH || path.join(__dirname, 'data', 'owners.json');
+let ownersDb = { users: [], sessions: {}, owners: {} };
+if (AUTH_MODE === 'local') {
+  try { ownersDb = { ...ownersDb, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; }
+  catch { /* first boot */ }
+}
+function saveOwnersDb() {
+  fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
+  fs.writeFileSync(OWNERS_PATH, JSON.stringify(ownersDb, null, 2));
+}
+const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
+function localSignup(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('that does not look like an email address');
+  if (String(password || '').length < 6) throw new Error('password must be at least 6 characters');
+  if (ownersDb.users.some(u => u.email === email)) throw new Error('an account with that email already exists — log in instead');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const user = { id: 'u_' + crypto.randomBytes(8).toString('hex'), email, salt,
+                 hash: hashPw(password, salt), createdAt: Date.now() };
+  ownersDb.users.push(user);
+  const token = crypto.randomBytes(32).toString('hex');
+  ownersDb.sessions[token] = { userId: user.id, createdAt: Date.now() };
+  saveOwnersDb();
+  console.log('[auth] local signup:', email);
+  return { token, userId: user.id, email };
+}
+function localLogin(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  const u = ownersDb.users.find(u => u.email === email);
+  // hash against a dummy salt when the user is unknown, so a wrong email and a
+  // wrong password take the same time to reject
+  const h = Buffer.from(hashPw(password, u ? u.salt : 'no-such-user'), 'hex');
+  const ok = u && crypto.timingSafeEqual(h, Buffer.from(u.hash, 'hex'));
+  if (!ok) throw new Error('wrong email or password');
+  const token = crypto.randomBytes(32).toString('hex');
+  ownersDb.sessions[token] = { userId: u.id, createdAt: Date.now() };
+  saveOwnersDb();
+  console.log('[auth] local login:', email);
+  return { token, userId: u.id, email };
+}
+function localUserByToken(token) {
+  const s = token && ownersDb.sessions[token];
+  if (!s) return null;
+  const u = ownersDb.users.find(u => u.id === s.userId);
+  return u ? { id: u.id, email: u.email } : null;
+}
+
+if (AUTH_MODE === 'off') {
+  console.warn('[auth] OFF — venue create/update/delete are open to anyone (AUTH_MODE=off)');
+} else if (AUTH_MODE === 'local') {
+  console.log(`[auth] local accounts in ${path.relative(__dirname, OWNERS_PATH)} — sign up from the dashboard.`);
+  console.log('[auth] (set SUPABASE_* in .env for hosted accounts, or AUTH_MODE=off to open venue writes)');
 } else {
   console.log('[auth] Supabase auth enabled for venue-owner routes');
 }
@@ -65,7 +124,7 @@ if (!AUTH_ENABLED) {
 // Venues are JSON files in venues/. venue.json stays the committed built-in
 // map and is never written to — it seeds venues/stackt.json on first boot, so
 // the editor has something to clone and the tracked file stays pristine.
-const VENUES_DIR = path.join(__dirname, 'venues');
+const VENUES_DIR = process.env.VENUES_DIR || path.join(__dirname, 'venues');  // overridable so tests use a scratch dir
 const BUILTIN    = path.join(__dirname, 'venue.json');
 const PLAN_MAX   = 8 * 1024 * 1024;             // floor plan upload ceiling
 
@@ -202,20 +261,61 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
-// Public anon + url for owner.html / dashboard editor. Never the service role.
+// What the clients need to run auth. Anon key only, never the service role.
 app.get('/auth/config', (_, res) => {
-  if (!AUTH_ENABLED) return res.status(503).json({ error: 'auth not configured', enabled: false });
-  res.json({ enabled: true, url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+  if (AUTH_MODE === 'supabase')
+    return res.json({ enabled: true, mode: 'supabase', url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+  if (AUTH_MODE === 'local')
+    return res.json({ enabled: true, mode: 'local' });
+  res.json({ enabled: false, mode: 'off' });
 });
 
-// Verify Supabase JWT from Authorization: Bearer <access_token>.
+// Local-mode account endpoints. In supabase mode the client talks to Supabase
+// directly, so these 404 rather than pretend.
+function localOnly(req, res, next) {
+  if (AUTH_MODE !== 'local') return res.status(404).json({ error: 'not in local auth mode' });
+  next();
+}
+app.post('/auth/signup', localOnly, (req, res) => {
+  try { res.json({ ok: true, ...localSignup(req.body && req.body.email, req.body && req.body.password) }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/auth/login', localOnly, (req, res) => {
+  try { res.json({ ok: true, ...localLogin(req.body && req.body.email, req.body && req.body.password) }); }
+  catch (e) { res.status(401).json({ error: e.message }); }
+});
+app.post('/auth/logout', localOnly, (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (token && ownersDb.sessions[token]) { delete ownersDb.sessions[token]; saveOwnersDb(); }
+  res.json({ ok: true });
+});
+// Lets a page validate a stored token on load instead of discovering it's dead
+// on the first save.
+app.get('/auth/me', localOnly, (req, res) => {
+  const header = req.headers.authorization || '';
+  const user = localUserByToken(header.startsWith('Bearer ') ? header.slice(7).trim() : '');
+  if (!user) return res.status(401).json({ error: 'invalid session' });
+  res.json({ user });
+});
+
+// Verify Authorization: Bearer <token> — a Supabase JWT or a local session.
 async function requireAuth(req, res, next) {
-  if (!AUTH_ENABLED) return next();               // open until .env is wired
+  if (!AUTH_ENABLED) return next();               // AUTH_MODE=off
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) {
     console.log('[auth] fail: missing Authorization on', req.method, req.path);
     return res.status(401).json({ error: 'login required' });
+  }
+  if (AUTH_MODE === 'local') {
+    const user = localUserByToken(token);
+    if (!user) {
+      console.log('[auth] fail: invalid local session on', req.method, req.path);
+      return res.status(401).json({ error: 'invalid session' });
+    }
+    req.user = user;
+    return next();
   }
   try {
     const { data, error } = await supabaseAuth.auth.getUser(token);
@@ -235,6 +335,7 @@ async function requireAuth(req, res, next) {
 // Returns the owner_id for a venue, or null if unclaimed.
 async function getVenueOwner(venueId) {
   if (!AUTH_ENABLED) return null;
+  if (AUTH_MODE === 'local') return ownersDb.owners[venueId] || null;
   const { data, error } = await supabaseAdmin
     .from('venue_owners').select('owner_id').eq('venue_id', venueId).maybeSingle();
   if (error) {
@@ -246,6 +347,14 @@ async function getVenueOwner(venueId) {
 
 // Create ownership row. Fails if another owner already holds the venue.
 async function claimVenue(venueId, ownerId) {
+  if (AUTH_MODE === 'local') {
+    if (ownersDb.owners[venueId] && ownersDb.owners[venueId] !== ownerId)
+      throw new Error('already owned');
+    ownersDb.owners[venueId] = ownerId;
+    saveOwnersDb();
+    console.log('[auth] claimed venue', venueId, 'for', ownerId);
+    return;
+  }
   const { error } = await supabaseAdmin
     .from('venue_owners').insert({ venue_id: venueId, owner_id: ownerId });
   if (error) {
@@ -280,21 +389,29 @@ async function assertCanWriteVenue(venueId, userId) {
 
 async function deleteOwnership(venueId) {
   if (!AUTH_ENABLED) return;
+  if (AUTH_MODE === 'local') {
+    if (ownersDb.owners[venueId]) { delete ownersDb.owners[venueId]; saveOwnersDb(); }
+    return;
+  }
   const { error } = await supabaseAdmin.from('venue_owners').delete().eq('venue_id', venueId);
   if (error) console.log('[auth] ownership delete error:', error.message);
   else console.log('[auth] cleared ownership for', venueId);
 }
 
+const venueSummary = v => ({
+  id: v.id, name: v.name, subtitle: v.subtitle || '',
+  zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+  hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
+});
+
 // Venues owned by the logged-in account (for owner.html).
 app.get('/api/me/venues', requireAuth, async (req, res) => {
-  if (!AUTH_ENABLED) {
-    return res.json({
-      venues: [...venues.values()].map(v => ({
-        id: v.id, name: v.name, subtitle: v.subtitle || '',
-        zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-        hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
-      }))
-    });
+  if (!AUTH_ENABLED) return res.json({ venues: [...venues.values()].map(venueSummary) });
+  if (AUTH_MODE === 'local') {
+    const list = Object.entries(ownersDb.owners)
+      .filter(([, owner]) => owner === req.user.id)
+      .map(([id]) => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
+    return res.json({ venues: list, user: req.user });
   }
   try {
     const { data, error } = await supabaseAdmin
@@ -306,12 +423,7 @@ app.get('/api/me/venues', requireAuth, async (req, res) => {
     const list = (data || []).map(row => {
       const v = venues.get(row.venue_id);
       if (!v) return { id: row.venue_id, name: row.venue_id, missing: true, created_at: row.created_at };
-      return {
-        id: v.id, name: v.name, subtitle: v.subtitle || '',
-        zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-        hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId,
-        created_at: row.created_at
-      };
+      return { ...venueSummary(v), created_at: row.created_at };
     });
     res.json({ venues: list, user: { id: req.user.id, email: req.user.email } });
   } catch (e) {
@@ -611,13 +723,12 @@ function repairGeometry(zones, outline) {
 // address if there is one, and marks the result estimated. It never claims
 // calibrated: a geocode lands within tens of metres, and zones here are ~10m,
 // so this is a starting point for the two pins, not a replacement for them.
-async function geocode(address) {
-  if (!address || address.length < 6) return null;
+async function geocodeOnce(q) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);
   try {
     const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='
-                          + encodeURIComponent(address),
+                          + encodeURIComponent(q),
       { signal: ctrl.signal, headers: { 'user-agent': 'Pulse venue dashboard (hackathon project)' } });
     if (!r.ok) return null;
     const j = await r.json();
@@ -625,6 +736,27 @@ async function geocode(address) {
     return { lat: +j[0].lat, lon: +j[0].lon, display: String(j[0].display_name || '').slice(0, 120) };
   } catch { return null; }
   finally { clearTimeout(t); }
+}
+
+// Nominatim matches names literally: "STACKT Market, Toronto" finds nothing
+// while "STACKT, Toronto" is a direct hit, because OSM names the place just
+// "Stackt". So on a miss, retry with the name part progressively shortened.
+// Sequential with a delay per Nominatim's one-request-per-second policy.
+async function geocode(address) {
+  if (!address || address.length < 6) return null;
+  const parts = String(address).split(',').map(s => s.trim()).filter(Boolean);
+  const tries = [parts.join(', ')];
+  const words = (parts[0] || '').split(/\s+/);
+  for (let n = words.length - 1; n >= 1 && tries.length < 3; n--) {
+    const cand = [words.slice(0, n).join(' '), ...parts.slice(1)].join(', ');
+    if (!tries.includes(cand)) tries.push(cand);
+  }
+  for (let i = 0; i < tries.length; i++) {
+    if (i) await new Promise(r => setTimeout(r, 1100));
+    const hit = await geocodeOnce(tries[i]);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 async function estimateGeo(parsed, aspect) {
@@ -667,6 +799,16 @@ async function estimateGeo(parsed, aspect) {
   geo.usable = got.length > 0;
   return geo;
 }
+
+// Address -> coordinates for the editor's "centre the venue here" flow.
+// Proxied so the client needs no key and no CORS luck; Nominatim is free.
+app.get('/geocode', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.status(400).json({ error: 'give an address to look up' });
+  const place = await geocode(q);
+  if (!place) return res.status(404).json({ error: `could not find "${q.slice(0, 60)}" — try adding the city, or paste coordinates instead` });
+  res.json(place);
+});
 
 app.get('/ai', (_, res) => res.json({
   available: !!AI_KEY, provider: AI_KEY ? AI_PROVIDER : null, model: AI_KEY ? AI_MODEL : null
@@ -790,7 +932,13 @@ function originProblem(origin) {
   return null;
 }
 
-const qrUrlFor = (req, zone) => `${publicOrigin(req)}/join.html${zone ? '?zone=' + encodeURIComponent(zone) : ''}`;
+const qrUrlFor = (req, opts = {}) => {
+  const q = new URLSearchParams();
+  if (opts.venue) q.set('v', opts.venue);
+  if (opts.zone) q.set('zone', opts.zone);
+  const qs = q.toString();
+  return `${publicOrigin(req)}/join.html${qs ? '?' + qs : ''}`;
+};
 const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
 
 // The single event-wide poster. No zone in the URL — GPS resolves it, and
@@ -798,16 +946,24 @@ const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dar
 // Registered before /qr/:zone.svg because that pattern would swallow it.
 app.get('/qr/event.svg', async (req, res) => res.type('svg').send(await qrSvg(qrUrlFor(req))));
 
+// Every venue has its own QR from the moment it's saved — the id rides in the
+// URL so a poster printed for one venue stays that venue's poster.
+app.get('/qr/venue/:id.svg', async (req, res) => {
+  if (!venues.has(req.params.id)) return res.status(404).json({ error: 'no such venue' });
+  res.type('svg').send(await qrSvg(qrUrlFor(req, { venue: req.params.id })));
+});
+
 app.get('/qr/:zone.svg', async (req, res) =>
-  res.type('svg').send(await qrSvg(qrUrlFor(req, req.params.zone))));
+  res.type('svg').send(await qrSvg(qrUrlFor(req, { zone: req.params.zone }))));
 
 // Printable poster, and the honest answer to "will this QR actually work?" —
 // it shows the encoded URL as text and refuses to look fine when it isn't.
 app.get('/qr', async (req, res) => {
   const zone = req.query.zone ? String(req.query.zone) : '';
-  const url = qrUrlFor(req, zone);
+  const forVenue = req.query.v ? venues.get(String(req.query.v)) : null;
+  const url = qrUrlFor(req, { zone, venue: forVenue && forVenue.id });
   const problem = originProblem(url);
-  const z = zone && zoneById[zone];
+  const z = zone && !forVenue && zoneById[zone];
   res.type('html').send(`<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — check-in poster</title>
@@ -826,10 +982,12 @@ app.get('/qr', async (req, res) => {
  @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
 </style>
 <div class="card">
-  <h1>${z ? z.label : venue.name}</h1>
+  <h1>${z ? z.label : forVenue ? forVenue.name : venue.name}</h1>
   <p class="sub">Scan to join${z ? '' : ' — your zone updates as you move'}</p>
   ${await qrSvg(url).then(s => s.replace('<svg', '<svg class="qr"'))}
   <div class="url">${url}</div>
+  ${forVenue && forVenue.id !== activeId
+    ? `<div class="warn"><b>“${forVenue.name}” is not the live venue.</b><br>Scans always join whichever venue is active — make this one active before the event.</div>` : ''}
   ${problem
     ? `<div class="warn"><b>This QR will not work for phones.</b><br>${problem}</div>`
     : `<div class="ok">HTTPS · reachable from any phone</div>`}
@@ -1169,7 +1327,9 @@ server.listen(PORT, () => {
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
   console.log(`  QR page    http://localhost:${PORT}/qr`);
-  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
+  console.log(`  Auth       ${AUTH_MODE === 'off' ? 'off (venue writes open — AUTH_MODE=off)'
+    : AUTH_MODE === 'local' ? 'local accounts (sign up from the dashboard)'
+    : 'Supabase (venue writes gated)'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
