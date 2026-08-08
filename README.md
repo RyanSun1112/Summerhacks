@@ -1,179 +1,328 @@
-# Pulse adaptive DJ
+# Pulse — STACKT Market
 
-This repository includes an offline song preprocessing utility. It turns ordinary,
-locally accessible audio files plus optional playlist metadata into a compact,
-normalized `songProfiles.json` database. The venue-time DJ/rules engine reads that
-file; it does not load audio with librosa and does not call an LLM.
+A live venue dashboard where the colour scheme is generated from the music, and everyone in the room appears on a map of the actual site.
 
-The utility does **not** access Spotify's encrypted/offline cache. A Spotify JSON
-export is only a metadata source. Audio must be a legitimate local `.wav`, `.mp3`,
-`.flac`, or `.m4a` file that the installed audio backend can decode.
+Built for Summerhacks at STACKT Market, Toronto. Plain Node + Express + Socket.io serving static HTML
+with vanilla JS and canvas — **no build step, no bundler, no framework.** You edit a file and reload
+the page. That's deliberate: at 3am a broken bundler config costs hours nobody has.
 
 ## Setup
 
-Python 3.10 or newer is recommended:
+You need **Node 18 or newer** and git. Check with `node --version`.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+git clone https://github.com/RyanSun1112/Summerhacks.git
+cd Summerhacks
+npm install
+node server.js
 ```
 
-On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`. Some operating
-systems need FFmpeg installed for formats (especially `.m4a`) not supported by the
-system `libsndfile`; decoding support depends on the local audio backend.
+Then open **http://localhost:3000/dashboard.html**.
 
-For real semantic annotation, put the key in the environment or an uncommitted
-`.env` file:
+58 simulated attendees start automatically, so the dashboard is fully alive with zero phones connected
+— you can develop the whole thing without touching a phone.
+
+| URL | What it is |
+|---|---|
+| `/dashboard.html` | Host dashboard — map, people, zones, radio |
+| `/join.html` | What a phone sees after scanning |
+| `/qr/event.svg` | The single event-wide QR poster |
+| `/qr/<zone>.svg` | Per-zone poster, e.g. `/qr/northhall.svg` |
+| `/calibrate.html` | GPS calibration tool (see below) |
+| `/state.json` | The exact payload broadcast to clients — curl this to debug |
+
+Environment variables, all optional:
+
+| Variable | Default | Does |
+|---|---|---|
+| `PORT` | `3000` | Port to listen on |
+| `FAKE` | on | `FAKE=0` disables the simulated crowd |
+| `FAKE_N` | `58` | How many simulated attendees |
+| `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
 
 ```bash
-export OPENAI_API_KEY="..."
+FAKE=0 node server.js            # real check-ins only
+FAKE_N=120 node server.js        # bigger fake crowd
 ```
 
-The OpenAI provider uses the Responses API with a Pydantic structured-output schema.
-The model, batch size, concurrency, retry policy, and prompt version are centralized
-in `tools/song_preprocessing/config.py`.
+On **Windows PowerShell** the inline `VAR=value cmd` form doesn't work — use:
 
-## Inputs
+```powershell
+$env:FAKE=0; node server.js
+Remove-Item Env:FAKE             # undo it afterwards
+```
 
-Point `--audio-dir` at any directory; scanning is recursive and deterministic.
-Audio is read in place and is never copied into this repository or sent to the LLM.
+(There used to be an `npm run sim` script that set `SIMULATE=1` — a variable the server never read. It
+was removed; use the variables above.)
 
-Metadata is optional and may be JSON or CSV. The simple JSON format is:
+## Project layout
+
+```
+server.js          all server logic — sockets, metrics, GPS→zone, QR routes, fake crowd
+venue.json         the venue: outline, zones, streets, entrances, GPS anchor
+public/
+  dashboard.html   host view (map/people/zones tabs + radio). Self-contained: markup, CSS, canvas JS
+  join.html        phone view — check-in, sensors, mini map
+  calibrate.html   two-point GPS calibration tool
+docs/data.md       API/data notes
+docs/song-preprocessing.md  offline song-profile generation
+CLAUDE.md          conventions and hard constraints — read before changing architecture
+```
+
+Each HTML file is standalone: styles in a `<style>` block, logic in a `<script>` block, no imports and
+no shared bundle. To change the dashboard, open `public/dashboard.html` and edit it. Reload to see it.
+Only `server.js` changes need a restart.
+
+## Offline song preprocessing
+
+The optional Python utility analyzes legitimate local audio files before an event and
+creates `data/songProfiles.json`. The live Node application consumes only that compact
+profile database; it does not run librosa or call an LLM for song features. See
+[the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
+caching, audio-only testing, and full-library commands.
+
+## Making changes
+
+| To change… | Edit | Restart needed? |
+|---|---|---|
+| Venue geometry, zones, capacities | `venue.json` | Yes — read once at boot |
+| Anything the host sees | `public/dashboard.html` | No, just reload |
+| Anything a phone sees | `public/join.html` | No, just reload |
+| Metrics, sockets, fake crowd | `server.js` | Yes |
+
+`venue.json` is entirely normalized 0–1 coordinates, so changing venue means editing that one file —
+never hardcode coordinates in the clients. After editing it, check every zone corner still falls inside
+the `outline` polygon and that no two zones overlap; broken geometry renders as zones floating outside
+the site.
+
+Read `CLAUDE.md` before changing architecture. It records constraints that were decided the hard way —
+why there's no build step, why heart rate can never be load-bearing, why Spotify isn't an option, and
+which bugs are already fixed and shouldn't be reintroduced.
+
+## Verifying a change
+
+There is no test suite. Verify by reading state and loading the page:
+
+```bash
+node --check server.js                        # syntax
+node server.js
+curl -s localhost:3000/state.json | head -40  # exact broadcast payload
+```
+
+If the map looks wrong, `/state.json` tells you whether the problem is the data or the rendering.
+
+## The palette comes from the audio
+
+Hit **Load track** in the radio player and pick any MP3. Nothing is preconfigured — the browser runs the audio through a Web Audio `AnalyserNode` and derives the palette from the signal every frame:
+
+| Measurement | Drives |
+|---|---|
+| Spectral centroid (log-scaled) | Hue position on the ramp: indigo → violet → magenta → coral → amber |
+| Bass onset vs rolling average | Beat flash on the site outline and zone fills |
+| Combined band level | Glow intensity |
+
+Load something bass-heavy and the venue sits deep indigo. A bright, hi-hat-driven track pushes it toward amber. The drop lands and the whole map pulses on the kick.
+
+Centroid is log-scaled because brightness is heard logarithmically — a linear centroid sticks near the bottom of the range and the palette barely moves. The tone value is also eased at 0.03 per frame, so it drifts rather than strobes.
+
+The host's browser is the only thing that touches audio. It broadcasts the derived spectrum and beat over the socket, and every phone renders the same reactive visuals without playing sound — so you get one sound system, not sixty.
+
+## The map
+
+`venue.json` is traced from the STACKT Market floor plan: the real site polygon (Tecumseth to Bathurst, with the Front St. diagonal), the container unit grids, the street labels, all three entrances, and the Summerhacks route from Entrance 1 through to Studio 3-101.
+
+Everything is in normalized 0–1 coordinates, so it scales to any screen. To change the venue, edit `venue.json` only — no code changes.
 
 ```json
-[
-  {
-    "id": "spotify-or-local-id",
-    "title": "Song Name",
-    "artist": "Artist Name",
-    "album": "Album",
-    "year": 2024,
-    "genres": ["house", "dance"],
-    "audioFile": "Artist - Song Name.mp3"
-  }
-]
+{ "id": "northhall", "label": "North Hall", "short": "N. HALL",
+  "kind": "event", "x": 0.497, "y": 0.310, "w": 0.075, "h": 0.066, "cap": 120 }
 ```
 
-`audioFile` is optional but recommended. Common Spotify export shapes such as
-`{"tracks":{"items":[{"track":{...}}]}}` are also accepted; Spotify remains
-optional. CSV columns may use the same names, with genres comma- or semicolon-separated.
+`kind` sets the visual treatment (`event` zones get the accent colour, everything else stays neutral) and drives the "in sessions" metric. `cap` drives the occupancy fill and the capacity column.
 
-Matching is conservative, in this order:
+There's a geometry check worth rerunning if you edit the file — every zone corner should fall inside the outline polygon, and zones shouldn't overlap each other.
 
-1. Explicit `audioFile`/`localFile`/`filename`/`path`, then a filename exactly equal
-   to a track ID.
-2. Embedded track ID or exact embedded title + artist (read with Mutagen).
-3. Exact normalized `Artist - Title` or `Title - Artist` filename comparison.
+## What's on screen
 
-Matching normalization folds case and accents, removes punctuation/extra spaces,
-`feat.`/`ft.` suffixes, track-number prefixes, and parenthetical/bracketed version
-text. Multiple candidates are never guessed: the file is skipped and recorded in
-`songPreprocessingReport.json`. Unmatched audio is processed using embedded tags or
-an `Artist - Title.ext` filename fallback and gets a stable `local-...` ID.
+**Map** — the venue, live. Zone fills brighten with occupancy and lift on every beat. Each person is a dot; anyone with a heart monitor gets a ring that expands at their actual pulse. When the room locks in, the rings visibly fall into step with one another. That's the shot to put in the demo video.
 
-## Run
+**People** — every attendee, sorted by movement, with team, zone, heart rate as a percentage over their own resting baseline, and dwell time.
 
-Test audio analysis on five tracks without using API credits:
+**Zones** — occupancy against capacity, and average movement per zone.
+
+**Radio** — spectrum, transport, seek, volume, and the four palette swatches currently derived from the track. Bottom-right on the dashboard, pinned to the bottom on phones.
+
+## Metrics
+
+Two are worth defending when a judge asks what's actually new:
+
+**Arousal uses personal baselines.** Resting heart rate runs 50–90 across a crowd, so a raw average is meaningless. Each person's first 45 seconds sets their own median baseline, and the metric is the percentage climb above it. Without this, heart rate data is decorative.
+
+**Sync measures whether the room moves as one body** rather than as N separate people — low spread relative to the mean. It's the actual difference between a crowd and a queue.
+
+## One QR for the whole event
+
+Print `/qr/event.svg` once. It encodes `/join.html` with no zone, and GPS takes over from there —
+zone membership updates on its own as people move. Anyone whose GPS never gets a usable fix stays in
+`entrance1`, which is also where everyone starts.
+
+### Getting a QR that actually scans
+
+**The QR is generated live by the server, not stored in this repo.** Open `/qr/event.svg` in a browser
+and print that page. Whatever `PUBLIC_URL` was set to when the server started is what gets encoded —
+which is the whole reason it works or doesn't:
+
+| Server started with | QR encodes | Scanning it on a phone |
+|---|---|---|
+| `node server.js` | `http://localhost:3000/join.html` | **Dead.** The phone resolves `localhost` to itself |
+| `PUBLIC_URL=https://…trycloudflare.com node server.js` | `https://…trycloudflare.com/join.html` | Works |
+
+So a working QR is a two-step thing: start the tunnel, then start the server with `PUBLIC_URL` set to
+the URL the tunnel printed. Generate posters **after** that, not before.
+
+To save one as a printable PNG:
 
 ```bash
-python preprocess_songs.py \
-  --audio-dir ./songs \
-  --metadata ./tracks.json \
-  --limit 5 \
-  --skip-llm
+node -e "require('qrcode').toFile('qr-event.png','https://YOUR-TUNNEL.trycloudflare.com/join.html',{width:900,margin:2})"
 ```
 
-This writes `data/rawAudioFeatures.json` and a report, but deliberately does not
-overwrite/create a semantically incomplete `songProfiles.json`.
+<img src="docs/qr-event.png" width="220" alt="Event check-in QR">
 
-Run a no-cost end-to-end smoke test with clearly labelled mock ratings:
+⚠️ **The QR above is a snapshot from 2026-08-08 and is almost certainly dead.** Cloudflare quick
+tunnels get a new random hostname every restart, so this image only worked for the session that
+generated it — and it will never be right on your machine. It's here to show what the poster looks
+like. Generate your own with the command above, or just print `/qr/event.svg`.
+
+If you want a QR that stays valid, you need a stable hostname: a named Cloudflare tunnel
+(`cloudflared tunnel create`), an ngrok reserved domain, or any real deploy. Quick tunnels are
+deliberately ephemeral.
+
+**Calibrate before the event or GPS does nothing.** `venue.geo` ships with estimated numbers. Open
+`/calibrate.html`, fix two known points that are far apart (opposite corners, or two gates), and paste
+the resulting block into `venue.json`. It solves for the site's real origin, size and rotation, holding
+the aspect ratio from `venue.json` fixed. Restart the server afterwards — `venue.json` is read once at
+boot.
+
+There are two ways to fix each point, and **you do not have to be on site**:
+
+- **Type the coordinates.** Right-click the spot in Google Maps, hit its copy-coordinates entry, and
+  paste — `43.643300, -79.408100`, a bare space-separated pair, or a full `maps/@lat,lon,19z` URL all
+  parse. This is *more* accurate than a phone fix (six decimal places is ~0.1m) and you can do it at a
+  desk before the event.
+- **Stand there and capture.** Averages five GPS fixes at that spot. Do it outdoors with a clear sky.
+
+Prefer typing where you can identify the corners on a map. Capture is the fallback for points you
+can't pick out from satellite view.
+
+Until it's calibrated, GPS points map outside the site outline and are rejected: the People tab shows
+`off site` in the Fix column and the server logs a warning. Nobody gets moved to a wrong zone, they
+just don't get moved at all.
+
+### What GPS can and can't do here
+
+Measured against the traced geometry, assuming a ~153m × 53m site:
+
+| Fix accuracy | Wrong zone named | Spurious zone changes while standing still |
+|---|---|---|
+| ±3 m | 1.2% | ~1 per 30 min per person |
+| ±5 m | 5.8% | ~1 per 24 min |
+| ±8 m | 17.3% | ~1 per 2.7 min |
+| ±12 m | 31.7% | ~1 per 1.5 min |
+
+Three guards keep that from showing on the projector: fixes worse than 25m are ignored outright, a zone
+change needs three consecutive agreeing fixes, and the dot position is eased rather than snapped
+(≈10s to converge, so people slide into place instead of teleporting).
+
+The hard limit is the short axis. The site is 2.884× wider than tall, so most zones are only a few
+metres deep in `y` — below GPS resolution no matter how good the fix. Expect the long axis to resolve
+well and the short axis to lean on the nearest-zone fallback.
+
+## Phone check-in
+
+QR → name → one tap to enable motion and location → live view. The phone samples the accelerometer at
+device rate and sends a single summarised float every 500ms; sending raw 30Hz from 100 phones would
+melt the server. GPS is throttled to one fix a second, and step count comes from peak detection on the
+accelerometer stream that's already being sampled.
+
+Heart rate is optional and uses the standard BLE GATT Heart Rate Service (`0x180D`), so any strap advertising "Bluetooth heart rate" works. Chrome on Android and desktop only — **iOS has no Web Bluetooth at all**, so design the demo assuming most phones contribute movement only.
+
+## localhost vs the tunnel
+
+These are **the same server**, byte for byte — one Node process, two ways in. The tunnel is a public
+HTTPS front door that forwards to `localhost:3000`; it isn't a copy or a deploy. Stop the server and
+both go dark.
+
+| | `http://localhost:3000` | `https://…trycloudflare.com` |
+|---|---|---|
+| Who can reach it | only your machine | anyone with the link |
+| Transport | HTTP | HTTPS |
+| Motion, GPS, Bluetooth | **blocked** except on your own machine | work everywhere |
+| Round trip | ~17ms | ~165ms |
+| Lifetime | stable | new random hostname each restart |
+
+The sensor row is the one that matters. Browsers only expose `DeviceMotionEvent`, geolocation and Web
+Bluetooth in a *secure context* — HTTPS, or `localhost`. Your laptop gets the localhost exemption; a
+phone does not, because to the phone `localhost` means the phone. So a phone on plain HTTP checks in
+happily and then reports `0.00` movement forever.
+
+Use localhost for developing the dashboard, and the tunnel whenever a phone is involved.
+
+## You must be on HTTPS
+
+`DeviceMotionEvent` and Web Bluetooth are hard-blocked on plain HTTP. Phones will check in fine and then report 0.00 movement forever, with no error anywhere. This is the most common way this project fails.
+
+A Cloudflare quick tunnel gives you a public HTTPS URL in one command, with no account and no config.
+
+**macOS / Linux**
 
 ```bash
-python preprocess_songs.py --audio-dir ./songs --metadata ./tracks.json --limit 5 --mock-llm
+brew install cloudflared          # or: https://github.com/cloudflare/cloudflared/releases
+cloudflared tunnel --url http://localhost:3000
 ```
 
-Process the complete library with OpenAI annotation:
+**Windows** — `winget install --id Cloudflare.cloudflared`, or if you don't have winget, the binary
+needs no install at all:
+
+```powershell
+curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+.\cloudflared.exe tunnel --url http://localhost:3000
+```
+
+It prints a `https://something.trycloudflare.com` URL. Restart the server in a second terminal with
+that URL in `PUBLIC_URL`:
 
 ```bash
-python preprocess_songs.py \
-  --audio-dir ./songs \
-  --metadata ./tracks.json \
-  --output ./data/songProfiles.json
+PUBLIC_URL=https://your-tunnel.trycloudflare.com node server.js
+```
+```powershell
+$env:PUBLIC_URL="https://your-tunnel.trycloudflare.com"; node server.js
 ```
 
-Resume is automatic. To intentionally ignore successful semantic cache entries:
+`PUBLIC_URL` matters — it's what gets encoded into the QR posters, and it overrides the request's Host
+header entirely, so posters are correct no matter which address generated them. Without it they point
+at localhost and nobody can check in. The URL is random and changes every time you restart the tunnel,
+so regenerate posters after restarting.
 
-```bash
-python preprocess_songs.py --audio-dir ./songs --metadata ./tracks.json --force
-```
+**Don't count on the local network instead.** Campus and guest Wi-Fi (UofT's included) normally run
+client isolation, so a phone cannot reach your laptop's LAN address even on the same SSID — and plain
+HTTP wouldn't give you sensors anyway. The tunnel solves both at once.
 
-Use `--force-audio` only when librosa settings or source material need deliberate
-re-analysis. Other useful controls are `--model`, `--llm-batch-size` (1–20),
-`--llm-concurrency`, `--cache-dir`, and `--energy-strategy llm|hybrid`.
+## If it breaks
 
-## Analysis and outputs
+- **`Cannot GET /dashboard.html`** → the HTML must live in `public/`; that's the directory `server.js` serves.
+- **`EADDRINUSE`** → something's already on port 3000. `PORT=3001 node server.js`, or kill the old one.
+- **Phones report 0.00 movement** → you're on HTTP. Nothing else causes this.
+- **Everyone stuck in Entrance 1, Fix column says "off site"** → `venue.geo` isn't calibrated. Run `/calibrate.html`.
+- **Dots drift between neighbouring containers** → GPS accuracy is worse than the zones are wide. Check the Fix column; anything over ±8m will do this.
+- **Palette never changes** → no track loaded, or the browser blocked autoplay. Click the page once.
+- **Map is blank** → `curl localhost:3000/state.json` for the exact broadcast payload.
+- **Everyone in one zone** → you printed the same QR twice.
+- **Spectrum flat on phones** → phones mirror the host; the host tab has to be open and playing.
 
-For each track, librosa loads a mono 22.05 kHz waveform and calculates:
+## Privacy
 
-- actual BPM and beat count;
-- RMS mean, median, 95th percentile, and maximum (amplitude/loudness evidence);
-- onset-strength mean, median, and 95th percentile (attack/percussive evidence);
-- detected onsets per second (rhythmic attack density);
-- mean spectral centroid (brightness), bandwidth (spectral spread), and 85% rolloff;
-- mean zero-crossing rate (noisiness/high-frequency activity proxy);
-- dynamic range approximation: frame RMS 95th percentile minus frame RMS 10th percentile.
-
-The LLM receives only metadata and these numbers—not a waveform, audio bytes, or a
-local file path. It independently scores energy, danceability, valence, socialness,
-and intensity from 0–100 using the absolute rubric in
-`tools/song_preprocessing/llm_annotator.py`. The prompt explicitly prohibits ranking
-or normalizing within an API batch and tells the model to prefer supplied evidence
-over remembered or invented measurements.
-
-Successful annotations are validated (required IDs, unique results, integer 0–100
-scores, bounded description) and saved individually beneath
-`cache/song_preprocessing/annotations/`. Their fingerprint includes metadata, raw
-audio features, model, and prompt version. Audio features have a separate cache
-fingerprinted by file path, size, modification time, and analysis settings. Writes
-are atomic, so reruns safely resume after interruption.
-
-After annotation, the utility min/max-normalizes each semantic metric across every
-successfully completed track:
-
-```text
-(raw - library_min) / (library_max - library_min)
-```
-
-If all values are equal, each becomes `0.5`. Raw 0–100 semantic ratings and raw
-librosa measurements remain unchanged under `raw`. Selected objective metrics are
-also independently normalized under `normalizedAudio`. BPM always remains an actual
-float. Default energy is normalized LLM energy; `--energy-strategy hybrid` applies
-the experiment-friendly weights in `config.py` and then normalizes that blend.
-
-Generated files beside `--output` are:
-
-- `songProfiles.json`: live-ready normalized profiles;
-- `rawAudioFeatures.json`: objective analysis and resolved metadata;
-- `rawLLMAnnotations.json`: validated raw semantic annotations;
-- `songPreprocessingReport.json`: counts, ambiguities, unmatched metadata, and failures.
-
-Failures for one track are logged and processing continues. Only tracks with both
-successful audio analysis and a valid semantic annotation enter final normalization.
-
-## Live SongRanker integration
-
-Load `data/songProfiles.json` once when the rules engine starts and index it by `id`.
-The live ranker can compare crowd energy with `profile.energy`, add danceability or
-socialness according to venue mode, and constrain by actual `profile.bpm`. It should
-read only the final top-level 0–1 values during selection; `raw` and
-`normalizedAudio` are retained for diagnostics and future ranker experiments. No
-preprocessing package needs to be imported by the live Node/Express service.
-
-## Tests
-
-```bash
-pytest
-```
-
-The test suite uses synthetic audio only; no commercial tracks are stored here.
+The check-in screen states what's collected before anyone taps through — movement, location, step
+count, and heart rate if a monitor is connected. Location is read only while the page is open, and the
+browser's own permission prompt gates it. Nothing is written to disk: state lives in memory and dies
+with the process. Judges will ask, especially now that it's tracking location, and having the answer
+already on screen turns it into a point in your favour.

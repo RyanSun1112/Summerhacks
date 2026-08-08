@@ -1,0 +1,226 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pulse — venue calibration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0A0C14; --card:#12151f; --line:#222738; --ink:#E8EAF2; --muted:#7E869E; --accent:#C9308F; --ok:#3ECf8E; --warn:#F0A93B;
+         --sans:'Space Grotesk',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace }
+  *{box-sizing:border-box}
+  body{margin:0;padding:20px 16px 60px;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-text-size-adjust:100%}
+  .wrap{max-width:560px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13.5px;line-height:1.5;margin:0 0 22px}
+  .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:7px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px;margin-bottom:13px}
+  select,button{font-family:var(--sans);font-size:15px;border-radius:10px;border:1px solid var(--line);width:100%}
+  select{background:#0E111A;color:var(--ink);padding:12px 10px;-webkit-appearance:none;appearance:none}
+  button{padding:13px;background:var(--accent);color:#fff;border:0;font-weight:600;margin-top:10px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  button:disabled{opacity:.45}
+  .or{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+      text-align:center;margin:13px 0 9px;position:relative}
+  .or::before,.or::after{content:'';position:absolute;top:50%;width:26%;height:1px;background:var(--line)}
+  .or::before{left:0} .or::after{right:0}
+  .manual{display:flex;gap:8px}
+  .manual input{flex:1;min-width:0;background:#0E111A;color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:12px 10px;font-family:var(--mono);font-size:13px}
+  .manual input::placeholder{color:#4A5266}
+  .manual button{width:auto;flex:none;padding:12px 18px;margin-top:0}
+  .fix{font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--muted);margin-top:11px;word-break:break-all}
+  .fix b{color:var(--ink);font-weight:500}
+  .acc{color:var(--ok)} .acc.bad{color:var(--warn)}
+  .done{border-color:var(--ok)}
+  pre{background:#0E111A;border:1px solid var(--line);border-radius:10px;padding:13px;overflow-x:auto;
+      font-family:var(--mono);font-size:11.5px;line-height:1.6;color:var(--ink);margin:0}
+  .step{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--accent);margin-bottom:9px}
+  .warn{color:var(--warn);font-size:12.5px;line-height:1.55;margin-top:10px}
+</style>
+
+<div class="wrap">
+  <h1>Venue calibration</h1>
+  <p class="sub">
+    Fix two known points and this solves for the venue's real position, size and rotation, so
+    <b>venue.json</b> can map GPS onto the map. Pick points that are far apart and physically
+    unambiguous — opposite corners or gates are ideal.
+  </p>
+  <p class="sub">
+    Either <b>stand there and capture</b> (outdoors, still, clear sky), or <b>type the coordinates</b>
+    straight in — right-click the spot in Google Maps and its "copy coordinates" output pastes in as-is.
+    Typing is more accurate than a phone fix and you can do it at a desk.
+  </p>
+
+  <div class="card" id="cardA">
+    <div class="step">POINT A</div>
+    <span class="lab">Which point on the map?</span>
+    <select id="selA"></select>
+    <button id="capA">Capture GPS here</button>
+    <div class="or">or type the coordinates</div>
+    <div class="manual">
+      <input id="inA" placeholder="43.643300, -79.408100" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="decimal">
+      <button class="ghost" id="useA">Set</button>
+    </div>
+    <div class="fix" id="fixA">Nothing set.</div>
+  </div>
+
+  <div class="card" id="cardB">
+    <div class="step">POINT B</div>
+    <span class="lab">Which point on the map?</span>
+    <select id="selB"></select>
+    <button id="capB">Capture GPS here</button>
+    <div class="or">or type the coordinates</div>
+    <div class="manual">
+      <input id="inB" placeholder="43.642100, -79.406800" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="decimal">
+      <button class="ghost" id="useB">Set</button>
+    </div>
+    <div class="fix" id="fixB">Nothing set.</div>
+  </div>
+
+  <div class="card">
+    <div class="step">RESULT</div>
+    <span class="lab">Paste this into venue.json, replacing the existing "geo" block</span>
+    <pre id="out">Capture both points to compute.</pre>
+    <button class="ghost" id="copy" disabled>Copy</button>
+    <div class="warn" id="warn"></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const M_PER_DEG=111320, rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+let venue=null, A=null, B=null;
+
+// Candidate reference points, in normalized map coordinates. Corners of the
+// site outline plus the entrances — all things you can physically stand on.
+function refPoints(v){
+  const pts=[];
+  const names=['North-west corner','North-east corner','South-east corner','South corner','West corner'];
+  v.outline.forEach((p,i)=>pts.push({label:`${names[i]||'Outline corner '+(i+1)} (${p[0]}, ${p[1]})`,x:p[0],y:p[1]}));
+  (v.entrances||[]).forEach(e=>pts.push({label:`${e.label} (gate)`,x:e.x,y:e.y}));
+  (v.zones||[]).forEach(z=>pts.push({label:`${z.label} — centre`,x:z.x+z.w/2,y:z.y+z.h/2}));
+  return pts;
+}
+
+fetch('/venue').then(r=>r.json()).then(v=>{
+  venue=v;
+  const pts=refPoints(v);
+  [['#selA',0],['#selB',2]].forEach(([sel,def])=>{
+    const el=$(sel);
+    pts.forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.label; el.appendChild(o); });
+    el.value=def;
+  });
+});
+
+function capture(which){
+  const btn=which==='A'?$('#capA'):$('#capB'), out=which==='A'?$('#fixA'):$('#fixB');
+  if(!navigator.geolocation){ out.textContent='This browser has no location support.'; return; }
+  btn.disabled=true; btn.textContent='Averaging 5 fixes…';
+  // Average a handful of fixes — a single reading wanders by several metres.
+  const got=[];
+  const w=navigator.geolocation.watchPosition(pos=>{
+    got.push(pos.coords);
+    out.innerHTML=`Sampling <b>${got.length}/5</b>…`;
+    if(got.length<5) return;
+    navigator.geolocation.clearWatch(w);
+    const lat=got.reduce((s,c)=>s+c.latitude,0)/got.length;
+    const lon=got.reduce((s,c)=>s+c.longitude,0)/got.length;
+    const acc=got.reduce((s,c)=>s+c.accuracy,0)/got.length;
+    setPoint(which,lat,lon,acc);
+    btn.disabled=false; btn.textContent='Re-capture';
+  },err=>{
+    out.textContent=err.code===1?'Location permission denied.':'No fix — step outside and retry.';
+    btn.disabled=false; btn.textContent='Capture GPS here';
+  },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+}
+$('#capA').onclick=()=>capture('A');
+$('#capB').onclick=()=>capture('B');
+
+// Shared by both routes in: a live GPS capture, or coordinates typed by hand.
+// acc === null means "typed", which we treat as exact rather than warning about it.
+function setPoint(which,lat,lon,acc){
+  const sel=which==='A'?$('#selA'):$('#selB');
+  const out=which==='A'?$('#fixA'):$('#fixB');
+  const pt=refPoints(venue)[+sel.value];
+  const rec={lat,lon,acc,x:pt.x,y:pt.y,label:pt.label};
+  if(which==='A') A=rec; else B=rec;
+  out.innerHTML=`<b>${lat.toFixed(6)}, ${lon.toFixed(6)}</b><br>`+
+    (acc==null?'<span class="acc">typed</span>':`<span class="acc${acc>15?' bad':''}">±${acc.toFixed(1)} m</span>`)+
+    ` · map (${pt.x}, ${pt.y})`;
+  (which==='A'?$('#cardA'):$('#cardB')).classList.add('done');
+  solve();
+}
+
+// Accepts what Google Maps puts on your clipboard: "43.643300, -79.408100".
+// Also tolerates a space-separated pair, or a full maps URL with @lat,lon in it.
+function parseLatLon(s){
+  const at=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if(at) return {lat:+at[1],lon:+at[2]};
+  const nums=s.match(/-?\d+(\.\d+)?/g);
+  if(!nums||nums.length<2) return null;
+  const lat=+nums[0], lon=+nums[1];
+  if(!isFinite(lat)||!isFinite(lon)) return null;
+  if(Math.abs(lat)>90||Math.abs(lon)>180) return null;
+  return {lat,lon};
+}
+
+['A','B'].forEach(w=>{
+  const inp=$('#in'+w), out=$('#fix'+w);
+  const apply=()=>{
+    const v=parseLatLon(inp.value.trim());
+    if(!v){ out.textContent='Could not read that. Try "43.643300, -79.408100".'; return; }
+    setPoint(w,v.lat,v.lon,null);
+  };
+  $('#use'+w).onclick=apply;
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') apply(); });
+});
+
+// Two points give four equations. Holding the aspect ratio from venue.json
+// fixes spanY = spanX / aspect, leaving exactly four unknowns: origin lat,
+// origin lon, bearing and spanX.
+function solve(){
+  if(!A||!B) return;
+  const aspect=venue.aspect;
+  const dEast =(B.lon-A.lon)*M_PER_DEG*Math.cos(rad(A.lat));
+  const dNorth=(B.lat-A.lat)*M_PER_DEG;
+  const u=B.x-A.x, v=(B.y-A.y)/aspect;
+  const R=Math.hypot(u,v), D=Math.hypot(dEast,dNorth);
+
+  if(R<0.05){ $('#out').textContent='Those two points are too close together on the map. Pick points further apart.'; return; }
+  if(D<5){ $('#out').textContent='Those two GPS fixes are less than 5 m apart. Did you capture both from the same spot?'; return; }
+
+  const spanX=D/R, spanY=spanX/aspect;
+  const b=Math.atan2(dEast,dNorth)-Math.atan2(v,u);
+  // walk back from point A to the map origin (0,0)
+  const ax=A.x*spanX, ay=(A.y/aspect)*spanX;
+  const dE1=ax*Math.sin(b)+ay*Math.cos(b);
+  const dN1=ax*Math.cos(b)-ay*Math.sin(b);
+  const lat0=A.lat-dN1/M_PER_DEG;
+  const lon0=A.lon-dE1/(M_PER_DEG*Math.cos(rad(A.lat)));
+
+  let bearing=deg(b)%360; if(bearing<0) bearing+=360;
+
+  $('#out').textContent=JSON.stringify({geo:{
+    calibrated:true,
+    origin:{lat:+lat0.toFixed(7),lon:+lon0.toFixed(7)},
+    spanX:+spanX.toFixed(1),
+    spanY:+spanY.toFixed(1),
+    bearing:+bearing.toFixed(2),
+    _note:`Calibrated from "${A.label}" and "${B.label}".`
+  }},null,2).replace(/^\{\n|\n\}$/g,'').replace(/^ {2}/gm,'');
+
+  $('#copy').disabled=false;
+  const accs=[A.acc,B.acc].filter(a=>a!=null);
+  const worst=accs.length?Math.max(...accs):0;
+  $('#warn').textContent =
+      (spanX<40||spanX>400)
+        ? `Solved site width is ${spanX.toFixed(0)} m, which looks wrong for this site. Check you picked the right two reference points, and that they aren't swapped.`
+    : worst>15
+        ? `Fixes were only ±${worst.toFixed(0)} m. That error propagates into every zone assignment — retry outdoors with a clear sky, or type the coordinates instead.`
+    : '';
+}
+
+$('#copy').onclick=()=>{
+  navigator.clipboard.writeText($('#out').textContent)
+    .then(()=>{ $('#copy').textContent='Copied'; setTimeout(()=>$('#copy').textContent='Copy',1400); });
+};
+</script>

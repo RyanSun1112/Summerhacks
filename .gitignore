@@ -1,15 +1,35 @@
-.env
+node_modules/
+
+# Python preprocessing environment and generated caches
 .venv/
 __pycache__/
 .pytest_cache/
 *.py[cod]
-
-# Legitimately obtained local audio and resumable generated caches stay local.
-/audio/
-/songs/
 /cache/
 
-# Generated outputs can be recreated from local inputs.
+# tunnel binary — everyone downloads their own, it's ~70MB
+cloudflared
+cloudflared.exe
+
+# local overrides
+.env
+.env.local
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# audio dropped in for the radio player
+*.mp3
+*.m4a
+*.wav
+*.flac
+/audio/
+/songs/
+
+# Rebuildable preprocessing diagnostics (the final songProfiles.json may be committed)
 /data/rawAudioFeatures.json
 /data/rawLLMAnnotations.json
 /data/songPreprocessingReport.json
