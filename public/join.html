@@ -105,10 +105,11 @@
   <input id="name" placeholder="Your name" autocomplete="given-name" maxlength="24">
   <button class="primary" id="go">Check in</button>
   <div class="consent">
-    While you're here your phone shares how much it's moving, your location inside the venue, your step
-    count, and your heart rate if you connect a monitor. Location is used to place you on the venue map
-    and is only recorded while this page is open. Nothing is kept after the event ends, and your name
-    only appears on the host's screen.
+    While you're here your phone shares how much it's moving, its orientation, your location inside the
+    venue, your step count, the loudness around you (mic level only, never audio — and only if you allow
+    the mic), and your heart rate if you connect a monitor. Location places you on the venue map. Short
+    sensor snapshots are stored under an anonymous id for the event's crowd research — your name is
+    never attached to them and only appears on the host's screen.
   </div>
 </section>
 
@@ -219,11 +220,17 @@ socket.on('connect',()=>{
    sample at device rate, summarise to one float every 500ms.
    raw 30Hz from 100 phones would melt the server.              */
 let buf=[];
+const latestMotion={x:0,y:0,z:0};          // raw values for the snapshot store
+const latestOrient={alpha:0,beta:0,gamma:0};
 const onMotion=e=>{
   const a=e.accelerationIncludingGravity||e.acceleration; if(!a) return;
+  latestMotion.x=+a.x||0; latestMotion.y=+a.y||0; latestMotion.z=+a.z||0;
   const mag=Math.hypot(a.x||0,a.y||0,a.z||0)-9.81;
   buf.push(mag);
   stepDetect(Math.abs(mag),Date.now());
+};
+const onOrient=e=>{
+  latestOrient.alpha=+e.alpha||0; latestOrient.beta=+e.beta||0; latestOrient.gamma=+e.gamma||0;
 };
 setInterval(()=>{
   if(buf.length){
@@ -271,14 +278,84 @@ $('#motionBtn').addEventListener('click',async()=>{
       const r=await DeviceMotionEvent.requestPermission();
       if(r!=='granted') throw new Error('Motion access was declined. Reload and allow it to take part.');
     }
+    // orientation rides the same gesture; a denial only costs the α/β/γ columns
+    if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission){
+      try{ await DeviceOrientationEvent.requestPermission(); }catch(e){}
+    }
     addEventListener('devicemotion',onMotion);
+    addEventListener('deviceorientation',onOrient);
     motionOn=true;
-    // asked for inside the same gesture; the browser queues the two prompts
+    // asked for inside the same gesture; the browser queues the prompts
     startGeo();
+    startMic();               // optional — snapshots record audio_level 0 without it
+    startSnapshots();
     $('#motionBtn').textContent='Movement on'; $('#motionBtn').disabled=true;
     setTimeout(()=>show('s-live'),450);
   }catch(err){ $('#err').textContent=err.message; }
 });
+
+/* ---------------- data collection ----------------
+   The event's research pipeline: every SNAP_EVERY, capture SNAP_LEN of raw
+   readings at ~10 Hz (accel x/y/z, orientation α/β/γ, mic RMS) plus the
+   latest GPS fix, and POST the batch to /api/snapshots — the store this
+   project's backend/ designed, one row per reading, nothing scored on the
+   phone. Batched uploads, never a raw stream: 50 readings arrive as ONE
+   request every 30 s, which is why this doesn't melt the server.
+   session_id is the anonymous pulse:id, never the name. */
+const qs=new URLSearchParams(location.search);
+const SNAP_EVERY=Math.max(2,parseInt(qs.get('snapevery'),10)||30)*1000;
+const SNAP_LEN=5000, SNAP_HZ=10;
+let micLevel=0, micCtx=null, snapTimer=null;
+
+function startMic(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return;
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    micCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const an=micCtx.createAnalyser(); an.fftSize=256;
+    micCtx.createMediaStreamSource(stream).connect(an);
+    const data=new Uint8Array(an.fftSize);
+    (function meter(){
+      an.getByteTimeDomainData(data);
+      let sum=0;
+      for(let i=0;i<data.length;i++){ const n=(data[i]-128)/128; sum+=n*n; }
+      micLevel=Math.sqrt(sum/data.length);
+      requestAnimationFrame(meter);
+    })();
+  }).catch(()=>{ micLevel=0; });   // mic is optional by design
+}
+
+function startSnapshots(){
+  if(snapTimer) return;
+  const capture=async()=>{
+    const readings=[], t0=Date.now();
+    await new Promise(done=>{
+      const iv=setInterval(()=>{
+        readings.push({
+          reading_index:readings.length, offset_ms:Date.now()-t0,
+          accel_x:latestMotion.x, accel_y:latestMotion.y, accel_z:latestMotion.z,
+          alpha:latestOrient.alpha, beta:latestOrient.beta, gamma:latestOrient.gamma,
+          audio_level:micLevel
+        });
+        if(Date.now()-t0>=SNAP_LEN){ clearInterval(iv); done(); }
+      },1000/SNAP_HZ);
+    });
+    try{
+      await fetch('/api/snapshots',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          session_id:myId,
+          snapshot_id:myId+'-'+new Date().toISOString(),
+          captured_at:new Date().toISOString(),
+          duration_ms:SNAP_LEN,
+          lat:myFix&&myFix.lat!=null?myFix.lat:null,
+          lng:myFix&&myFix.lon!=null?myFix.lon:null,
+          gps_accuracy:myFix&&myFix.accuracy!=null?myFix.accuracy:null,
+          readings
+        })});
+    }catch(e){ console.warn('[snap] upload failed, next cycle will retry:',e.message); }
+  };
+  capture();                                   // first one right away
+  snapTimer=setInterval(capture,SNAP_EVERY);
+}
 
 /* ---------------- heart rate (BLE GATT 0x180D) ---------------- */
 $('#hrBtn').addEventListener('click',async()=>{

@@ -31,8 +31,10 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 - `venue.png` is the source floor plan the geometry was traced from. Check any geometry change against it.
 - After editing `venue.json`, verify every zone corner falls inside the `outline` polygon and no two zones overlap. Broken geometry renders as zones floating outside the site.
 - Phones send **one summarised float per 500ms**, never raw accelerometer samples. Raw 30Hz from 100 phones melts the server. GPS is throttled separately to one fix per second; step count rides on the accelerometer stream that's already being sampled.
+- **The one sanctioned exception is the snapshot batch.** For the research store, phones capture 5s of raw readings at ~10 Hz (accel x/y/z, orientation α/β/γ, mic RMS) and upload them as ONE `POST /api/snapshots` every 30s — a batch, never a stream. Don't shorten the cadence or raise the rate without redoing the arithmetic (100 phones ≈ 3.3 req/s, ~170 rows/s as shipped).
+- **The snapshot store is the collaborator's schema, verbatim.** `backend/data.db`, tables `snapshots` + `snapshot_readings`, same routes as `backend/app.py` (`/api/snapshots[.csv]`, `/api/snapshots/:id`, `/api/health`) now served by server.js so one server and one tunnel carry everything; the Flask app and Python's sqlite3 read the identical file (tested). `session_id` is the anonymous `pulse:id`, never a name. Pin `better-sqlite3@11` — v12+ segfaults on Node 20 — and the store loads inside try/catch: a broken native module logs `[data] DISABLED` and the demo boots anyway. Never make boot depend on it.
 - Static files are served from `public/`. `server.js` and `venue.json` stay at the repo root and are deliberately not web-reachable.
-- State is in-memory only and dies with the process. No database for live crowd state. This is intentional.
+- Live crowd state is in-memory only and dies with the process. No database for live state — this is intentional. The SQLite snapshot store is the deliberate exception: recorded research data, worthless if it dies with the process.
 - **Venue-owner auth has three modes**, picked at boot: `local` (default — accounts + ownership in `data/owners.json`, scrypt-hashed, endpoints under `/auth/*`), `supabase` (all three `SUPABASE_*` set; ownership in its `venue_owners` table), `off` (`AUTH_MODE=off`). Gate create/update/delete/plan uploads — never join.html or the live map/metrics pipeline. Service role key is server-only; clients learn the mode via `GET /auth/config`. The sign-in UI lives in the dashboard itself (modal, session shared with owner.html via localStorage `pulseOwnerSession`); don't reintroduce a redirect to a separate login page mid-save.
 - **Auth failures must be loud.** The original owner page hung on "Creating account…" forever when auth wasn't configured (null client, uncaught async throw). Every auth path needs: disabled buttons + on-screen reason when unavailable, a deadline on remote calls (a paused Supabase project hangs, never rejects), and errors landing in the UI rather than a dead promise.
 - `/state.json` returns the exact socket broadcast payload — use it to debug rendering without a browser.
@@ -60,7 +62,7 @@ Do not swap these for defaults; they were chosen deliberately.
 
 ## Current state
 
-Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, one-location GPS centring, two-point GPS calibration), venue-owner accounts (local by default, Supabase optional) with in-dashboard sign-in, and per-venue check-in QR codes surfaced in a dashboard modal.
+Built: host dashboard (map/people/zones/data/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, one-location GPS centring, two-point GPS calibration), venue-owner accounts (local by default, Supabase optional) with in-dashboard sign-in, per-venue check-in QR codes surfaced in a dashboard modal, and the sensor data-collection pipeline: phones auto-upload raw snapshot batches into the collaborator's SQLite schema, browsable and CSV-exportable from the Data tab, with `/sensor-test` serving the original capture page.
 
 Also built: an offline Python song-profile generator and a deterministic-first Node
 song-selection engine. The selector accepts mock/future `CrowdState`, produces an
@@ -92,8 +94,9 @@ Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 
 few metres deep in `y`, below GPS resolution regardless of fix quality.
 
 Deliberately not built yet:
-- Real sensor-to-`CrowdState` analysis or automatic playback (music remains host-controlled)
-- Any persistence
+- Real sensor-to-`CrowdState` analysis or automatic playback (music remains host-controlled). The raw
+  material for it now exists in the snapshot store; the analysis itself does not.
+- Persistence for live state (snapshot research data does persist, in SQLite)
 - BLE trilateration and accelerometer dead reckoning — both evaluated and rejected as hackathon-infeasible.
 
 ## Verifying changes

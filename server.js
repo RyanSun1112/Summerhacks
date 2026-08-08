@@ -854,6 +854,159 @@ app.post('/detect', async (req, res) => {
   } finally { clearTimeout(timer); }
 });
 
+// --------------------------------------------------------- data collection
+// The sensor-snapshot store, ported from backend/app.py so the whole thing
+// runs in ONE server over ONE tunnel. Same routes, same schema, same database
+// file — the Flask app and anything written against it keep working on the
+// identical data. Phones upload a 5-second capture of raw readings (accel
+// x/y/z, orientation α/β/γ, mic audio level at ~10 Hz) plus one GPS fix;
+// nothing is scored server-side, raw values only.
+//
+// Live crowd state stays in-memory and dies with the process — that rule is
+// untouched. This store is the deliberate exception: recorded research data,
+// which is worthless if it dies with the process.
+const SNAPSHOT_DB = process.env.SNAPSHOT_DB || path.join(__dirname, 'backend', 'data.db');
+let snapDb = null;
+let snapStmts = null;
+try {
+  const Database = require('better-sqlite3');
+  fs.mkdirSync(path.dirname(SNAPSHOT_DB), { recursive: true });
+  snapDb = new Database(SNAPSHOT_DB);
+  snapDb.pragma('journal_mode = WAL');           // concurrent phone uploads
+  // schema statements copied from backend/db.py — must stay byte-compatible
+  snapDb.exec(`
+    CREATE TABLE IF NOT EXISTS snapshots (
+        snapshot_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL DEFAULT 5000,
+        lat REAL,
+        lng REAL,
+        gps_accuracy REAL
+    );
+    CREATE TABLE IF NOT EXISTS snapshot_readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id TEXT NOT NULL,
+        reading_index INTEGER NOT NULL,
+        offset_ms INTEGER NOT NULL,
+        accel_x REAL NOT NULL,
+        accel_y REAL NOT NULL,
+        accel_z REAL NOT NULL,
+        alpha REAL NOT NULL,
+        beta REAL NOT NULL,
+        gamma REAL NOT NULL,
+        audio_level REAL NOT NULL,
+        FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_readings_snapshot ON snapshot_readings(snapshot_id);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_session ON snapshots(session_id);
+  `);
+  snapStmts = {
+    insertSnap: snapDb.prepare(`INSERT INTO snapshots
+      (snapshot_id, session_id, captured_at, duration_ms, lat, lng, gps_accuracy)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`),
+    insertReading: snapDb.prepare(`INSERT INTO snapshot_readings
+      (snapshot_id, reading_index, offset_ms, accel_x, accel_y, accel_z, alpha, beta, gamma, audio_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    list: snapDb.prepare(`SELECT s.*, COALESCE(r.reading_count, 0) AS reading_count
+      FROM snapshots s
+      LEFT JOIN (SELECT snapshot_id, COUNT(*) AS reading_count FROM snapshot_readings GROUP BY snapshot_id) r
+        ON r.snapshot_id = s.snapshot_id
+      ORDER BY datetime(s.captured_at) DESC, s.snapshot_id DESC LIMIT ?`),
+    one: snapDb.prepare('SELECT * FROM snapshots WHERE snapshot_id = ?'),
+    readings: snapDb.prepare('SELECT * FROM snapshot_readings WHERE snapshot_id = ? ORDER BY reading_index ASC, id ASC'),
+    summary: snapDb.prepare(`SELECT
+      (SELECT COUNT(*) FROM snapshots) AS snapshots,
+      (SELECT COUNT(*) FROM snapshot_readings) AS readings,
+      (SELECT COUNT(DISTINCT session_id) FROM snapshots) AS sessions,
+      (SELECT MAX(captured_at) FROM snapshots) AS newest,
+      (SELECT MIN(captured_at) FROM snapshots) AS oldest`),
+    exportRows: snapDb.prepare(`SELECT s.session_id, s.snapshot_id, s.captured_at, s.duration_ms,
+        s.lat, s.lng, s.gps_accuracy,
+        r.reading_index, r.offset_ms, r.accel_x, r.accel_y, r.accel_z, r.alpha, r.beta, r.gamma, r.audio_level
+      FROM snapshots s JOIN snapshot_readings r ON r.snapshot_id = s.snapshot_id
+      ORDER BY datetime(s.captured_at) ASC, s.snapshot_id ASC, r.reading_index ASC`)
+  };
+  console.log(`[data] snapshot store at ${path.relative(__dirname, SNAPSHOT_DB)}`);
+} catch (e) {
+  // a broken native module must never take the demo down with it
+  console.warn('[data] snapshot store DISABLED —', e.message);
+  console.warn('[data] (npm install better-sqlite3@11 — v12+ needs Node 22)');
+}
+
+const noStore = res => res.status(503).json({ error: 'snapshot store unavailable on this server' });
+const optFloat = v => (v === null || v === undefined || v === '' ? null : +v);
+
+app.post('/api/snapshots', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const data = req.body || {};
+  const sessionId = String(data.session_id || 'unknown').slice(0, 64);
+  const snapshotId = String(data.snapshot_id || `${sessionId}-${new Date().toISOString()}`).slice(0, 128);
+  const capturedAt = String(data.captured_at || new Date().toISOString()).slice(0, 40);
+  const readings = Array.isArray(data.readings) ? data.readings.slice(0, 400) : [];
+  try {
+    snapDb.transaction(() => {
+      snapStmts.insertSnap.run(snapshotId, sessionId, capturedAt,
+        parseInt(data.duration_ms, 10) || 5000,
+        optFloat(data.lat), optFloat(data.lng), optFloat(data.gps_accuracy));
+      readings.forEach((r, i) => snapStmts.insertReading.run(snapshotId,
+        Number.isFinite(+r.reading_index) ? +r.reading_index : i,
+        parseInt(r.offset_ms, 10) || 0,
+        +r.accel_x || 0, +r.accel_y || 0, +r.accel_z || 0,
+        +r.alpha || 0, +r.beta || 0, +r.gamma || 0,
+        +r.audio_level || 0));
+    })();
+  } catch (e) {
+    if (/UNIQUE constraint/.test(e.message))
+      return res.status(409).json({ error: 'snapshot_id already exists' });
+    console.warn('[data] insert failed:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+  res.json({ ok: true, snapshot_id: snapshotId, reading_count: readings.length });
+});
+
+app.get('/api/snapshots', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const limit = clamp(parseInt(req.query.limit, 10) || 500, 1, 10000);
+  res.json({ snapshots: snapStmts.list.all(limit) });
+});
+
+// registered before /api/snapshots/:id so the extension isn't read as an id
+app.get('/api/snapshots.csv', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const cols = ['session_id', 'snapshot_id', 'captured_at', 'duration_ms', 'lat', 'lng', 'gps_accuracy',
+                'reading_index', 'offset_ms', 'accel_x', 'accel_y', 'accel_z', 'alpha', 'beta', 'gamma', 'audio_level'];
+  const esc = v => (v === null || v === undefined) ? ''
+    : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  const lines = [cols.join(',')];
+  for (const row of snapStmts.exportRows.iterate()) lines.push(cols.map(c => esc(row[c])).join(','));
+  res.type('text/csv')
+     .set('content-disposition', 'attachment; filename="pulse-snapshots.csv"')
+     .send(lines.join('\n'));
+});
+
+app.get('/api/snapshots/:id', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const snapshot = snapStmts.one.get(req.params.id);
+  if (!snapshot) return res.status(404).json({ error: 'snapshot not found' });
+  res.json({ snapshot, readings: snapStmts.readings.all(req.params.id) });
+});
+
+// dashboard Data tab tiles
+app.get('/api/data/summary', (_, res) => {
+  if (!snapDb) return res.json({ available: false });
+  const s = snapStmts.summary.get();
+  let bytes = 0;
+  try { bytes = fs.statSync(SNAPSHOT_DB).size; } catch {}
+  res.json({ available: true, ...s, bytes });
+});
+
+app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
+
+// The collaborator's standalone sensor page, served from the same origin so
+// its relative /api/snapshots POST hits this server through the same tunnel.
+app.get('/sensor-test', (_, res) => res.sendFile(path.join(__dirname, 'backend', 'sensor_test.html')));
+
 // --------------------------------------------------------- crowd settings
 app.get('/crowd', (_, res) => res.json(crowdCfg));
 app.post('/crowd', (req, res) => {
@@ -1339,6 +1492,8 @@ server.listen(PORT, () => {
   console.log(`  Auth       ${AUTH_MODE === 'off' ? 'off (venue writes open — AUTH_MODE=off)'
     : AUTH_MODE === 'local' ? 'local accounts (sign up from the dashboard)'
     : 'Supabase (venue writes gated)'}`);
+  console.log(`  Data       ${snapDb ? `collecting to ${path.relative(__dirname, SNAPSHOT_DB)} (Data tab · /sensor-test)`
+                                     : 'snapshot store DISABLED — see [data] warning above'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +

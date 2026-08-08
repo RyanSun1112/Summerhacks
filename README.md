@@ -32,6 +32,8 @@ Then open **http://localhost:3000/dashboard.html**.
 | `/qr/<zone>.svg` | Per-zone poster, e.g. `/qr/northhall.svg` |
 | `/calibrate.html` | Two-point GPS calibration tool (see below) |
 | `/state.json` | The exact payload broadcast to clients — curl this to debug |
+| `/sensor-test` | Standalone raw-sensor capture page (writes to the same snapshot store) |
+| `/api/snapshots` | The collected sensor data — see **Data collection** |
 
 ### Venue-owner accounts
 
@@ -434,6 +436,37 @@ There's a geometry check worth rerunning if you edit the file — every zone cor
 **Zones** — occupancy against capacity, and average movement per zone.
 
 **Radio** — spectrum, transport, seek, volume, and the four palette swatches currently derived from the track. Bottom-right on the dashboard, pinned to the bottom on phones.
+
+## Data collection
+
+Every checked-in phone quietly contributes to a research dataset on top of the live metrics. Once
+someone taps **Start movement & location**, the phone captures a 5-second batch of raw readings at
+~10 Hz — accelerometer x/y/z, orientation α/β/γ, and mic loudness (level only, never audio, and only
+if the mic was allowed) — plus its latest GPS fix, and uploads the batch every 30 seconds. Batches,
+never a stream: 100 phones is ~3 requests/second.
+
+It lands in SQLite at `backend/data.db` using the exact schema the Flask backend in `backend/`
+defined (`snapshots` + `snapshot_readings`), so anything written against that backend — including
+plain Python `sqlite3` — reads the same file. The API is the same too, now served by the one Node
+server over the one tunnel:
+
+| Route | Does |
+|---|---|
+| `POST /api/snapshots` | store one capture (snapshot row + one row per reading) |
+| `GET /api/snapshots` | list, newest first, with reading counts (`?limit=`) |
+| `GET /api/snapshots/<id>` | one capture with all its readings |
+| `GET /api/snapshots.csv` | the whole dataset as CSV, one row per reading |
+| `GET /api/data/summary` | totals for the dashboard tiles |
+| `GET /sensor-test` | the standalone capture/test page |
+
+The dashboard's **Data** tab shows totals (snapshots, readings, phones seen, DB size), the latest
+captures with GPS fixes, and a per-snapshot chart of accel magnitude and audio level — plus one-click
+CSV export.
+
+Privacy shape: snapshots are stored under the phone's random `pulse:id`, never the name; the check-in
+consent text says exactly what is collected. Requires `better-sqlite3@11` (v12+ needs Node 22); if the
+native module fails to load, the store disables itself with a `[data]` log line and everything else
+runs normally.
 
 ## Metrics
 

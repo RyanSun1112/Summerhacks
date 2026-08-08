@@ -200,6 +200,7 @@
     <button role="tab" data-v="map" aria-selected="true">Map</button>
     <button role="tab" data-v="people" aria-selected="false">People</button>
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
+    <button role="tab" data-v="data" aria-selected="false">Data</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
   <button id="acctBtn" type="button">Sign in</button>
@@ -272,6 +273,35 @@
       <thead><tr><th>Zone</th><th>Type</th><th>People</th><th>Capacity</th><th>Movement</th></tr></thead>
       <tbody id="zoneRows"></tbody>
     </table>
+  </div>
+
+  <!-- The data-collection pipeline: raw sensor snapshots phones upload every
+       ~30s (accel x/y/z, orientation, mic level, GPS) into the SQLite store
+       the backend/ folder defined. This tab browses and exports it. -->
+  <div class="sheet" id="sheet-data">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+      <span class="lab">Sensor snapshots — raw readings collected from phones</span>
+      <span style="flex:1"></span>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/api/snapshots.csv">Export CSV</a>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/api/snapshots" target="_blank" rel="noopener">Raw JSON</a>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/sensor-test" target="_blank" rel="noopener">Sensor test page</a>
+    </div>
+    <div id="dataTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;align-items:start">
+      <div style="min-width:0;overflow-x:auto">
+        <table>
+          <thead><tr><th>Captured</th><th>Person</th><th>Session</th><th>GPS</th><th>Fix</th><th>Readings</th></tr></thead>
+          <tbody id="snapRows"></tbody>
+        </table>
+        <div class="dim" id="dataEmpty" style="margin-top:14px"></div>
+      </div>
+      <div class="panel" style="position:static;padding:15px 17px">
+        <div class="lab">Snapshot detail</div>
+        <div class="dim" id="snapMeta" style="margin-top:8px;line-height:1.6">Click a snapshot to see its readings.</div>
+        <canvas id="snapChart" style="width:100%;height:180px;display:none;margin-top:12px"></canvas>
+        <div id="snapLegend" class="dim" style="display:none;margin-top:8px"></div>
+      </div>
+    </div>
   </div>
 
   <div class="sheet" id="sheet-venues">
@@ -972,13 +1002,107 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
   document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
   $('#sheet-people').classList.toggle('on',view==='people');
   $('#sheet-zones').classList.toggle('on',view==='zones');
+  $('#sheet-data').classList.toggle('on',view==='data');
   $('#sheet-venues').classList.toggle('on',view==='venues');
   ['#leftrail','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
   if(view==='map') fit();
   if(view==='people'&&state) renderPeople();
   if(view==='zones'&&state) renderZones();
+  if(view==='data') renderData();
   if(view==='venues') vedFit();
 }));
+
+/* ============================================================== DATA TAB
+   Browses the sensor-snapshot store. session_id is the phone's anonymous
+   pulse id, which is also its live person id — so a session maps back to a
+   name only while that person is checked in, and the stored rows themselves
+   stay anonymous. */
+let snapSel=null;
+const fmtBytes=b=>b>1e6?(b/1e6).toFixed(1)+' MB':Math.round((b||0)/1024)+' KB';
+async function renderData(){
+  let sum=null;
+  try{ sum=await fetch('/api/data/summary').then(r=>r.json()); }catch(e){}
+  if(!sum||!sum.available){
+    $('#dataTiles').innerHTML='';
+    $('#snapRows').innerHTML='';
+    $('#dataEmpty').textContent='Snapshot store is unavailable on this server — check the server log for [data].';
+    return;
+  }
+  const tiles=[['Snapshots',(sum.snapshots||0).toLocaleString()],
+    ['Readings',(sum.readings||0).toLocaleString()],
+    ['Phones seen',sum.sessions||0],
+    ['Newest',sum.newest?new Date(sum.newest).toLocaleTimeString():'—'],
+    ['Database',fmtBytes(sum.bytes)]];
+  $('#dataTiles').innerHTML=tiles.map(([l,v])=>
+    `<div class="panel" style="position:static;padding:12px 14px"><span class="lab">${l}</span>
+     <b style="display:block;font-family:var(--mono);font-size:19px;font-weight:500;margin-top:6px">${v}</b></div>`).join('');
+
+  let list=null;
+  try{ list=await fetch('/api/snapshots?limit=120').then(r=>r.json()); }catch(e){ return; }
+  const snaps=list.snapshots||[];
+  $('#dataEmpty').textContent=snaps.length?''
+    :'No snapshots yet. Phones start uploading automatically once someone checks in and enables movement — first one lands within seconds.';
+  const nameOf=sid=>{ const p=state&&state.people.find(p=>p.id===sid); return p?p.name:''; };
+  $('#snapRows').innerHTML=snaps.map(s=>{
+    const t=new Date(s.captured_at);
+    const nm=nameOf(s.session_id);
+    return `<tr data-id="${esc(s.snapshot_id)}" style="cursor:pointer${s.snapshot_id===snapSel?';background:rgba(240,239,247,.05)':''}">
+      <td class="n">${isNaN(t)?esc(String(s.captured_at).slice(0,19)):t.toLocaleTimeString()}</td>
+      <td>${nm?esc(nm):'<span class="dim">—</span>'}</td>
+      <td class="n" style="font-size:11px">${esc(s.session_id)}</td>
+      <td class="n" style="font-size:11px">${s.lat!=null?s.lat.toFixed(5)+', '+s.lng.toFixed(5):'<span class="dim">—</span>'}</td>
+      <td class="n">${s.gps_accuracy!=null?'±'+Math.round(s.gps_accuracy)+'m':'<span class="dim">—</span>'}</td>
+      <td class="n">${s.reading_count}</td></tr>`;
+  }).join('');
+  $('#snapRows').querySelectorAll('tr').forEach(r=>
+    r.addEventListener('click',()=>openSnap(r.dataset.id)));
+}
+
+async function openSnap(id){
+  snapSel=id;
+  let d=null;
+  try{ d=await fetch('/api/snapshots/'+encodeURIComponent(id)).then(r=>r.json()); }catch(e){}
+  if(!d||!d.snapshot) return;
+  const s=d.snapshot, rs=d.readings||[];
+  $('#snapMeta').innerHTML=
+    `<b style="color:var(--ink);font-family:var(--mono);font-size:11px">${esc(s.session_id)}</b><br>`+
+    `${esc(String(s.captured_at).replace('T',' ').slice(0,19))} · ${rs.length} readings over ${(s.duration_ms/1000).toFixed(1)}s<br>`+
+    (s.lat!=null?`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · ±${Math.round(s.gps_accuracy||0)}m`:'no GPS fix in this capture');
+  $('#snapChart').style.display='block';
+  $('#snapLegend').style.display='block';
+  drawSnapChart($('#snapChart'),rs);
+  renderData();                        // move the row highlight
+}
+
+function drawSnapChart(cvs,rs){
+  const dpr=devicePixelRatio||1, w=cvs.clientWidth||300, h=180;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  if(!rs.length){ $('#snapLegend').textContent='This snapshot has no readings.'; return; }
+  const a=accentNow(), a2=accent2Now();
+  const mags=rs.map(r=>Math.hypot(r.accel_x,r.accel_y,r.accel_z));
+  const auds=rs.map(r=>r.audio_level);
+  const maxT=Math.max(rs[rs.length-1].offset_ms,1);
+  c.strokeStyle='rgba(240,239,247,.12)'; c.lineWidth=1;
+  c.strokeRect(.5,.5,w-1,h-1);
+  const line=(vals,color,maxV)=>{
+    c.beginPath();
+    vals.forEach((v,i)=>{
+      const x=rs[i].offset_ms/maxT*(w-8)+4;
+      const y=h-8-(v/maxV)*(h-24);
+      i?c.lineTo(x,y):c.moveTo(x,y);
+    });
+    c.strokeStyle=color; c.lineWidth=1.4; c.stroke();
+  };
+  line(mags,rgb(a),Math.max(...mags,12));
+  line(auds,rgb(a2),Math.max(...auds,0.05));
+  $('#snapLegend').innerHTML=
+    `<span style="color:${rgb(a)}">━</span> accel magnitude, peak ${Math.max(...mags).toFixed(1)} m/s² &nbsp;&nbsp;`+
+    `<span style="color:${rgb(a2)}">━</span> audio level, peak ${Math.max(...auds).toFixed(3)}`;
+}
+// keep the tab live while it's open
+setInterval(()=>{ if(view==='data') renderData(); },10000);
 
 /* ========================================================= VENUE SWITCHER */
 async function loadVenueList(){
