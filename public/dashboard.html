@@ -261,12 +261,25 @@
       </div>
 
       <div class="vsec">
-        <span class="lab">Floor plan</span>
-        <div id="planDrop">Drop an image, or click to choose<br><span style="font-size:10px">traced over, never rendered on the live map</span></div>
+        <span class="lab">1 · Floor plan</span>
+        <div id="planDrop">Drop an image, or click to choose<br><span style="font-size:10px">zones are found automatically</span></div>
+        <div id="detStatus" class="vhint" style="margin:0"></div>
+        <div class="vfield" id="detTune" style="display:none">
+          <label>Detail <span id="detSensV" style="color:var(--ink)">balanced</span></label>
+          <input id="detSens" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
+          <button class="vbtn" id="detAgain" style="margin-top:6px">Find zones again</button>
+        </div>
         <div class="vrowin">
           <div class="vfield"><label>Aspect (w÷h)</label><input class="vin" id="edAspect" value="2.884"></div>
           <div class="vfield"><label>Plan opacity</label><input class="vin" id="edPlanOp" type="range" min="0" max="1" step="0.05" value="0.5" style="padding:0"></div>
         </div>
+      </div>
+
+      <div class="vsec">
+        <span class="lab">2 · Where is it?</span>
+        <div class="vhint" style="margin:0">Two opposite corners of the site. Right-click the spot in Google Maps and paste, or stand there and capture.</div>
+        <div id="pinList"></div>
+        <div class="vprob" id="calProb"></div>
       </div>
 
       <div class="vsec">
@@ -323,14 +336,7 @@
       </div>
 
       <div class="vsec">
-        <span class="lab">GPS calibration</span>
-        <div class="vhint" style="margin:0">Place two ref pins on the map, then give each one real coordinates. Two far-apart points solve position, size and rotation.</div>
-        <div id="pinList"></div>
-        <div class="vprob" id="calProb"></div>
-      </div>
-
-      <div class="vsec">
-        <span class="lab">Save</span>
+        <span class="lab">3 · Save</span>
         <div class="vprob" id="edProb"></div>
         <button class="vbtn" id="edSave">Save venue</button>
         <button class="vbtn go" id="edSaveGo">Save &amp; make active</button>
@@ -831,12 +837,178 @@ function usePlan(file){
       ed.aspect=+(img.width/img.height).toFixed(3);
       $('#edAspect').value=ed.aspect;
       $('#planDrop').innerHTML=`${img.width}×${img.height} loaded<br><span style="font-size:10px">aspect set to ${ed.aspect}</span>`;
+      $('#detTune').style.display='flex';
+      runDetect();
       vedFit();
     };
     img.src=fr.result;
   };
   fr.readAsDataURL(file);
 }
+
+/* -------------------- automatic zone detection --------------------
+   Floor plans are line art: dark walls enclosing light rooms. Threshold to
+   binary, flood-fill the light regions, and each enclosed region is a room.
+   Its bounding box becomes a zone. Works well on clean plans, poorly on
+   photos or open-plan spaces where rooms aren't fully enclosed — hence the
+   detail slider and the fact that everything stays editable afterwards. */
+function otsu(g){
+  const hist=new Uint32Array(256);
+  for(let i=0;i<g.length;i++) hist[g[i]]++;
+  let sum=0; for(let i=0;i<256;i++) sum+=i*hist[i];
+  let sumB=0,wB=0,best=0,thr=128;
+  for(let i=0;i<256;i++){
+    wB+=hist[i]; if(!wB) continue;
+    const wF=g.length-wB; if(!wF) break;
+    sumB+=i*hist[i];
+    const d=(sumB/wB)-((sum-sumB)/wF), between=wB*wF*d*d;
+    if(between>best){ best=between; thr=i; }
+  }
+  return thr;
+}
+
+function detectZones(img,sens){
+  const MAXW=760, sc=Math.min(1,MAXW/img.width);
+  const w=Math.max(1,Math.round(img.width*sc)), h=Math.max(1,Math.round(img.height*sc));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const cx=c.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,0,0,w,h);
+  const d=cx.getImageData(0,0,w,h).data, N=w*h;
+
+  const g=new Uint8Array(N);
+  for(let i=0;i<N;i++){
+    // transparent pixels count as background, not as black
+    g[i]= d[i*4+3]<40 ? 255 : (d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)|0;
+  }
+  const thr=clamp(otsu(g)+(sens-0.5)*90,6,249);
+  const open=new Uint8Array(N);
+  for(let i=0;i<N;i++) open[i]= g[i]>thr ? 1 : 0;
+
+  // bbox of everything that ISN'T background — the drawn extent of the site
+  let cminx=w,cminy=h,cmaxx=0,cmaxy=0,any=false;
+  for(let i=0;i<N;i++) if(!open[i]){
+    const x=i%w, y=(i/w)|0; any=true;
+    if(x<cminx)cminx=x; if(x>cmaxx)cmaxx=x;
+    if(y<cminy)cminy=y; if(y>cmaxy)cmaxy=y;
+  }
+  if(!any){ cminx=0; cminy=0; cmaxx=w-1; cmaxy=h-1; }
+
+  // 4-connected flood fill; every pixel is labelled once, so the stack is bounded
+  const label=new Int32Array(N).fill(-1), stack=new Int32Array(N), comps=[];
+  for(let s=0;s<N;s++){
+    if(!open[s]||label[s]>=0) continue;
+    const id=comps.length; let sp=0; stack[sp++]=s; label[s]=id;
+    let minx=w,miny=h,maxx=0,maxy=0,area=0,edge=false;
+    while(sp){
+      const p=stack[--sp], x=p%w, y=(p/w)|0;
+      area++;
+      if(x<minx)minx=x; if(x>maxx)maxx=x;
+      if(y<miny)miny=y; if(y>maxy)maxy=y;
+      if(x===0||y===0||x===w-1||y===h-1) edge=true;
+      if(x>0)   {const q=p-1; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
+      if(x<w-1) {const q=p+1; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
+      if(y>0)   {const q=p-w; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
+      if(y<h-1) {const q=p+w; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
+    }
+    comps.push({minx,miny,maxx,maxy,area,edge});
+  }
+
+  // keep enclosed, roughly-rectangular regions of a sane size
+  const cand=comps.filter(k=>{
+    if(k.edge) return false;                       // that's the page, not a room
+    const frac=k.area/N;
+    if(frac<0.0012||frac>0.42) return false;
+    const bw=k.maxx-k.minx+1, bh=k.maxy-k.miny+1;
+    if(bw<6||bh<6) return false;
+    return k.area/(bw*bh)>0.55;                    // fills its own bounding box
+  }).sort((a,b)=>b.area-a.area);
+
+  // Bounding boxes of interlocking rooms can overlap, and the server rejects
+  // that. Trim along whichever axis costs least; drop what's left if it's slivered.
+  const out=[];
+  for(const k of cand){
+    let r={x:k.minx/w,y:k.miny/h,w:(k.maxx-k.minx+1)/w,h:(k.maxy-k.miny+1)/h};
+    let ok=true;
+    for(const a of out){
+      const ox=Math.min(r.x+r.w,a.x+a.w)-Math.max(r.x,a.x);
+      const oy=Math.min(r.y+r.h,a.y+a.h)-Math.max(r.y,a.y);
+      if(ox<=0||oy<=0) continue;
+      if(ox<oy){ if(r.x<a.x) r.w=a.x-r.x; else { const nx=a.x+a.w; r.w=r.x+r.w-nx; r.x=nx; } }
+      else     { if(r.y<a.y) r.h=a.y-r.y; else { const ny=a.y+a.h; r.h=r.y+r.h-ny; r.y=ny; } }
+      if(r.w<0.014||r.h<0.014){ ok=false; break; }
+    }
+    if(ok) out.push(r);
+    if(out.length>=60) break;
+  }
+
+  // reading order, so the numbering feels human
+  out.sort((a,b)=> (a.y-b.y)||(a.x-b.x));
+  const pad=0.004;
+  const outline=[[Math.max(0,cminx/w-pad),Math.max(0,cminy/h-pad)],
+                 [Math.min(1,(cmaxx+1)/w+pad),Math.max(0,cminy/h-pad)],
+                 [Math.min(1,(cmaxx+1)/w+pad),Math.min(1,(cmaxy+1)/h+pad)],
+                 [Math.max(0,cminx/w-pad),Math.min(1,(cmaxy+1)/h+pad)]];
+
+  const zones=out.map((r,i)=>{
+    const frac=r.w*r.h;
+    return {
+      id:'zone'+(i+1), label:'Zone '+(i+1), short:'ZONE '+(i+1),
+      kind: frac>0.045?'event' : frac>0.012?'social' : 'transit',
+      x:+r.x.toFixed(4), y:+r.y.toFixed(4), w:+r.w.toFixed(4), h:+r.h.toFixed(4),
+      cap: clamp(Math.round(frac*1400),6,300)
+    };
+  });
+  return {zones,outline};
+}
+
+function runDetect(){
+  if(!edPlan) return;
+  $('#detStatus').textContent='Looking for zones…';
+  // let the status paint before the synchronous scan blocks the frame
+  setTimeout(()=>{
+    const t0=performance.now();
+    const {zones,outline}=detectZones(edPlan,parseFloat($('#detSens').value));
+    ed.outline=outline; ed.zones=zones; edSel=-1;
+    $('#zProps').style.display='none';
+
+    // clip anything that ended up straddling the outline, so a fresh detection
+    // never lands you in the validator's lap
+    const ox=outline[0][0],oy=outline[0][1],ox2=outline[2][0],oy2=outline[2][1];
+    ed.zones=ed.zones.filter(z=>{
+      const x=Math.max(z.x,ox), y=Math.max(z.y,oy);
+      const w=Math.min(z.x+z.w,ox2)-x, h=Math.min(z.y+z.h,oy2)-y;
+      if(w<0.014||h<0.014) return false;
+      z.x=+x.toFixed(4); z.y=+y.toFixed(4); z.w=+w.toFixed(4); z.h=+h.toFixed(4);
+      return true;
+    });
+
+    autoPins();
+    const ms=Math.round(performance.now()-t0);
+    $('#detStatus').innerHTML = ed.zones.length
+      ? `<span class="vok">Found ${ed.zones.length} zones</span> in ${ms}ms — rename or redraw any of them below.`
+      : `Nothing found. Slide <b>Detail</b>, or just drag zones on the canvas by hand.`;
+    renderZoneList(); renderPins(); vedDraw();
+  },16);
+}
+
+// Two pins at opposite corners of the detected site, so the only thing left to
+// supply is the two coordinates.
+function autoPins(){
+  const o=ed.outline;
+  if(!o||o.length<3) return;
+  const xs=o.map(p=>p[0]), ys=o.map(p=>p[1]);
+  const keep=[edPins[0]&&edPins[0].lat,edPins[1]&&edPins[1].lat];
+  edPins[0]={x:+Math.min(...xs).toFixed(4),y:+Math.min(...ys).toFixed(4),lat:null,lon:null,acc:null};
+  edPins[1]={x:+Math.max(...xs).toFixed(4),y:+Math.max(...ys).toFixed(4),lat:null,lon:null,acc:null};
+  // don't discard coordinates already typed in
+  [0,1].forEach(i=>{ if(keep[i]!=null){ edPins[i].lat=keep[i]; } });
+}
+
+$('#detSens').addEventListener('input',()=>{
+  const v=parseFloat($('#detSens').value);
+  $('#detSensV').textContent = v<0.3?'coarse — fewer, larger':v>0.7?'fine — more, smaller':'balanced';
+});
+$('#detAgain').addEventListener('click',runDetect);
 
 /* ---- canvas ---- */
 function vedFit(){
@@ -928,9 +1100,15 @@ vc.addEventListener('pointerdown',e=>{
     ed.outline.push([+x.toFixed(4),+y.toFixed(4)]); vedDraw(); return;
   }
   if(edMode==='pin'){
-    const slot=edPins[0]?(edPins[1]?0:1):0;
-    edPins[slot]={x:+x.toFixed(4),y:+y.toFixed(4),lat:null,lon:null,acc:null};
-    renderPins(); vedDraw(); return;
+    // both pins exist after detection, so move whichever is nearer rather than
+    // cycling through slots
+    let slot=0;
+    if(!edPins[0]) slot=0;
+    else if(!edPins[1]) slot=1;
+    else slot = Math.hypot(x-edPins[0].x,y-edPins[0].y) <= Math.hypot(x-edPins[1].x,y-edPins[1].y) ? 0 : 1;
+    const keep=edPins[slot]||{};
+    edPins[slot]={x:+x.toFixed(4),y:+y.toFixed(4),lat:keep.lat??null,lon:keep.lon??null,acc:null};
+    renderPins(); solveGeo(); vedDraw(); return;
   }
   // clicking an existing zone selects it instead of starting a new one
   const hit=ed.zones.findIndex(z=>x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h);
@@ -997,11 +1175,12 @@ $('#zDelete').addEventListener('click',()=>{
 /* ---- calibration: same two-point solve as calibrate.html ---- */
 const M_DEG=111320, rd=d=>d*Math.PI/180, dg=r=>r*180/Math.PI;
 function renderPins(){
+  const WHERE=['top-left corner','bottom-right corner'];
   $('#pinList').innerHTML=edPins.map((p,i)=>{
     const tag=String.fromCharCode(65+i);
-    if(!p) return `<div class="vhint" style="margin:6px 0">Pin ${tag}: not placed</div>`;
-    return `<div class="vfield" style="margin-top:8px">
-      <label>Pin ${tag} — map (${p.x}, ${p.y})</label>
+    if(!p) return `<div class="vhint" style="margin:6px 0">Pin ${tag}: drop it with “Place ref pin”.</div>`;
+    return `<div class="vfield" style="margin-top:9px">
+      <label>${tag} — ${WHERE[i]}</label>
       <input class="vin" data-pin="${i}" placeholder="43.643300, -79.408100"
              value="${p.lat!=null?p.lat+', '+p.lon:''}">
       <button class="vbtn" data-cap="${i}" style="margin-top:5px">Capture GPS here</button></div>`;

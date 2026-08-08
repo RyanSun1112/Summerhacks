@@ -124,16 +124,38 @@ The **Venues** tab is a full editor, and the left rail on the Map tab switches b
 built.
 
 1. **+ New venue**, give it a name.
-2. **Drop in a floor plan image.** It's traced over, never rendered on the live map, and its
-   proportions set the venue's `aspect` — which is what makes traced coordinates line up with the
-   real site.
-3. **Drag on the canvas to draw zones.** Click one to select it and set label, kind and capacity.
-   `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where phones
-   land when GPS can't place them.
-4. **Trace outline** to click out the site polygon, if the site isn't a rectangle.
-5. **Place ref pins** — drop two pins on known points, then type their coordinates or capture GPS
-   standing there. Same two-point solve as `/calibrate.html`, so it fills in `geo` for you.
-6. **Save**, or **Save & make active** to move the live event onto it.
+2. **Drop in a floor plan image.** Zones are found automatically — no drawing required. The image is
+   traced over, never rendered on the live map, and its proportions set the venue's `aspect`, which is
+   what makes coordinates line up with the real site.
+3. **Type two coordinates.** Detection drops a pin on each opposite corner of the site; you supply
+   their real lat/lon (paste from Google Maps) or stand there and capture. That's the whole manual
+   step.
+4. **Save**, or **Save & make active** to move the live event onto it.
+
+Everything stays editable afterwards: drag on the canvas to add a zone, click one to rename it or
+change kind and capacity, **Trace outline** to click out a non-rectangular site, **Place ref pin** to
+move a pin. `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where
+phones land when GPS can't place them.
+
+### How the automatic detection works
+
+Floor plans are line art: dark walls enclosing light rooms. The image is thresholded to binary (Otsu,
+nudged by the **Detail** slider), then every enclosed light region is flood-filled as a connected
+component. Regions that touch the image border are the page rather than a room; the rest are filtered
+by area and by how completely they fill their own bounding box, and that box becomes a zone.
+
+Bounding boxes of interlocking rooms can overlap, which the server rejects, so overlaps are trimmed
+along whichever axis costs least and slivers are dropped. Zones come out in reading order, sized to
+plausible capacities, with `kind` guessed from area.
+
+It works well on clean architectural line art. It works badly on photographs, satellite imagery, and
+open-plan spaces where rooms aren't fully enclosed — a gap in a wall lets the fill leak between rooms
+and merges them. That's what the **Detail** slider and the fully-editable result are for. If it finds
+nothing useful, drawing zones by hand is still there.
+
+Verified against a synthetic five-room plan: all five found at the right coordinates, no overlaps, all
+inside the outline, stable across the whole sensitivity range, and the output passes the server's
+validator. Pure noise returns zero zones rather than hanging.
 
 Zones turn amber the moment they fall outside the outline or overlap another, and the server refuses
 to save broken geometry — `POST /venues` returns the specific problems. That check used to be
