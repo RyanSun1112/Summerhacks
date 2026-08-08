@@ -118,6 +118,48 @@ Centroid is log-scaled because brightness is heard logarithmically — a linear 
 
 The host's browser is the only thing that touches audio. It broadcasts the derived spectrum and beat over the socket, and every phone renders the same reactive visuals without playing sound — so you get one sound system, not sixty.
 
+## Venues tab — building a new map
+
+The **Venues** tab is a full editor, and the left rail on the Map tab switches between what you've
+built.
+
+1. **+ New venue**, give it a name.
+2. **Drop in a floor plan image.** It's traced over, never rendered on the live map, and its
+   proportions set the venue's `aspect` — which is what makes traced coordinates line up with the
+   real site.
+3. **Drag on the canvas to draw zones.** Click one to select it and set label, kind and capacity.
+   `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where phones
+   land when GPS can't place them.
+4. **Trace outline** to click out the site polygon, if the site isn't a rectangle.
+5. **Place ref pins** — drop two pins on known points, then type their coordinates or capture GPS
+   standing there. Same two-point solve as `/calibrate.html`, so it fills in `geo` for you.
+6. **Save**, or **Save & make active** to move the live event onto it.
+
+Zones turn amber the moment they fall outside the outline or overlap another, and the server refuses
+to save broken geometry — `POST /venues` returns the specific problems. That check used to be
+something you had to remember to run by hand.
+
+Switching venues in the left rail only **previews** — the running event stays put until you press
+*Make active*, which confirms first. A stray click can't relocate everyone mid-demo. Previewing hides
+the people, because their positions are coordinates in the live venue and mean nothing on another map.
+
+The **simulated crowd** panel sets headcount, liveliness, what fraction wear heart monitors, and
+whether they spread by capacity or evenly. Changing it regenerates the crowd immediately, so a
+newly-built venue is demo-able the second it goes live.
+
+Venues live as JSON in `venues/`, seeded from `venue.json` on first boot. They're tracked in git so a
+venue you build can be shared; the traced-over plan images are not.
+
+| Route | Does |
+|---|---|
+| `GET /venues` | list, with which is active |
+| `GET /venues/:id` | one venue's full JSON |
+| `POST /venues` | create or update — validates geometry, 400s with problems |
+| `POST /venues/:id/activate` | move the live event |
+| `DELETE /venues/:id` | remove (409s if it's live) |
+| `PUT /venues/:id/plan` | upload floor plan as a data URL |
+| `GET`/`POST /crowd` | simulated crowd settings |
+
 ## The map
 
 `venue.json` is traced from the STACKT Market floor plan: the real site polygon (Tecumseth to Bathurst, with the Front St. diagonal), the container unit grids, the street labels, all three entrances, and the Summerhacks route from Entrance 1 through to Studio 3-101.

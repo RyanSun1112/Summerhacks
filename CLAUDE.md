@@ -18,7 +18,11 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 
 ## Conventions
 
-- All venue geometry is normalized 0–1 in `venue.json`. Changing venues means editing that file only — never hardcode coordinates in the clients.
+- All venue geometry is normalized 0–1. Never hardcode coordinates in the clients.
+- **Venues are plural now.** They live as JSON in `venues/`, seeded from `venue.json` on first boot; `venue.json` is the committed built-in and is never written to. The active one is swapped at runtime by `setActive()`, so `venue`, `zoneById` and `GEO` are mutable — don't turn them back into boot-time `const`s.
+- Only `outline`, `zones`, `aspect` and `name` are guaranteed. `containers`, `route`, `streets` and `entrances` exist on STACKT but not on anything built in the editor — guard every one of them before iterating, or the map throws on a new venue.
+- Nothing may assume a zone id exists. `entrance1` is STACKT-specific; use `defaultZone()`, which prefers a `transit` zone and falls back to the first.
+- `validateVenue()` enforces the geometry rules (corners inside the outline, no overlaps, unique ids) instead of leaving them to memory. The editor mirrors it client-side to flag zones as you draw.
 - `venue.png` is the source floor plan the geometry was traced from. Check any geometry change against it.
 - After editing `venue.json`, verify every zone corner falls inside the `outline` polygon and no two zones overlap. Broken geometry renders as zones floating outside the site.
 - Phones send **one summarised float per 500ms**, never raw accelerometer samples. Raw 30Hz from 100 phones melts the server. GPS is throttled separately to one fix per second; step count rides on the accelerometer stream that's already being sampled.
@@ -49,7 +53,7 @@ Do not swap these for defaults; they were chosen deliberately.
 
 ## Current state
 
-Built: host dashboard (map/people/zones tabs), phone check-in + participant view, radio player on both, audio-derived palette, 58-attendee simulator.
+Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, two-point GPS calibration).
 
 Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-zone QRs still work and set
 the starting zone. `venue.geo` maps GPS onto the normalized map via origin + span + bearing; it ships

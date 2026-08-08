@@ -4,6 +4,11 @@ node_modules/
 cloudflared
 cloudflared.exe
 
+# floor plan images uploaded through the venue editor — binaries, sometimes
+# large. The venue JSON beside them IS tracked, so a venue you build can be
+# committed and shared; only the traced-over image stays local.
+venues/*-plan.png
+
 # local overrides
 .env
 .env.local
