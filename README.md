@@ -157,6 +157,37 @@ Print `/qr/event.svg` once. It encodes `/join.html` with no zone, and GPS takes 
 zone membership updates on its own as people move. Anyone whose GPS never gets a usable fix stays in
 `entrance1`, which is also where everyone starts.
 
+### Getting a QR that actually scans
+
+**The QR is generated live by the server, not stored in this repo.** Open `/qr/event.svg` in a browser
+and print that page. Whatever `PUBLIC_URL` was set to when the server started is what gets encoded —
+which is the whole reason it works or doesn't:
+
+| Server started with | QR encodes | Scanning it on a phone |
+|---|---|---|
+| `node server.js` | `http://localhost:3000/join.html` | **Dead.** The phone resolves `localhost` to itself |
+| `PUBLIC_URL=https://…trycloudflare.com node server.js` | `https://…trycloudflare.com/join.html` | Works |
+
+So a working QR is a two-step thing: start the tunnel, then start the server with `PUBLIC_URL` set to
+the URL the tunnel printed. Generate posters **after** that, not before.
+
+To save one as a printable PNG:
+
+```bash
+node -e "require('qrcode').toFile('qr-event.png','https://YOUR-TUNNEL.trycloudflare.com/join.html',{width:900,margin:2})"
+```
+
+<img src="docs/qr-event.png" width="220" alt="Event check-in QR">
+
+⚠️ **The QR above is a snapshot from 2026-08-08 and is almost certainly dead.** Cloudflare quick
+tunnels get a new random hostname every restart, so this image only worked for the session that
+generated it — and it will never be right on your machine. It's here to show what the poster looks
+like. Generate your own with the command above, or just print `/qr/event.svg`.
+
+If you want a QR that stays valid, you need a stable hostname: a named Cloudflare tunnel
+(`cloudflared tunnel create`), an ngrok reserved domain, or any real deploy. Quick tunnels are
+deliberately ephemeral.
+
 **Calibrate before the event or GPS does nothing.** `venue.geo` ships with estimated numbers. Open
 `/calibrate.html`, fix two known points that are far apart (opposite corners, or two gates), and paste
 the resulting block into `venue.json`. It solves for the site's real origin, size and rotation, holding
@@ -205,6 +236,27 @@ melt the server. GPS is throttled to one fix a second, and step count comes from
 accelerometer stream that's already being sampled.
 
 Heart rate is optional and uses the standard BLE GATT Heart Rate Service (`0x180D`), so any strap advertising "Bluetooth heart rate" works. Chrome on Android and desktop only — **iOS has no Web Bluetooth at all**, so design the demo assuming most phones contribute movement only.
+
+## localhost vs the tunnel
+
+These are **the same server**, byte for byte — one Node process, two ways in. The tunnel is a public
+HTTPS front door that forwards to `localhost:3000`; it isn't a copy or a deploy. Stop the server and
+both go dark.
+
+| | `http://localhost:3000` | `https://…trycloudflare.com` |
+|---|---|---|
+| Who can reach it | only your machine | anyone with the link |
+| Transport | HTTP | HTTPS |
+| Motion, GPS, Bluetooth | **blocked** except on your own machine | work everywhere |
+| Round trip | ~17ms | ~165ms |
+| Lifetime | stable | new random hostname each restart |
+
+The sensor row is the one that matters. Browsers only expose `DeviceMotionEvent`, geolocation and Web
+Bluetooth in a *secure context* — HTTPS, or `localhost`. Your laptop gets the localhost exemption; a
+phone does not, because to the phone `localhost` means the phone. So a phone on plain HTTP checks in
+happily and then reports `0.00` movement forever.
+
+Use localhost for developing the dashboard, and the tunnel whenever a phone is involved.
 
 ## You must be on HTTPS
 
