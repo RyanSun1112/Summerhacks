@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
@@ -20,6 +21,33 @@ const { createClient } = require('@supabase/supabase-js');
       val = val.slice(1, -1);
     if (process.env[key] === undefined) process.env[key] = val;
   }
+const {
+  MOCK_SCENARIOS,
+  getMockScenario,
+  loadSongProfiles,
+  indexSongs,
+  resolveSongIds,
+  OpenAISelector,
+  selectNextSong
+} = require('./lib/dj');
+
+// Load .env before anything reads process.env. Ten lines beats adding a
+// dependency, and it means an API key never has to survive a shell-quoting
+// round trip — which differs between PowerShell, cmd and Git Bash and is the
+// single most common way this fails to start.
+(() => {
+  const p = path.join(__dirname, '.env');
+  if (!fs.existsSync(p)) return;
+  let n = 0;
+  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
+    if (/^\s*#/.test(line)) continue;
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let v = m[2].trim().replace(/\s+#.*$/, '');          // trailing comment, not a # inside a key
+    if (/^".*"$|^'.*'$/.test(v)) v = v.slice(1, -1);
+    if (!(m[1] in process.env)) { process.env[m[1]] = v; n++; }   // a real env var still wins
+  }
+  if (n) console.log(`Loaded ${n} setting${n > 1 ? 's' : ''} from .env`);
 })();
 
 const PORT = process.env.PORT || 3000;
@@ -141,6 +169,31 @@ function saveVenue(v) {
   return id;
 }
 
+// The selector reads precomputed metadata only. In development it falls back to
+// fictional example profiles; real events should generate data/songProfiles.json.
+const requestedProfilePath = process.env.DJ_PROFILES_PATH || path.join(__dirname, 'data', 'songProfiles.json');
+const exampleProfilePath = path.join(__dirname, 'data', 'songProfiles.example.json');
+const djProfilePath = fs.existsSync(requestedProfilePath) ? requestedProfilePath : exampleProfilePath;
+let djSongs = [];
+let djSongIndex = new Map();
+try {
+  djSongs = loadSongProfiles(djProfilePath);
+  djSongIndex = indexSongs(djSongs);
+  if (djProfilePath === exampleProfilePath) {
+    console.warn('[dj] data/songProfiles.json not found; selection API is using fictional example profiles.');
+  }
+} catch (error) {
+  console.warn(`[dj] song selection disabled: ${error.message}`);
+}
+
+function authorizedDjAI(requestToken) {
+  const expected = process.env.DJ_AI_TOKEN;
+  if (!expected || typeof requestToken !== 'string') return false;
+  const actualBuffer = Buffer.from(requestToken);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -150,8 +203,17 @@ const io = new Server(server, { cors: { origin: '*' } });
 // JSON that gets broadcast every switch stays small.
 const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
 
+// Two body limits, not one. 64kb protects every ordinary endpoint, but floor
+// plans and the image sent for AI reading are megabytes of data URL, and a
+// single global limit can't serve both: the small one silently 413s uploads,
+// the large one drops the protection everywhere. Registering both as global
+// middleware doesn't work either — the first to run wins, so the small limit
+// rejected the upload before the large one was ever reached.
+const smallJson = express.json({ limit: '64kb' });
+const bigJson   = express.json({ limit: PLAN_MAX });
+const needsBigBody = req => req.path === '/detect' || /^\/venues\/[^/]+\/plan$/.test(req.path);
+app.use((req, res, next) => (needsBigBody(req) ? bigJson : smallJson)(req, res, next));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: PLAN_MAX }));      // floor plans arrive as data URLs
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
@@ -376,6 +438,221 @@ app.put('/venues/:id/plan', requireAuth, async (req, res) => {
   }
 });
 
+// ------------------------------------------------------------ AI detection
+// The key stays on the server. The dashboard is served over a public tunnel,
+// so a key in client JS would be handed to anyone who opens the page.
+const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
+const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+
+// Whichever key is present wins; set AI_PROVIDER explicitly if you have both.
+const AI_PROVIDER = (process.env.AI_PROVIDER || '').toLowerCase()
+  || (OPENAI_KEY ? 'openai' : GEMINI_KEY ? 'gemini' : '');
+const AI_KEY   = AI_PROVIDER === 'openai' ? OPENAI_KEY : GEMINI_KEY;
+const AI_MODEL = AI_PROVIDER === 'openai'
+  // gpt-5.4 by measurement, not by vintage: on a labelled test plan it places
+  // boxes at IoU ~0.91 against the true rooms where gpt-4o manages ~0.47, and
+  // it's also the fastest and cheapest of the accurate ones. Every model tried
+  // found all 7 rooms and labelled them right — the difference is entirely in
+  // how tightly the rectangles land, which is what zone accuracy depends on.
+  ? (process.env.OPENAI_MODEL || 'gpt-5.4')
+  : (process.env.GEMINI_MODEL || 'gemini-2.0-flash');
+
+// overridable so the request/parse/repair path can be exercised against a stub
+const OPENAI_BASE = process.env.OPENAI_BASE || 'https://api.openai.com/v1';
+const GEMINI_BASE = process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta';
+
+const KINDS = ['event', 'social', 'food', 'market', 'outdoor', 'transit'];
+
+const AI_PROMPT = `You are reading a venue floor plan or site map. Identify the distinct areas a crowd can occupy: rooms, halls, studios, courtyards, stages, food areas, lobbies, entrances.
+
+Return normalized coordinates in 0..1, where (0,0) is the TOP-LEFT of the image and (1,1) the bottom-right. For each zone, x,y is the top-left corner of an axis-aligned rectangle and w,h its size.
+
+Rules:
+- Rectangles must NOT overlap each other.
+- Every rectangle must lie inside the venue outline you return.
+- Give the largest rectangle that fits INSIDE the area, not a box drawn around it.
+- Ignore legends, titles, north arrows, scale bars, dimension lines and blocks of text.
+- Return between 2 and 30 zones. If the plan is a single open space, return one zone.
+
+"kind" must be exactly one of: event, social, food, market, outdoor, transit.
+  event   - halls, rooms, stages, studios, anywhere sessions happen
+  social  - lounges, courtyards, seating areas
+  food    - kitchens, bars, cafeterias, food halls
+  market  - retail units, vendor stalls
+  outdoor - lawns, parks, yards
+  transit - entrances, lobbies, corridors, stairs, parking
+
+"cap" is a plausible standing capacity for the area.
+"label" is the name written on the plan if there is one, otherwise something descriptive.
+"outline" is the venue footprint: 3 to 40 points tracing its edge in order.
+"name" is the venue's name if the plan states one, otherwise an empty string.`;
+
+// Gemini wants uppercase type names and ignores additionalProperties
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    name: { type: 'STRING' },
+    outline: { type: 'ARRAY', items: { type: 'OBJECT',
+      properties: { x: { type: 'NUMBER' }, y: { type: 'NUMBER' } }, required: ['x', 'y'] } },
+    zones: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      label: { type: 'STRING' }, short: { type: 'STRING' }, kind: { type: 'STRING' },
+      x: { type: 'NUMBER' }, y: { type: 'NUMBER' }, w: { type: 'NUMBER' }, h: { type: 'NUMBER' },
+      cap: { type: 'INTEGER' }
+    }, required: ['label', 'kind', 'x', 'y', 'w', 'h'] } }
+  },
+  required: ['zones', 'outline']
+};
+
+// OpenAI structured outputs are strict: every object needs additionalProperties
+// false and every property listed in required, or the request is rejected.
+const OPENAI_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['name', 'outline', 'zones'],
+  properties: {
+    name: { type: 'string' },
+    outline: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['x', 'y'], properties: { x: { type: 'number' }, y: { type: 'number' } } } },
+    zones: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['label', 'short', 'kind', 'x', 'y', 'w', 'h', 'cap'],
+      properties: {
+        label: { type: 'string' }, short: { type: 'string' },
+        kind: { type: 'string', enum: KINDS },
+        x: { type: 'number' }, y: { type: 'number' },
+        w: { type: 'number' }, h: { type: 'number' }, cap: { type: 'integer' }
+      } } }
+  }
+};
+
+// Each returns the model's raw JSON text, or throws with something readable.
+async function askGemini(mime, b64, signal) {
+  const r = await fetch(`${GEMINI_BASE}/models/${AI_MODEL}:generateContent?key=${AI_KEY}`, {
+    method: 'POST', signal, headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: mime, data: b64 } }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_SCHEMA, temperature: 0.1 }
+    })
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error((body.error && body.error.message) || `HTTP ${r.status}`);
+  const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('the model returned nothing usable');
+  return text;
+}
+
+async function askOpenAI(mime, b64, signal) {
+  const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: 'POST', signal,
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${AI_KEY}` },
+    body: JSON.stringify({
+      model: AI_MODEL, temperature: 0.1,
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: AI_PROMPT },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}`, detail: 'high' } }
+      ] }],
+      response_format: { type: 'json_schema',
+        json_schema: { name: 'venue_layout', strict: true, schema: OPENAI_SCHEMA } }
+    })
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error((body.error && body.error.message) || `HTTP ${r.status}`);
+  const choice = body.choices?.[0];
+  if (choice?.finish_reason === 'length') throw new Error('the model ran out of output tokens');
+  const text = choice?.message?.content;
+  if (!text) throw new Error('the model returned nothing usable');
+  return text;
+}
+
+// A vision model returns plausible boxes, not valid geometry. Clamp them into
+// range, drop the degenerate ones, trim overlaps and pull strays inside the
+// outline — the same guarantees the local detector makes, so whichever path
+// produced the zones, what reaches validateVenue is sound.
+function repairGeometry(zones, outline) {
+  const out = [];
+  const seen = new Set();
+  for (const z of zones) {
+    let x = clamp(+z.x || 0, 0, 1), y = clamp(+z.y || 0, 0, 1);
+    let w = clamp(+z.w || 0, 0, 1), h = clamp(+z.h || 0, 0, 1);
+    if (x + w > 1) w = 1 - x;
+    if (y + h > 1) h = 1 - y;
+    if (w < 0.014 || h < 0.014) continue;
+
+    let bad = false;
+    for (const a of out) {                       // trim along the cheaper axis
+      const ox = Math.min(x + w, a.x + a.w) - Math.max(x, a.x);
+      const oy = Math.min(y + h, a.y + a.h) - Math.max(y, a.y);
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox < oy) { if (x < a.x) w = a.x - x; else { const nx = a.x + a.w; w = x + w - nx; x = nx; } }
+      else         { if (y < a.y) h = a.y - y; else { const ny = a.y + a.h; h = y + h - ny; y = ny; } }
+      if (w < 0.014 || h < 0.014) { bad = true; break; }
+    }
+    if (bad) continue;
+
+    const fits = () => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+      .every(p => pointInPolygon(p[0], p[1], outline));
+    for (let k = 0; k < 8 && !fits(); k++) {
+      const cx = x + w / 2, cy = y + h / 2;
+      w *= 0.9; h *= 0.9; x = cx - w / 2; y = cy - h / 2;
+    }
+    if (!fits() || w < 0.014 || h < 0.014) continue;
+
+    let id = slug(z.label) || 'zone';
+    let n = 2; while (seen.has(id)) id = slug(z.label) + '-' + n++;
+    seen.add(id);
+
+    out.push({
+      id, label: String(z.label || id).slice(0, 30),
+      short: String(z.short || z.label || id).slice(0, 12).toUpperCase(),
+      kind: KINDS.includes(z.kind) ? z.kind : 'event',
+      x: +x.toFixed(4), y: +y.toFixed(4), w: +w.toFixed(4), h: +h.toFixed(4),
+      cap: clamp(parseInt(z.cap, 10) || Math.round(w * h * 1400), 4, 2000)
+    });
+    if (out.length >= 40) break;
+  }
+  return out;
+}
+
+app.get('/ai', (_, res) => res.json({
+  available: !!AI_KEY, provider: AI_KEY ? AI_PROVIDER : null, model: AI_KEY ? AI_MODEL : null
+}));
+
+app.post('/detect', async (req, res) => {
+  if (!AI_KEY) return res.status(503).json({ error: 'no OPENAI_API_KEY or GEMINI_API_KEY set on the server' });
+  const m = String((req.body && req.body.image) || '').match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const ask = AI_PROVIDER === 'openai' ? askOpenAI : askGemini;
+    let text;
+    try { text = await ask('image/' + m[1], m[2], ctrl.signal); }
+    catch (e) {
+      if (e.name === 'AbortError') throw e;
+      console.warn(`[ai] ${AI_PROVIDER} rejected the request:`, e.message);
+      return res.status(502).json({ error: e.message });
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(text); }
+    catch { return res.status(502).json({ error: 'the model returned malformed JSON' }); }
+
+    let outline = (parsed.outline || [])
+      .map(p => [clamp(+p.x || 0, 0, 1), clamp(+p.y || 0, 0, 1)]);
+    if (outline.length < 3) outline = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+    const zones = repairGeometry(parsed.zones || [], outline);
+    if (!zones.length) return res.status(422).json({ error: 'the model found no usable zones in that image' });
+
+    res.json({ source: 'ai', provider: AI_PROVIDER, model: AI_MODEL,
+               name: String(parsed.name || '').slice(0, 40),
+               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones });
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'the model took too long to answer' : e.message;
+    console.warn('[ai] detect failed:', msg);
+    res.status(502).json({ error: msg });
+  } finally { clearTimeout(timer); }
+});
+
 // --------------------------------------------------------- crowd settings
 app.get('/crowd', (_, res) => res.json(crowdCfg));
 app.post('/crowd', (req, res) => {
@@ -390,20 +667,114 @@ app.post('/crowd', (req, res) => {
 // curl this if the dashboard looks wrong — it's the exact payload being broadcast
 app.get('/state.json', (_, res) => res.json(publicState()));
 
+// Mock/future CrowdState -> deterministic target/ranking -> optional server-side
+// OpenAI final judge. This endpoint never receives audio and never exposes a key.
+app.get('/api/dj/scenarios', (_, res) => res.json({
+  scenarios: Object.keys(MOCK_SCENARIOS),
+  profileSource: path.relative(__dirname, djProfilePath),
+  songCount: djSongs.length
+}));
+
+app.post('/api/dj/select', async (req, res) => {
+  if (!djSongs.length) return res.status(503).json({ error: 'song profile database is unavailable' });
+  try {
+    const input = req.body || {};
+    const crowdState = input.crowdState || getMockScenario(input.scenario || 'dancingGrowing');
+    const currentSong = input.currentSongId ? djSongIndex.get(input.currentSongId) : null;
+    if (input.currentSongId && !currentSong) throw new Error(`unknown currentSongId: ${input.currentSongId}`);
+    const requestedRecentIds = input.recentSongIds || [];
+    if (!Array.isArray(requestedRecentIds)) throw new Error('recentSongIds must be an array');
+    const recentHistory = resolveSongIds(requestedRecentIds, djSongIndex);
+    if (recentHistory.length !== requestedRecentIds.length) throw new Error('one or more recentSongIds are unknown');
+
+    const useAI = input.useAI === true;
+    const aiAuthorized = useAI && authorizedDjAI(req.get('x-dj-token'));
+    let aiSelector = null;
+    if (aiAuthorized) {
+      try { aiSelector = new OpenAISelector(); }
+      catch (_) { /* engine reports deterministic fallback without exposing secrets */ }
+    }
+    const decision = await selectNextSong({
+      crowdState,
+      songs: djSongs,
+      currentSong,
+      recentHistory,
+      useAI,
+      aiSelector
+    });
+    if (decision.aiError) decision.aiError = 'AI unavailable or failed; deterministic fallback used';
+    return res.json(decision);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+// What a phone should type to reach us. PUBLIC_URL wins; otherwise trust the
+// proxy headers, because a tunnel terminates TLS and forwards plain HTTP — so
+// req.headers.host is the public hostname while the scheme looks like http.
+// Hardcoding http:// there produced a QR that pointed at an HTTPS-only host
+// and silently killed the sensors.
+function publicOrigin(req) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  const fwd = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+  const proto = fwd || (req.socket.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
+// A QR is only as good as the URL inside it, and the two ways it goes wrong —
+// localhost, or plain http — are both invisible until phones fail in the room.
+function originProblem(origin) {
+  if (/^https?:\/\/(localhost|127\.|\[?::1)/i.test(origin))
+    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Start a tunnel and reload this page through its URL.';
+  if (origin.startsWith('http://'))
+    return 'This is plain HTTP. Phones will check in and then report 0.00 movement forever, because motion and GPS are blocked outside a secure context.';
+  return null;
+}
+
+const qrUrlFor = (req, zone) => `${publicOrigin(req)}/join.html${zone ? '?zone=' + encodeURIComponent(zone) : ''}`;
+const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
+
 // The single event-wide poster. No zone in the URL — GPS resolves it, and
 // anyone whose GPS never gets a usable fix stays in the check-in zone.
 // Registered before /qr/:zone.svg because that pattern would swallow it.
-app.get('/qr/event.svg', async (req, res) => {
-  const origin = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-  const svg = await QRCode.toString(`${origin}/join.html`, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
-  res.type('svg').send(svg);
-});
+app.get('/qr/event.svg', async (req, res) => res.type('svg').send(await qrSvg(qrUrlFor(req))));
 
-app.get('/qr/:zone.svg', async (req, res) => {
-  const origin = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-  const url = `${origin}/join.html?zone=${encodeURIComponent(req.params.zone)}`;
-  const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
-  res.type('svg').send(svg);
+app.get('/qr/:zone.svg', async (req, res) =>
+  res.type('svg').send(await qrSvg(qrUrlFor(req, req.params.zone))));
+
+// Printable poster, and the honest answer to "will this QR actually work?" —
+// it shows the encoded URL as text and refuses to look fine when it isn't.
+app.get('/qr', async (req, res) => {
+  const zone = req.query.zone ? String(req.query.zone) : '';
+  const url = qrUrlFor(req, zone);
+  const problem = originProblem(url);
+  const z = zone && zoneById[zone];
+  res.type('html').send(`<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — check-in poster</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#0A0C14;
+      font-family:'Space Grotesk',system-ui,sans-serif;padding:32px}
+ .card{max-width:620px;width:100%;text-align:center}
+ h1{font-size:40px;margin:0 0 6px;letter-spacing:-.02em}
+ .sub{font-size:17px;color:#5A6070;margin:0 0 26px}
+ .qr{width:min(78vw,380px);height:auto;display:block;margin:0 auto}
+ .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:20px;word-break:break-all}
+ .warn{margin-top:22px;padding:15px 17px;border-radius:11px;text-align:left;
+       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55}
+ .ok{margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2E9E6B}
+ @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
+</style>
+<div class="card">
+  <h1>${z ? z.label : venue.name}</h1>
+  <p class="sub">Scan to join${z ? '' : ' — your zone updates as you move'}</p>
+  ${await qrSvg(url).then(s => s.replace('<svg', '<svg class="qr"'))}
+  <div class="url">${url}</div>
+  ${problem
+    ? `<div class="warn"><b>This QR will not work for phones.</b><br>${problem}</div>`
+    : `<div class="ok">HTTPS · reachable from any phone</div>`}
+</div>`);
 });
 
 // --------------------------------------------------------------- helpers
@@ -718,6 +1089,20 @@ setActive(process.env.VENUE && venues.has(process.env.VENUE) ? process.env.VENUE
                                                             : [...venues.keys()][0]);
 rebuildCrowd();
 
+// A port clash otherwise surfaces as an unhandled 'error' event and ten lines
+// of stack, which reads like the app is broken rather than "something else is
+// already there" — and the old server keeps answering, so /ai and the dashboard
+// look fine while your new settings never loaded.
+server.on('error', e => {
+  if (e.code !== 'EADDRINUSE') throw e;
+  console.error(`\n  Port ${PORT} is already in use — an older copy is probably still running.`);
+  console.error(`  Anything you check on that port is being answered by THAT server, not this one.\n`);
+  console.error(`  Find it:  netstat -ano | findstr :${PORT}`);
+  console.error(`  Stop it:  taskkill /PID <pid> /F`);
+  console.error(`  Or just:  set PORT=3001 && node server.js\n`);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
@@ -725,4 +1110,10 @@ server.listen(PORT, () => {
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
   console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}\n`);
+  console.log(`  QR poster  http://localhost:${PORT}/qr`);
+  console.log(process.env.PUBLIC_URL
+    ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
+    : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
+      `  the page with. Open /qr through your tunnel, not localhost — the poster\n` +
+      `  tells you outright whether the code will work on a phone.\n`);
 });

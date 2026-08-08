@@ -51,6 +51,16 @@ Environment variables, all optional:
 | `FAKE` | on | `FAKE=0` disables the simulated crowd |
 | `FAKE_N` | `58` | How many simulated attendees |
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
+| `DJ_PROFILES_PATH` | `data/songProfiles.json` | Override the preprocessed song-profile database
+|
+| `OPENAI_DJ_MODEL` | `gpt-5-mini` | Optional final-selector model |
+| `DJ_AI_TOKEN` | — | Required in `X-DJ-Token` before the HTTP endpoint may spend AI credits |
+| `OPENAI_API_KEY` | — | Enables OpenAI-backed venue-plan reading and optional DJ selection; server-side only |
+| `GEMINI_API_KEY` | — | Enables venue-plan reading with Gemini. Free key from [AI Studio] (https://aistudio.google.com/apikey) |
+| `AI_PROVIDER` | auto | `openai` or `gemini`. Only needed if both keys are set |
+| `OPENAI_MODEL` | `gpt-5.4` | Vision model that reads the plan |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Vision model that reads the plan |
+| `VENUE` | first found | Which venue to start live |
 
 ```bash
 FAKE=0 node server.js            # real check-ins only
@@ -77,12 +87,42 @@ public/
   join.html        phone view — check-in, sensors, mini map
   calibrate.html   two-point GPS calibration tool
 docs/data.md       API/data notes
+docs/song-preprocessing.md  offline song-profile generation
 CLAUDE.md          conventions and hard constraints — read before changing architecture
 ```
 
 Each HTML file is standalone: styles in a `<style>` block, logic in a `<script>` block, no imports and
 no shared bundle. To change the dashboard, open `public/dashboard.html` and edit it. Reload to see it.
 Only `server.js` changes need a restart.
+
+## Offline song preprocessing
+
+The optional Python utility analyzes legitimate local audio files before an event and
+creates `data/songProfiles.json`. The live Node application consumes only that compact
+profile database; it does not run librosa or call an LLM for song features. See
+[the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
+caching, audio-only testing, and full-library commands.
+
+## Adaptive song selection
+
+The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
+preprocessed profiles. It converts the room state into an explicit musical target,
+ranks eligible songs, explains its scores, and optionally lets OpenAI choose among
+only the top ten. AI is server-side and never required: missing keys, timeouts,
+invalid output, or unknown song IDs automatically fall back to the highest numeric
+score.
+
+```bash
+npm run select-song -- --scenario dancingGrowing
+npm run select-song -- --scenario socializing
+npm run select-song -- --scenario losingDanceFloor --json
+npm run select-song -- --list-scenarios
+```
+
+Add `--ai` to request the optional final judge. Without `data/songProfiles.json`, the
+CLI and API clearly fall back to fictional `data/songProfiles.example.json` records.
+The server also exposes `GET /api/dj/scenarios` and `POST /api/dj/select`; neither
+route changes the currently playing track. See [the DJ selection guide](docs/dj-selection.md).
 
 ## Making changes
 
@@ -144,12 +184,112 @@ built.
    step.
 4. **Save**, or **Save & make active** to move the live event onto it.
 
-Everything stays editable afterwards: drag on the canvas to add a zone, click one to rename it or
-change kind and capacity, **Trace outline** to click out a non-rectangular site, **Place ref pin** to
-move a pin. `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where
-phones land when GPS can't place them.
+### Editing what came back
 
-### How the automatic detection works
+Detection gets you most of the way; the last 10% is yours. Everything it produced is editable:
+
+| Do this | To |
+|---|---|
+| Drag a zone | Move it |
+| Drag its handles | Resize from any edge or corner |
+| Arrow keys | Nudge by a hair — for lining up with a wall |
+| Shift + arrows | Nudge in bigger steps |
+| Alt + arrows | Resize instead of move |
+| Delete / Backspace | Remove the selected zone |
+| Drag empty space | Add a new zone |
+| Click a zone, or a row in the list | Select it, then edit label, kind and capacity |
+
+The selected zone shows eight grab handles, and the cursor changes over them, so resizing isn't a
+secret. Zones turn amber the moment they leave the outline or overlap a neighbour — you see the
+problem while dragging rather than when you hit Save.
+
+**Trace outline** clicks out a non-rectangular site, **Place ref pin** moves a calibration pin.
+`event` zones get the accent colour and drive the "in sessions" metric; `transit` is where phones land
+when GPS can't place them.
+
+### Letting AI read the plan
+
+There are two readers. **AI** sends the image to Gemini, which reads a plan the way a person does —
+it picks up room names printed on the drawing, understands that a rectangle labelled "Kitchen" is a
+food area, and copes with site maps and photographs that defeat pure image processing. **Local** is
+the built-in geometric reader described below, needs no key, no network, and no quota.
+
+Either **OpenAI** or **Gemini** works. The simplest way to set a key is a `.env` file, because it
+avoids shell quoting entirely — the syntax for setting an environment variable differs between
+PowerShell, cmd and Git Bash, and getting it wrong is the most common way this fails to start.
+
+```bash
+cp .env.example .env      # then edit .env and paste your key
+node server.js
+```
+
+You should see `Loaded 1 setting from .env` at boot. That's it — no `export`, no `$env:`, no `set`.
+
+If you'd rather use the shell, the syntax depends on which one you're in:
+
+| Shell | Prompt looks like | Command |
+|---|---|---|
+| PowerShell | `PS C:\Workspace\Summerhacks>` | `$env:OPENAI_API_KEY="sk-..."` |
+| Command Prompt | `C:\Workspace\Summerhacks>` | `set OPENAI_API_KEY=sk-...` (no quotes — cmd keeps them) |
+| Git Bash | `user@host MINGW64 /c/...$` | `export OPENAI_API_KEY=sk-...` |
+
+Either way it only applies to that one window, and only to servers started from it afterwards.
+Anything set in the shell overrides `.env`.
+
+Keys: OpenAI at [platform.openai.com/api-keys](https://platform.openai.com/api-keys), Gemini free at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+
+Whichever key is present is used. With both set, `AI_PROVIDER=openai|gemini` decides. Defaults are
+`gpt-5.4` and `gemini-2.0-flash`; override with `OPENAI_MODEL` / `GEMINI_MODEL`. The model must be
+vision-capable — a text-only model will fail with a clear error rather than silently misbehaving.
+
+Without a key the AI option disables itself in the dropdown and the local reader is selected. Nothing
+breaks; you just get the weaker reader.
+
+**The key never reaches the browser.** The dashboard is served over a public tunnel, so a key in
+client-side JS would be handed to anyone who opened the page — and OpenAI keys are billable. The
+browser posts the image to `POST /detect`, the server calls the model, and only the resulting zones
+come back. OpenAI is called with a `Bearer` header, and both providers are asked for structured JSON
+(`strict: true` on OpenAI) rather than free text that needs parsing out of prose.
+
+The image is downscaled to 1152px before upload — a phone photo of a plan is several megabytes, and
+that's latency and tokens spent on detail the model doesn't need.
+
+**Model output is repaired, never trusted.** A vision model returns plausible rectangles, not valid
+geometry: boxes overlap, coordinates run past the edge, `kind` comes back as something that isn't in
+the vocabulary, two rooms share a name. Everything is clamped into range, degenerate boxes dropped,
+overlaps trimmed, strays pulled inside the outline, ids de-duplicated and kinds coerced — the same
+guarantees the local reader makes, so whichever reader ran, what reaches `validateVenue` is sound.
+
+If the call fails for any reason — no quota, bad key, timeout, malformed answer — the editor falls
+back to the local reader and tells you what went wrong rather than leaving you stuck.
+
+### Which model to use
+
+Model choice matters far more than it looks. Every model tried found all 7 rooms in a labelled test
+plan and named them correctly — the difference is entirely in **how tightly the rectangles land**,
+which is exactly what zone accuracy depends on. Scored as IoU against the true room boxes, three runs
+each:
+
+| Model | Box accuracy (IoU) | Time | Tokens |
+|---|---|---|---|
+| **gpt-5.4** (default) | **0.91** | 3.2s | 1474 |
+| gpt-5.6-luna | 0.90 | 5.7s | 1800 |
+| gpt-5.6-terra | 0.90 | 6.9s | 1780 |
+| gpt-5.5 | 0.90 | 16.4s | 2510 |
+| gpt-5 | 0.58 | 36.9s | 4949 |
+| gpt-4.1 | 0.51 | 2.2s | 1623 |
+| gpt-4o | 0.47 | 4.9s | 1598 |
+
+`gpt-5.4` wins on all three axes, so it's the default. An IoU of 0.47 means a box overlapping the real
+room less than halfway — zones that look plausible in the editor and put people in the wrong place.
+The 5.6 variants are equally accurate but slower; there's no plain `gpt-5.6`, only `-luna`, `-sol` and
+`-terra`.
+
+Re-run this yourself if you want to check a newer model — the scoring harness is small, and the models
+your key can reach are listed by `GET https://api.openai.com/v1/models`.
+
+### How the local detection works
 
 Two strategies run over the image, because plans differ wildly:
 
@@ -257,17 +397,36 @@ zone membership updates on its own as people move. Anyone whose GPS never gets a
 
 ### Getting a QR that actually scans
 
-**The QR is generated live by the server, not stored in this repo.** Open `/qr/event.svg` in a browser
-and print that page. Whatever `PUBLIC_URL` was set to when the server started is what gets encoded —
-which is the whole reason it works or doesn't:
+**Open `/qr` through your tunnel URL, not through localhost.** That's the whole rule.
 
-| Server started with | QR encodes | Scanning it on a phone |
+```
+https://your-tunnel.trycloudflare.com/qr        ← print this
+http://localhost:3000/qr                        ← will warn you it won't work
+```
+
+`/qr` is a printable poster: the code, and underneath it the exact URL encoded inside. If that URL
+can't work from a phone it says so in orange and explains why, so a dead poster can't look fine.
+
+The QR is generated per request from the address you reached the server on, so loading the poster
+through the tunnel is what puts the tunnel's hostname in the code. There are only two ways it goes
+wrong, and the poster names both:
+
+| Poster opened via | QR encodes | Result |
 |---|---|---|
-| `node server.js` | `http://localhost:3000/join.html` | **Dead.** The phone resolves `localhost` to itself |
-| `PUBLIC_URL=https://…trycloudflare.com node server.js` | `https://…trycloudflare.com/join.html` | Works |
+| `localhost:3000` | `http://localhost:3000/join.html` | **Dead** — a phone resolves `localhost` to itself |
+| the tunnel | `https://…trycloudflare.com/join.html` | Works |
 
-So a working QR is a two-step thing: start the tunnel, then start the server with `PUBLIC_URL` set to
-the URL the tunnel printed. Generate posters **after** that, not before.
+Proxies terminate TLS and forward plain HTTP, so the server is told the request was `http` even when
+the phone will speak `https`. `x-forwarded-proto` is honoured to get this right — without that the
+QR encodes `http://` to an HTTPS-only host, which fails in the least helpful way possible: the page
+may load, and then motion and GPS are silently blocked because it isn't a secure context.
+
+Setting `PUBLIC_URL` still works and overrides all of this — worth doing if you're printing posters
+in advance, since it pins the URL regardless of how you open the page. Just remember quick tunnels
+get a new hostname on every restart, so a poster printed against an old one is waste paper.
+
+`/qr?zone=northhall` gives the per-zone poster; `/qr/event.svg` and `/qr/<zone>.svg` still return the
+bare SVG if you'd rather place it yourself.
 
 To save one as a printable PNG:
 
@@ -401,6 +560,7 @@ HTTP wouldn't give you sensors anyway. The tunnel solves both at once.
 - **`Cannot GET /dashboard.html`** → the HTML must live in `public/`; that's the directory `server.js` serves.
 - **`EADDRINUSE`** → something's already on port 3000. `PORT=3001 node server.js`, or kill the old one.
 - **Phones report 0.00 movement** → you're on HTTP. Nothing else causes this.
+- **QR scans but nothing happens** → open `/qr` and read the URL under the code; it tells you what is wrong.
 - **Everyone stuck in Entrance 1, Fix column says "off site"** → `venue.geo` isn't calibrated. Run `/calibrate.html`.
 - **Dots drift between neighbouring containers** → GPS accuracy is worse than the zones are wide. Check the Fix column; anything over ±8m will do this.
 - **Palette never changes** → no track loaded, or the browser blocked autoplay. Click the page once.

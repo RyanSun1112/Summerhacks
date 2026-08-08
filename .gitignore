@@ -3,6 +3,13 @@ venv/
 __pycache__/
 *.db
 
+# Python preprocessing environment and generated caches
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+/cache/
+
 # tunnel binary — everyone downloads their own, it's ~70MB
 cloudflared
 cloudflared.exe
@@ -26,3 +33,11 @@ Thumbs.db
 *.mp3
 *.m4a
 *.wav
+*.flac
+/audio/
+/songs/
+
+# Rebuildable preprocessing diagnostics (the final songProfiles.json may be committed)
+/data/rawAudioFeatures.json
+/data/rawLLMAnnotations.json
+/data/songPreprocessingReport.json
