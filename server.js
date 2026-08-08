@@ -9,16 +9,181 @@ const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
 
-const venue = JSON.parse(fs.readFileSync(path.join(__dirname, 'venue.json'), 'utf8'));
-const zoneById = Object.fromEntries(venue.zones.map(z => [z.id, z]));
+// ----------------------------------------------------------------- venues
+// Venues are JSON files in venues/. venue.json stays the committed built-in
+// map and is never written to — it seeds venues/stackt.json on first boot, so
+// the editor has something to clone and the tracked file stays pristine.
+const VENUES_DIR = path.join(__dirname, 'venues');
+const BUILTIN    = path.join(__dirname, 'venue.json');
+const PLAN_MAX   = 8 * 1024 * 1024;             // floor plan upload ceiling
+
+const venues = new Map();                        // id -> venue
+let venue = null, zoneById = {}, GEO = null, activeId = null;
+
+const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '').slice(0, 40);
+
+function loadVenues() {
+  venues.clear();
+  if (!fs.existsSync(VENUES_DIR)) fs.mkdirSync(VENUES_DIR, { recursive: true });
+  const seed = path.join(VENUES_DIR, 'stackt.json');
+  if (!fs.existsSync(seed) && fs.existsSync(BUILTIN)) fs.copyFileSync(BUILTIN, seed);
+  for (const f of fs.readdirSync(VENUES_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const v = JSON.parse(fs.readFileSync(path.join(VENUES_DIR, f), 'utf8'));
+      v.id = path.basename(f, '.json');
+      venues.set(v.id, v);
+    } catch (e) { console.warn(`[venues] skipping ${f}: ${e.message}`); }
+  }
+  if (!venues.size) throw new Error('no venues in venues/ and venue.json is missing');
+}
+
+// New venues have no 'entrance1', so nothing may assume that id exists.
+function defaultZone() {
+  if (zoneById.entrance1) return 'entrance1';
+  const t = venue.zones.find(z => z.kind === 'transit');
+  return (t || venue.zones[0]).id;
+}
+
+function setActive(id) {
+  const v = venues.get(id);
+  if (!v) return false;
+  activeId = id; venue = v;
+  zoneById = Object.fromEntries(venue.zones.map(z => [z.id, z]));
+  GEO = venue.geo || null;
+  // anyone checked in is pinned to a zone id that may not exist here
+  const home = defaultZone();
+  for (const p of attendees.values()) {
+    if (zoneById[p.zone]) continue;
+    p.zone = home; p.anchor = anchorInZone(home); p.zoneCand = null; p.zoneVotes = 0;
+  }
+  return true;
+}
+
+// The geometry checks CLAUDE.md asks for, enforced instead of remembered:
+// broken geometry renders as zones floating outside the site.
+function validateVenue(v) {
+  const errs = [];
+  if (!v || typeof v !== 'object') return ['not an object'];
+  if (!v.name) errs.push('name is required');
+  if (!(v.aspect > 0)) errs.push('aspect must be a positive number');
+  if (!Array.isArray(v.outline) || v.outline.length < 3) errs.push('outline needs at least 3 points');
+  if (!Array.isArray(v.zones) || !v.zones.length) errs.push('at least one zone is required');
+  if (errs.length) return errs;
+
+  const seen = new Set();
+  v.zones.forEach((z, i) => {
+    const at = `zone ${i + 1} "${z.id || z.label || '?'}"`;
+    if (!z.id) errs.push(`${at}: missing id`);
+    else if (seen.has(z.id)) errs.push(`${at}: duplicate id`);
+    seen.add(z.id);
+    if (!(z.w > 0) || !(z.h > 0)) errs.push(`${at}: width and height must be positive`);
+    const corners = [[z.x, z.y], [z.x + z.w, z.y], [z.x + z.w, z.y + z.h], [z.x, z.y + z.h]];
+    if (!corners.every(c => pointInPolygon(c[0], c[1], v.outline)))
+      errs.push(`${at}: a corner falls outside the site outline`);
+  });
+  for (let i = 0; i < v.zones.length; i++)
+    for (let j = i + 1; j < v.zones.length; j++) {
+      const a = v.zones[i], b = v.zones[j];
+      if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
+        errs.push(`"${a.id}" overlaps "${b.id}"`);
+    }
+  return errs;
+}
+
+function saveVenue(v) {
+  const id = slug(v.id || v.name);
+  if (!id) throw new Error('could not derive an id from the name');
+  const out = { ...v }; delete out.id;
+  fs.writeFileSync(path.join(VENUES_DIR, id + '.json'), JSON.stringify(out, null, 2));
+  v.id = id; venues.set(id, v);
+  if (id === activeId) setActive(id);            // pick up edits to the live one
+  return id;
+}
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: PLAN_MAX }));      // floor plans arrive as data URLs
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
+
+// ------------------------------------------------------------ venue CRUD
+app.get('/venues', (_, res) => res.json({
+  active: activeId,
+  venues: [...venues.values()].map(v => ({
+    id: v.id, name: v.name, subtitle: v.subtitle || '',
+    zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+    hasPlan: fs.existsSync(planPath(v.id))
+  }))
+}));
+
+app.get('/venues/:id', (req, res) => {
+  const v = venues.get(req.params.id);
+  return v ? res.json(v) : res.status(404).json({ error: 'no such venue' });
+});
+
+app.post('/venues', (req, res) => {
+  const errs = validateVenue(req.body);
+  if (errs.length) return res.status(400).json({ error: 'invalid venue', problems: errs });
+  try { res.json({ ok: true, id: saveVenue(req.body) }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/venues/:id/activate', (req, res) => {
+  if (!setActive(req.params.id)) return res.status(404).json({ error: 'no such venue' });
+  rebuildCrowd();
+  io.emit('venue', venue);
+  io.emit('state', publicState());
+  console.log(`[venues] active venue is now "${venue.name}" (${activeId})`);
+  res.json({ ok: true, active: activeId });
+});
+
+app.delete('/venues/:id', (req, res) => {
+  const id = req.params.id;
+  if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
+  if (id === activeId) return res.status(409).json({ error: 'that venue is live — activate another first' });
+  fs.unlinkSync(path.join(VENUES_DIR, id + '.json'));
+  if (fs.existsSync(planPath(id))) fs.unlinkSync(planPath(id));
+  venues.delete(id);
+  res.json({ ok: true });
+});
+
+// Floor plans are editor-only: you trace zones over them, the live map still
+// renders vector geometry. Stored beside the venue rather than inlined, so the
+// JSON that gets broadcast every switch stays small.
+const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
+
+app.get('/venues/:id/plan', (req, res) => {
+  const p = planPath(req.params.id);
+  return fs.existsSync(p) ? res.type('png').send(fs.readFileSync(p))
+                          : res.status(404).end();
+});
+
+app.put('/venues/:id/plan', (req, res) => {
+  const data = String((req.body && req.body.image) || '');
+  const m = data.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length > PLAN_MAX) return res.status(413).json({ error: 'floor plan is too large' });
+  fs.writeFileSync(planPath(req.params.id), buf);
+  res.json({ ok: true, bytes: buf.length });
+});
+
+// --------------------------------------------------------- crowd settings
+app.get('/crowd', (_, res) => res.json(crowdCfg));
+app.post('/crowd', (req, res) => {
+  const b = req.body || {};
+  if (b.n !== undefined)          crowdCfg.n = clamp(parseInt(b.n, 10) || 0, 0, 400);
+  if (b.liveliness !== undefined) crowdCfg.liveliness = clamp(+b.liveliness, 0, 1);
+  if (b.hrPct !== undefined)      crowdCfg.hrPct = clamp(+b.hrPct, 0, 1);
+  if (b.spread !== undefined)     crowdCfg.spread = b.spread === 'even' ? 'even' : 'capacity';
+  rebuildCrowd();
+  res.json({ ok: true, ...crowdCfg });
+});
 // curl this if the dashboard looks wrong — it's the exact payload being broadcast
 app.get('/state.json', (_, res) => res.json(publicState()));
 
@@ -57,8 +222,7 @@ function anchorInZone(zoneId) {
 // north. Everything here fails closed: a bad fix leaves the person where they
 // were rather than teleporting them, because a dot jumping across the map
 // during the demo reads as broken to anyone watching.
-const GEO = venue.geo || null;
-const M_PER_DEG = 111320;
+const M_PER_DEG = 111320;                        // GEO is set by setActive()
 
 const GPS_MAX_ACCURACY = 25;   // metres — ignore fixes vaguer than this
 const NEAREST_MAX_M    = 18;   // don't claim a zone from further away than this
@@ -176,7 +340,7 @@ io.on('connection', socket => {
 
   socket.on('join', ({ id, name, zone }, ack) => {
     const pid = id || socket.id;
-    const z = zoneById[zone] ? zone : 'entrance1';
+    const z = zoneById[zone] ? zone : defaultZone();
     const existing = attendees.get(pid);
     const person = existing || {
       id: pid, name: (name || 'Guest').slice(0, 24), joinedAt: Date.now(),
@@ -271,24 +435,32 @@ setInterval(computeCrowd, 2000);
 setInterval(() => io.emit('state', publicState()), 400);
 
 // -------------------------------------------------------------- fake data
-if (FAKE) {
-  const FIRST = ['Ava','Noah','Mia','Kai','Zoe','Leo','Ivy','Max','Nia','Eli','Sam','Rae','Jun','Ada','Ozzy','Lux','Wren','Theo','Nova','Finn','Amara','Dev','Priya','Omar','Yuki','Sana','Cole','Tariq','Elena','Jae','Marco','Hana','Ruth','Ben','Sofia','Idris','Mei','Luca','Nadia','Ezra','Talia','Rhys','Anya','Kofi','Lena','Sid','Bea','Otto','Rina','Jonas','Zara','Pax','Ines','Vik','Noor','Emre','Cleo','Dara'];
-  const TEAMS = ['Latency','Nightshift','Kernel Panic','Bitrate','Overclock','Half-Life','Downtime','Sudo','Segfault','Null Pointer'];
-  // event zones pull hardest, food spikes at meal times, outdoor is a slow trickle
-  const WEIGHTS = { event: 5.0, social: 2.2, food: 1.6, market: 1.0, outdoor: 0.7, transit: 0.4 };
+const FIRST = ['Ava','Noah','Mia','Kai','Zoe','Leo','Ivy','Max','Nia','Eli','Sam','Rae','Jun','Ada','Ozzy','Lux','Wren','Theo','Nova','Finn','Amara','Dev','Priya','Omar','Yuki','Sana','Cole','Tariq','Elena','Jae','Marco','Hana','Ruth','Ben','Sofia','Idris','Mei','Luca','Nadia','Ezra','Talia','Rhys','Anya','Kofi','Lena','Sid','Bea','Otto','Rina','Jonas','Zara','Pax','Ines','Vik','Noor','Emre','Cleo','Dara'];
+const TEAMS = ['Latency','Nightshift','Kernel Panic','Bitrate','Overclock','Half-Life','Downtime','Sudo','Segfault','Null Pointer'];
+// event zones pull hardest, food spikes at meal times, outdoor is a slow trickle
+const WEIGHTS = { event: 5.0, social: 2.2, food: 1.6, market: 1.0, outdoor: 0.7, transit: 0.4 };
 
-  // weight by kind AND capacity, so the big session halls actually fill up
-  // instead of every zone getting an identical slice
-  function weightedZone() {
-    const pool = [];
-    venue.zones.forEach(z => {
-      const w = Math.round((WEIGHTS[z.kind] || 1) * Math.sqrt(z.cap || 30));
-      for (let i = 0; i < w; i++) pool.push(z.id);
-    });
-    return pick(pool);
-  }
+// Runtime-editable from the dashboard's Venues tab. FAKE/FAKE_N still set the
+// starting point so the existing env vars keep working.
+let crowdCfg = { n: FAKE ? FAKE_N : 0, liveliness: 0.7, hrPct: 0.42, spread: 'capacity' };
 
-  for (let i = 0; i < FAKE_N; i++) {
+// weight by kind AND capacity, so the big session halls actually fill up
+// instead of every zone getting an identical slice
+function weightedZone() {
+  const pool = [];
+  venue.zones.forEach(z => {
+    const w = crowdCfg.spread === 'even' ? 1
+            : Math.round((WEIGHTS[z.kind] || 1) * Math.sqrt(z.cap || 30));
+    for (let i = 0; i < Math.max(1, w); i++) pool.push(z.id);
+  });
+  return pick(pool);
+}
+
+// Rebuilt whenever the crowd settings change or a different venue goes live —
+// sim people hold zone ids, so they can't survive a venue switch.
+function rebuildCrowd() {
+  for (const [id, p] of attendees) if (p.sim) attendees.delete(id);
+  for (let i = 0; i < crowdCfg.n; i++) {
     const z = weightedZone();
     const base = 58 + Math.random() * 26;
     attendees.set('sim-' + i, {
@@ -299,7 +471,7 @@ if (FAKE) {
       seed: Math.random(), lastSeen: Date.now(), sim: true,
       // each person has their own tempo and reactivity, so the crowd never moves as one blob
       rate: 0.5 + Math.random() * 1.6, react: 0.35 + Math.random() * 0.9,
-      hasHr: Math.random() < 0.42,
+      hasHr: Math.random() < crowdCfg.hrPct,
       // they've been on site a while, so they arrive with a plausible step count
       steps: Math.round(400 + Math.random() * 5200), distance: 0,
       // most phones report a usable fix; a few sit in the weak/no-fix state so
@@ -307,11 +479,14 @@ if (FAKE) {
       gps: null, gpsNote: null, hasGps: Math.random() < 0.82
     });
   }
+  console.log(`Fake crowd: ${crowdCfg.n} attendees in ${venue.name}`);
+}
 
+{
   let phase = 0;
   setInterval(() => {
     phase += 0.010;
-    const room = (Math.sin(phase) * 0.5 + 0.5) * 0.7 + 0.15;        // slow build and release
+    const room = ((Math.sin(phase) * 0.5 + 0.5) * 0.7 + 0.15) * (crowdCfg.liveliness / 0.7);
     const beat = frame.bass || 0;
     for (const p of attendees.values()) {
       if (!p.sim) continue;
@@ -333,11 +508,16 @@ if (FAKE) {
       if (Math.random() < 0.0022) { p.zone = weightedZone(); p.anchor = anchorInZone(p.zone); }
     }
   }, 400);
-  console.log(`Fake crowd: ${FAKE_N} attendees`);
 }
 
+loadVenues();
+setActive(process.env.VENUE && venues.has(process.env.VENUE) ? process.env.VENUE
+                                                            : [...venues.keys()][0]);
+rebuildCrowd();
+
 server.listen(PORT, () => {
-  console.log(`\n  Dashboard  http://localhost:${PORT}/dashboard.html`);
-  console.log(`  Phone      http://localhost:${PORT}/join.html?zone=northhall`);
-  console.log(`  QR poster  http://localhost:${PORT}/qr/northhall.svg\n`);
+  console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
+  console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
+  console.log(`  Phone      http://localhost:${PORT}/join.html`);
+  console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg\n`);
 });

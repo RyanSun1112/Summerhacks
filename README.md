@@ -118,6 +118,92 @@ Centroid is log-scaled because brightness is heard logarithmically — a linear 
 
 The host's browser is the only thing that touches audio. It broadcasts the derived spectrum and beat over the socket, and every phone renders the same reactive visuals without playing sound — so you get one sound system, not sixty.
 
+## Venues tab — building a new map
+
+The **Venues** tab is a full editor, and the left rail on the Map tab switches between what you've
+built.
+
+1. **+ New venue**, give it a name.
+2. **Drop in a floor plan image.** Zones are found automatically — no drawing required. The image is
+   traced over, never rendered on the live map, and its proportions set the venue's `aspect`, which is
+   what makes coordinates line up with the real site.
+3. **Type two coordinates.** Detection drops a pin on each opposite corner of the site; you supply
+   their real lat/lon (paste from Google Maps) or stand there and capture. That's the whole manual
+   step.
+4. **Save**, or **Save & make active** to move the live event onto it.
+
+Everything stays editable afterwards: drag on the canvas to add a zone, click one to rename it or
+change kind and capacity, **Trace outline** to click out a non-rectangular site, **Place ref pin** to
+move a pin. `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where
+phones land when GPS can't place them.
+
+### How the automatic detection works
+
+Two strategies run over the image, because plans differ wildly:
+
+- **Line art** — dark walls enclosing light rooms. Otsu threshold (nudged by the **Detail** slider),
+  then flood-fill each enclosed light region.
+- **Colour regions** — quantise colours and group by matching key. Site maps and satellite crops use
+  coloured blocks with no walls at all, and thresholding alone finds nothing in them.
+
+Whichever reads the image better wins. Regions touching the image border are the page, not a room.
+
+For each surviving region the zone is its **largest inscribed rectangle**, not its bounding box. That
+matters: a box drawn around an L-shaped room swallows walls and half its neighbour, whereas an
+inscribed rectangle is always real floor. It also makes overlaps structurally impossible, because
+regions are disjoint and each rectangle stays inside its own.
+
+The **outline** is a traced polygon, not a rectangle. A column-wise silhouette of the site is padded
+outward and simplified (Douglas–Peucker), which is what gives a real shape with diagonals — the kind
+of outline STACKT has, rather than a box around everything. It's traced over the content *and* the
+accepted zones, so on a site map of detached blocks the zones can't end up outside it. Anything still
+straddling the edge is shrunk toward its centre until it fits, or dropped.
+
+Verified in headless Chrome against four synthetic plans — clean line art, L-shaped rooms, coloured
+blocks with no walls, and a non-rectangular site with a diagonal. 24/24: every room found, no
+overlaps, every zone inside the outline, every zone centre landing on real floor, a 12-point polygon
+for the diagonal site, and all four passing the server's validator. Pure noise returns zero zones,
+a blank image doesn't throw.
+
+**Where it still struggles:** photographs, and open-plan spaces where a gap in a wall lets the fill
+leak between rooms and merge them. Move the **Detail** slider and re-run, or draw the odd zone by
+hand — everything stays editable.
+
+### Why a generated venue used to look bare
+
+STACKT's `venue.json` is hand-traced and carries a lot the editor can't infer: container grids, street
+labels, entrances, an event route. A generated venue has none of that, so it was drawing plain
+rectangles on a plain rectangle.
+
+Two things close the gap. The outline is now a real traced polygon, and the floor plan is drawn faintly
+(30%) beneath the live map for venues that have one — the checkbox in the editor turns it off. STACKT
+is unaffected: it has no plan image, and its traced detail is doing that job already.
+
+Zones turn amber the moment they fall outside the outline or overlap another, and the server refuses
+to save broken geometry — `POST /venues` returns the specific problems. That check used to be
+something you had to remember to run by hand.
+
+Switching venues in the left rail only **previews** — the running event stays put until you press
+*Make active*, which confirms first. A stray click can't relocate everyone mid-demo. Previewing hides
+the people, because their positions are coordinates in the live venue and mean nothing on another map.
+
+The **simulated crowd** panel sets headcount, liveliness, what fraction wear heart monitors, and
+whether they spread by capacity or evenly. Changing it regenerates the crowd immediately, so a
+newly-built venue is demo-able the second it goes live.
+
+Venues live as JSON in `venues/`, seeded from `venue.json` on first boot. They're tracked in git so a
+venue you build can be shared; the traced-over plan images are not.
+
+| Route | Does |
+|---|---|
+| `GET /venues` | list, with which is active |
+| `GET /venues/:id` | one venue's full JSON |
+| `POST /venues` | create or update — validates geometry, 400s with problems |
+| `POST /venues/:id/activate` | move the live event |
+| `DELETE /venues/:id` | remove (409s if it's live) |
+| `PUT /venues/:id/plan` | upload floor plan as a data URL |
+| `GET`/`POST /crowd` | simulated crowd settings |
+
 ## The map
 
 `venue.json` is traced from the STACKT Market floor plan: the real site polygon (Tecumseth to Bathurst, with the Front St. diagonal), the container unit grids, the street labels, all three entrances, and the Summerhacks route from Entrance 1 through to Studio 3-101.
