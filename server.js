@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
+const { createClient } = require('@supabase/supabase-js');
 const {
   MOCK_SCENARIOS,
   getMockScenario,
@@ -37,6 +38,28 @@ const {
 const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
+
+// -------------------------------------------------------------- supabase auth
+// Venue JSON stays on disk (venues/). Supabase only stores auth users + the
+// venue_id → owner_id mapping. Service role never leaves this process.
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const AUTH_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY);
+
+const supabaseAuth = AUTH_ENABLED
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+const supabaseAdmin = AUTH_ENABLED
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+
+if (!AUTH_ENABLED) {
+  console.warn('[auth] DISABLED — set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env');
+  console.warn('[auth] Venue create/update/delete stay open until auth is configured.');
+} else {
+  console.log('[auth] Supabase auth enabled for venue-owner routes');
+}
 
 // ----------------------------------------------------------------- venues
 // Venues are JSON files in venues/. venue.json stays the committed built-in
@@ -160,6 +183,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// Floor plans are editor-only: you trace zones over them, the live map still
+// renders vector geometry. Stored beside the venue rather than inlined, so the
+// JSON that gets broadcast every switch stays small.
+const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
+
 // Two body limits, not one. 64kb protects every ordinary endpoint, but floor
 // plans and the image sent for AI reading are megabytes of data URL, and a
 // single global limit can't serve both: the small one silently 413s uploads,
@@ -174,7 +202,126 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
+// Public anon + url for owner.html / dashboard editor. Never the service role.
+app.get('/auth/config', (_, res) => {
+  if (!AUTH_ENABLED) return res.status(503).json({ error: 'auth not configured', enabled: false });
+  res.json({ enabled: true, url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+});
+
+// Verify Supabase JWT from Authorization: Bearer <access_token>.
+async function requireAuth(req, res, next) {
+  if (!AUTH_ENABLED) return next();               // open until .env is wired
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) {
+    console.log('[auth] fail: missing Authorization on', req.method, req.path);
+    return res.status(401).json({ error: 'login required' });
+  }
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !data.user) {
+      console.log('[auth] fail: invalid session —', error && error.message || 'no user');
+      return res.status(401).json({ error: 'invalid session' });
+    }
+    req.user = data.user;
+    console.log('[auth] ok:', data.user.id, data.user.email || '(no email)', '→', req.method, req.path);
+    next();
+  } catch (e) {
+    console.log('[auth] fail: exception —', e.message);
+    return res.status(401).json({ error: 'invalid session' });
+  }
+}
+
+// Returns the owner_id for a venue, or null if unclaimed.
+async function getVenueOwner(venueId) {
+  if (!AUTH_ENABLED) return null;
+  const { data, error } = await supabaseAdmin
+    .from('venue_owners').select('owner_id').eq('venue_id', venueId).maybeSingle();
+  if (error) {
+    console.log('[auth] venue_owners read error:', error.message);
+    throw error;
+  }
+  return data ? data.owner_id : null;
+}
+
+// Create ownership row. Fails if another owner already holds the venue.
+async function claimVenue(venueId, ownerId) {
+  const { error } = await supabaseAdmin
+    .from('venue_owners').insert({ venue_id: venueId, owner_id: ownerId });
+  if (error) {
+    console.log('[auth] claim failed for', venueId, '—', error.message);
+    throw error;
+  }
+  console.log('[auth] claimed venue', venueId, 'for', ownerId);
+}
+
+// True if user owns the venue, or may claim it (no owner yet). False if other owner.
+async function assertCanWriteVenue(venueId, userId) {
+  if (!AUTH_ENABLED) return true;
+  const owner = await getVenueOwner(venueId);
+  if (!owner) {
+    try {
+      await claimVenue(venueId, userId);
+      return true;
+    } catch (e) {
+      // Lost a race — re-check
+      const again = await getVenueOwner(venueId);
+      if (again === userId) return true;
+      console.log('[auth] deny: user', userId, 'cannot claim', venueId, '(owner', again, ')');
+      return false;
+    }
+  }
+  if (owner !== userId) {
+    console.log('[auth] deny: user', userId, 'does not own', venueId, '(owner is', owner, ')');
+    return false;
+  }
+  return true;
+}
+
+async function deleteOwnership(venueId) {
+  if (!AUTH_ENABLED) return;
+  const { error } = await supabaseAdmin.from('venue_owners').delete().eq('venue_id', venueId);
+  if (error) console.log('[auth] ownership delete error:', error.message);
+  else console.log('[auth] cleared ownership for', venueId);
+}
+
+// Venues owned by the logged-in account (for owner.html).
+app.get('/api/me/venues', requireAuth, async (req, res) => {
+  if (!AUTH_ENABLED) {
+    return res.json({
+      venues: [...venues.values()].map(v => ({
+        id: v.id, name: v.name, subtitle: v.subtitle || '',
+        zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+        hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
+      }))
+    });
+  }
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('venue_owners').select('venue_id, created_at').eq('owner_id', req.user.id);
+    if (error) {
+      console.log('[auth] /api/me/venues error:', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+    const list = (data || []).map(row => {
+      const v = venues.get(row.venue_id);
+      if (!v) return { id: row.venue_id, name: row.venue_id, missing: true, created_at: row.created_at };
+      return {
+        id: v.id, name: v.name, subtitle: v.subtitle || '',
+        zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+        hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId,
+        created_at: row.created_at
+      };
+    });
+    res.json({ venues: list, user: { id: req.user.id, email: req.user.email } });
+  } catch (e) {
+    console.log('[auth] /api/me/venues exception:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ------------------------------------------------------------ venue CRUD
+// Reads stay public (dashboard + join). Writes require owner auth when enabled.
 app.get('/venues', (_, res) => res.json({
   active: activeId,
   venues: [...venues.values()].map(v => ({
@@ -189,11 +336,27 @@ app.get('/venues/:id', (req, res) => {
   return v ? res.json(v) : res.status(404).json({ error: 'no such venue' });
 });
 
-app.post('/venues', (req, res) => {
+app.post('/venues', requireAuth, async (req, res) => {
   const errs = validateVenue(req.body);
   if (errs.length) return res.status(400).json({ error: 'invalid venue', problems: errs });
-  try { res.json({ ok: true, id: saveVenue(req.body) }); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  const nextId = slug((req.body && (req.body.id || req.body.name)) || '');
+  if (!nextId) return res.status(400).json({ error: 'could not derive an id from the name' });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const ok = await assertCanWriteVenue(nextId, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    const id = saveVenue(req.body);
+    // New slug after rename: ensure ownership lands on the saved id too.
+    if (AUTH_ENABLED && req.user && id !== nextId) {
+      const ok = await assertCanWriteVenue(id, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    console.log('[venues] saved', id, AUTH_ENABLED && req.user ? `by ${req.user.id}` : '(auth off)');
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.post('/venues/:id/activate', (req, res) => {
@@ -205,20 +368,33 @@ app.post('/venues/:id/activate', (req, res) => {
   res.json({ ok: true, active: activeId });
 });
 
-app.delete('/venues/:id', (req, res) => {
+app.delete('/venues/:id', requireAuth, async (req, res) => {
   const id = req.params.id;
   if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
   if (id === activeId) return res.status(409).json({ error: 'that venue is live — activate another first' });
-  fs.unlinkSync(path.join(VENUES_DIR, id + '.json'));
-  if (fs.existsSync(planPath(id))) fs.unlinkSync(planPath(id));
-  venues.delete(id);
-  res.json({ ok: true });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const owner = await getVenueOwner(id);
+      if (!owner) {
+        console.log('[auth] deny delete: unowned venue', id);
+        return res.status(403).json({ error: 'venue has no owner' });
+      }
+      if (owner !== req.user.id) {
+        console.log('[auth] deny delete: user', req.user.id, 'does not own', id);
+        return res.status(403).json({ error: 'you do not own this venue' });
+      }
+    }
+    fs.unlinkSync(path.join(VENUES_DIR, id + '.json'));
+    if (fs.existsSync(planPath(id))) fs.unlinkSync(planPath(id));
+    venues.delete(id);
+    await deleteOwnership(id);
+    console.log('[venues] deleted', id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.log('[venues] delete error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
-
-// Floor plans are editor-only: you trace zones over them, the live map still
-// renders vector geometry. Stored beside the venue rather than inlined, so the
-// JSON that gets broadcast every switch stays small.
-const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
 
 app.get('/venues/:id/plan', (req, res) => {
   const p = planPath(req.params.id);
@@ -226,14 +402,25 @@ app.get('/venues/:id/plan', (req, res) => {
                           : res.status(404).end();
 });
 
-app.put('/venues/:id/plan', (req, res) => {
-  const data = String((req.body && req.body.image) || '');
-  const m = data.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
-  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
-  const buf = Buffer.from(m[2], 'base64');
-  if (buf.length > PLAN_MAX) return res.status(413).json({ error: 'floor plan is too large' });
-  fs.writeFileSync(planPath(req.params.id), buf);
-  res.json({ ok: true, bytes: buf.length });
+app.put('/venues/:id/plan', requireAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const ok = await assertCanWriteVenue(id, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    const data = String((req.body && req.body.image) || '');
+    const m = data.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+    if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+    const buf = Buffer.from(m[2], 'base64');
+    if (buf.length > PLAN_MAX) return res.status(413).json({ error: 'floor plan is too large' });
+    fs.writeFileSync(planPath(id), buf);
+    res.json({ ok: true, bytes: buf.length });
+  } catch (e) {
+    console.log('[venues] plan upload error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ------------------------------------------------------------ AI detection
@@ -978,8 +1165,11 @@ server.on('error', e => {
 server.listen(PORT, () => {
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
+  console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
-  console.log(`  QR poster  http://localhost:${PORT}/qr`);
+  console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
+  console.log(`  QR page    http://localhost:${PORT}/qr`);
+  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +

@@ -32,7 +32,8 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 - After editing `venue.json`, verify every zone corner falls inside the `outline` polygon and no two zones overlap. Broken geometry renders as zones floating outside the site.
 - Phones send **one summarised float per 500ms**, never raw accelerometer samples. Raw 30Hz from 100 phones melts the server. GPS is throttled separately to one fix per second; step count rides on the accelerometer stream that's already being sampled.
 - Static files are served from `public/`. `server.js` and `venue.json` stay at the repo root and are deliberately not web-reachable.
-- State is in-memory only and dies with the process. No database. This is intentional.
+- State is in-memory only and dies with the process. No database for live crowd state. This is intentional.
+- **Venue-owner auth (Supabase)** is additive and optional until `SUPABASE_*` is set. Venue JSON stays in `venues/`; Supabase Postgres only holds `venue_owners (venue_id, owner_id)`. Gate create/update/delete/plan uploads — never join.html or the live map/metrics pipeline. Service role key is server-only; clients get anon key via `GET /auth/config`.
 - `/state.json` returns the exact socket broadcast payload — use it to debug rendering without a browser.
 
 ## Design system

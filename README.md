@@ -25,11 +25,23 @@ Then open **http://localhost:3000/dashboard.html**.
 | URL | What it is |
 |---|---|
 | `/dashboard.html` | Host dashboard — map, people, zones, radio |
+| `/owner.html` | Venue-owner sign up / log in (Supabase email+password) |
 | `/join.html` | What a phone sees after scanning |
 | `/qr/event.svg` | The single event-wide QR poster |
 | `/qr/<zone>.svg` | Per-zone poster, e.g. `/qr/northhall.svg` |
 | `/calibrate.html` | GPS calibration tool (see below) |
 | `/state.json` | The exact payload broadcast to clients — curl this to debug |
+
+### Venue-owner auth (Supabase)
+
+Attendees on `/join.html` stay anonymous. Only venue create/update/delete is gated.
+
+1. Create a Supabase project; run `supabase/schema.sql` in the SQL editor.
+2. Auth → Providers → Email: turn **off** “Confirm email” for the hackathon.
+3. Copy `.env.example` → `.env` and fill `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+4. Restart `node server.js`, open `/owner.html`, sign up, then **Create new venue** (opens the existing editor on the dashboard).
+
+Venue geometry still lives as JSON in `venues/`. Supabase only stores `venue_id → owner_id`. Without the env vars, writes stay open (logged as `[auth] DISABLED`).
 
 Environment variables, all optional:
 

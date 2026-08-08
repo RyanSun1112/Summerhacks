@@ -182,7 +182,9 @@
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
+  <a href="/owner.html" id="ownerLink" style="margin-left:10px;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none">Owner</a>
 </header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <div class="stage">
   <canvas id="map"></canvas>
@@ -369,6 +371,36 @@ const socket=io(), $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
 let venue=null, state=null, view='map';
 const smooth=new Map();
+
+/* ---- venue-owner auth (Supabase session shared with /owner.html) ----
+   Public map/metrics stay open. Only venue create/update/plan writes
+   send the Bearer token. Attendees never touch this. */
+let ownerSb=null, ownerToken=null, ownerAuthReady=null;
+function ownerHeaders(extra){
+  const h=Object.assign({},extra||{});
+  if(ownerToken) h.Authorization='Bearer '+ownerToken;
+  return h;
+}
+ownerAuthReady=(async()=>{
+  try{
+    const cfg=await fetch('/auth/config').then(r=>r.json());
+    if(!cfg.url||!cfg.anonKey){ console.log('[owner-auth] server auth off'); return false; }
+    ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
+    const {data:{session}}=await ownerSb.auth.getSession();
+    ownerToken=session?session.access_token:null;
+    ownerSb.auth.onAuthStateChange((_e,s)=>{ ownerToken=s?s.access_token:null; });
+    if(ownerToken) console.log('[owner-auth] session present');
+    else console.log('[owner-auth] no session — venue saves need /owner.html login');
+    return !!ownerToken;
+  }catch(e){ console.warn('[owner-auth]',e); return false; }
+})();
+async function requireOwnerSession(action){
+  await ownerAuthReady;
+  if(ownerToken) return true;
+  if(confirm((action||'Editing venues')+' needs a venue-owner login.\n\nOpen the owner page now?'))
+    location.href='/owner.html';
+  return false;
+}
 
 /* ==========================================================
    PALETTE DERIVED FROM THE AUDIO ITSELF
@@ -805,8 +837,25 @@ $('#pvActivate').addEventListener('click',async()=>{
   await fetch('/venues/'+previewId+'/activate',{method:'POST'});
   previewId=null; $('#previewBar').classList.remove('on');
 });
-$('#newVenueBtn').addEventListener('click',()=>{ vedNew(); document.querySelector('nav button[data-v="venues"]').click(); });
+$('#newVenueBtn').addEventListener('click',async()=>{
+  if(!(await requireOwnerSession('Creating a venue'))) return;
+  vedNew(); document.querySelector('nav button[data-v="venues"]').click();
+});
 loadVenueList();
+
+// Deep-link from /owner.html — ?edit=new or ?edit=<venueId>
+(async()=>{
+  const edit=new URLSearchParams(location.search).get('edit');
+  if(!edit) return;
+  await ownerAuthReady;
+  document.querySelector('nav button[data-v="venues"]').click();
+  if(edit==='new'){
+    if(!(await requireOwnerSession('Creating a venue'))) return;
+    vedNew();
+  }else{
+    await vedLoad(edit);
+  }
+})();
 
 /* =========================================================== VENUE EDITOR */
 const RECT=[[0,0],[1,0],[1,1],[0,1]];
@@ -1541,17 +1590,23 @@ function solveGeo(){
 
 /* ---- save ---- */
 async function edSaveVenue(activate){
+  if(!(await requireOwnerSession('Saving a venue'))) return;
   ed.name=$('#edName').value.trim(); ed.subtitle=$('#edSub').value.trim();
   if(!ed.name){ $('#edProb').textContent='Give the venue a name first.'; return; }
   $('#edProb').textContent='';
-  const r=await fetch('/venues',{method:'POST',headers:{'content-type':'application/json'},
+  const r=await fetch('/venues',{method:'POST',headers:ownerHeaders({'content-type':'application/json'}),
                                  body:JSON.stringify(ed)});
   const body=await r.json();
-  if(!r.ok){ $('#edProb').textContent=(body.problems||[body.error]).join('\n'); return; }
+  if(!r.ok){
+    if(r.status===401||r.status===403) $('#edProb').textContent=body.error||'Not allowed — log in at /owner.html';
+    else $('#edProb').textContent=(body.problems||[body.error]).join('\n');
+    return;
+  }
   edId=body.id;
   if(edPlan&&edPlan.dataUrl){
-    await fetch('/venues/'+edId+'/plan',{method:'PUT',headers:{'content-type':'application/json'},
+    const pr=await fetch('/venues/'+edId+'/plan',{method:'PUT',headers:ownerHeaders({'content-type':'application/json'}),
                                          body:JSON.stringify({image:edPlan.dataUrl})});
+    if(!pr.ok){ const pb=await pr.json().catch(()=>({})); $('#edProb').textContent=pb.error||'Plan upload failed'; return; }
   }
   $('#edProb').innerHTML='<span class="vok">Saved as '+esc(edId)+'</span>';
   if(activate){ await fetch('/venues/'+edId+'/activate',{method:'POST'}); previewId=null; $('#previewBar').classList.remove('on'); }
