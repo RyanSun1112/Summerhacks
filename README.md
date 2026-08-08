@@ -139,23 +139,45 @@ phones land when GPS can't place them.
 
 ### How the automatic detection works
 
-Floor plans are line art: dark walls enclosing light rooms. The image is thresholded to binary (Otsu,
-nudged by the **Detail** slider), then every enclosed light region is flood-filled as a connected
-component. Regions that touch the image border are the page rather than a room; the rest are filtered
-by area and by how completely they fill their own bounding box, and that box becomes a zone.
+Two strategies run over the image, because plans differ wildly:
 
-Bounding boxes of interlocking rooms can overlap, which the server rejects, so overlaps are trimmed
-along whichever axis costs least and slivers are dropped. Zones come out in reading order, sized to
-plausible capacities, with `kind` guessed from area.
+- **Line art** — dark walls enclosing light rooms. Otsu threshold (nudged by the **Detail** slider),
+  then flood-fill each enclosed light region.
+- **Colour regions** — quantise colours and group by matching key. Site maps and satellite crops use
+  coloured blocks with no walls at all, and thresholding alone finds nothing in them.
 
-It works well on clean architectural line art. It works badly on photographs, satellite imagery, and
-open-plan spaces where rooms aren't fully enclosed — a gap in a wall lets the fill leak between rooms
-and merges them. That's what the **Detail** slider and the fully-editable result are for. If it finds
-nothing useful, drawing zones by hand is still there.
+Whichever reads the image better wins. Regions touching the image border are the page, not a room.
 
-Verified against a synthetic five-room plan: all five found at the right coordinates, no overlaps, all
-inside the outline, stable across the whole sensitivity range, and the output passes the server's
-validator. Pure noise returns zero zones rather than hanging.
+For each surviving region the zone is its **largest inscribed rectangle**, not its bounding box. That
+matters: a box drawn around an L-shaped room swallows walls and half its neighbour, whereas an
+inscribed rectangle is always real floor. It also makes overlaps structurally impossible, because
+regions are disjoint and each rectangle stays inside its own.
+
+The **outline** is a traced polygon, not a rectangle. A column-wise silhouette of the site is padded
+outward and simplified (Douglas–Peucker), which is what gives a real shape with diagonals — the kind
+of outline STACKT has, rather than a box around everything. It's traced over the content *and* the
+accepted zones, so on a site map of detached blocks the zones can't end up outside it. Anything still
+straddling the edge is shrunk toward its centre until it fits, or dropped.
+
+Verified in headless Chrome against four synthetic plans — clean line art, L-shaped rooms, coloured
+blocks with no walls, and a non-rectangular site with a diagonal. 24/24: every room found, no
+overlaps, every zone inside the outline, every zone centre landing on real floor, a 12-point polygon
+for the diagonal site, and all four passing the server's validator. Pure noise returns zero zones,
+a blank image doesn't throw.
+
+**Where it still struggles:** photographs, and open-plan spaces where a gap in a wall lets the fill
+leak between rooms and merge them. Move the **Detail** slider and re-run, or draw the odd zone by
+hand — everything stays editable.
+
+### Why a generated venue used to look bare
+
+STACKT's `venue.json` is hand-traced and carries a lot the editor can't infer: container grids, street
+labels, entrances, an event route. A generated venue has none of that, so it was drawing plain
+rectangles on a plain rectangle.
+
+Two things close the gap. The outline is now a real traced polygon, and the floor plan is drawn faintly
+(30%) beneath the live map for venues that have one — the checkbox in the editor turns it off. STACKT
+is unaffected: it has no plan image, and its traced detail is doing that job already.
 
 Zones turn amber the moment they fall outside the outline or overlap another, and the server refuses
 to save broken geometry — `POST /venues` returns the specific problems. That check used to be

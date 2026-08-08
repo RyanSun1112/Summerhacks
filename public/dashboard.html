@@ -271,8 +271,12 @@
         </div>
         <div class="vrowin">
           <div class="vfield"><label>Aspect (w÷h)</label><input class="vin" id="edAspect" value="2.884"></div>
-          <div class="vfield"><label>Plan opacity</label><input class="vin" id="edPlanOp" type="range" min="0" max="1" step="0.05" value="0.5" style="padding:0"></div>
+          <div class="vfield"><label>Editor opacity</label><input class="vin" id="edPlanOp" type="range" min="0" max="1" step="0.05" value="0.5" style="padding:0"></div>
         </div>
+        <label class="vhint" style="margin:0;display:flex;gap:7px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="edShowPlan" checked style="accent-color:var(--accent)">
+          Show the plan faintly under the live map
+        </label>
       </div>
 
       <div class="vsec">
@@ -541,6 +545,16 @@ function draw(){
   const a=accentNow(), a2=accent2Now(), t=performance.now()/1000, pulse=beatFlash;
   ctx.clearRect(0,0,r.width,r.height);
 
+  // Floor plan underlay. STACKT doesn't need one — it has hand-traced
+  // containers, streets and entrances carrying the detail. A venue built in the
+  // editor has none of that, so without the plan showing through it reads as
+  // bare boxes on a rectangle. Off by default wherever traced detail exists.
+  if(mapPlan&&mapPlan.complete&&mapPlan.naturalWidth&&venue.showPlan!==false){
+    ctx.save(); ctx.globalAlpha=0.30;
+    ctx.drawImage(mapPlan,MX,MY,MW,MH);
+    ctx.restore();
+  }
+
   // site outline, traced from the STACKT plan
   ctx.beginPath();
   venue.outline.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
@@ -670,11 +684,24 @@ setInterval(()=>{
 /* =============================================================== STATE */
 // `venue` is whatever is being DRAWN; `liveVenue` is the one the event is
 // actually running on. They differ only while previewing.
-let liveVenue=null, previewId=null, venueIndex={active:null,venues:[]};
+let liveVenue=null, previewId=null, venueIndex={active:null,venues:[]}, mapPlan=null;
+
+// the plan behind whichever venue is being drawn; 404s harmlessly if there is none
+function loadMapPlan(id){
+  if(!id){ mapPlan=null; return; }
+  const img=new Image();
+  img.onload=()=>{ mapPlan=img; };
+  img.onerror=()=>{ mapPlan=null; };
+  mapPlan=null;
+  img.src='/venues/'+id+'/plan?t='+Date.now();
+}
 
 socket.on('venue',v=>{
   liveVenue=v;
-  if(!previewId){ venue=v; $('#venueName').textContent=v.name+(v.subtitle?' · '+v.subtitle:''); fit(); }
+  if(!previewId){
+    venue=v; $('#venueName').textContent=v.name+(v.subtitle?' · '+v.subtitle:'');
+    loadMapPlan(v.id); fit();
+  }
   loadVenueList();
 });
 socket.on('state',s=>{
@@ -755,11 +782,11 @@ async function previewVenue(id){
   $('#venueName').textContent=v.name+(v.subtitle?' · '+v.subtitle:'');
   $('#pvName').textContent=v.name;
   $('#previewBar').classList.add('on');
-  fit(); loadVenueList();
+  loadMapPlan(id); fit(); loadVenueList();
 }
 function backToLive(){
   previewId=null;
-  if(liveVenue){ venue=liveVenue; $('#venueName').textContent=liveVenue.name+(liveVenue.subtitle?' · '+liveVenue.subtitle:''); }
+  if(liveVenue){ venue=liveVenue; $('#venueName').textContent=liveVenue.name+(liveVenue.subtitle?' · '+liveVenue.subtitle:''); loadMapPlan(liveVenue.id); }
   $('#previewBar').classList.remove('on');
   fit(); loadVenueList();
 }
@@ -785,7 +812,7 @@ const KINDCOL={event:'#3B4FE0',social:'rgba(240,239,247,.34)',food:'rgba(240,239
 const zslug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,24);
 
 function vedNew(){
-  ed={name:'',subtitle:'',aspect:1.6,outline:RECT.map(p=>p.slice()),zones:[],
+  ed={name:'',subtitle:'',aspect:1.6,outline:RECT.map(p=>p.slice()),zones:[],showPlan:true,
       geo:{calibrated:false,origin:{lat:0,lon:0},spanX:100,spanY:62.5,bearing:0}};
   edId=null; edPlan=null; edSel=-1; edPins=[null,null];
   syncFormFromEd(); vedFit();
@@ -804,8 +831,10 @@ async function vedLoad(id){
 function syncFormFromEd(){
   $('#edName').value=ed.name||''; $('#edSub').value=ed.subtitle||'';
   $('#edAspect').value=ed.aspect||1.6;
+  $('#edShowPlan').checked=ed.showPlan!==false;
   renderZoneList(); renderPins();
 }
+$('#edShowPlan').addEventListener('change',()=>{ if(ed) ed.showPlan=$('#edShowPlan').checked; });
 
 ['edName','edSub'].forEach(id=>$('#'+id).addEventListener('input',()=>{
   ed.name=$('#edName').value; ed.subtitle=$('#edSub').value;
@@ -867,36 +896,12 @@ function otsu(g){
   return thr;
 }
 
-function detectZones(img,sens){
-  const MAXW=760, sc=Math.min(1,MAXW/img.width);
-  const w=Math.max(1,Math.round(img.width*sc)), h=Math.max(1,Math.round(img.height*sc));
-  const c=document.createElement('canvas'); c.width=w; c.height=h;
-  const cx=c.getContext('2d',{willReadFrequently:true});
-  cx.drawImage(img,0,0,w,h);
-  const d=cx.getImageData(0,0,w,h).data, N=w*h;
-
-  const g=new Uint8Array(N);
-  for(let i=0;i<N;i++){
-    // transparent pixels count as background, not as black
-    g[i]= d[i*4+3]<40 ? 255 : (d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)|0;
-  }
-  const thr=clamp(otsu(g)+(sens-0.5)*90,6,249);
-  const open=new Uint8Array(N);
-  for(let i=0;i<N;i++) open[i]= g[i]>thr ? 1 : 0;
-
-  // bbox of everything that ISN'T background — the drawn extent of the site
-  let cminx=w,cminy=h,cmaxx=0,cmaxy=0,any=false;
-  for(let i=0;i<N;i++) if(!open[i]){
-    const x=i%w, y=(i/w)|0; any=true;
-    if(x<cminx)cminx=x; if(x>cmaxx)cmaxx=x;
-    if(y<cminy)cminy=y; if(y>cmaxy)cmaxy=y;
-  }
-  if(!any){ cminx=0; cminy=0; cmaxx=w-1; cmaxy=h-1; }
-
-  // 4-connected flood fill; every pixel is labelled once, so the stack is bounded
-  const label=new Int32Array(N).fill(-1), stack=new Int32Array(N), comps=[];
+// 4-connected labelling. Every pixel is pushed once, so the stack is bounded
+// by the image and this can't blow up on a pathological plan.
+function labelRegions(same,w,h){
+  const N=w*h, label=new Int32Array(N).fill(-1), stack=new Int32Array(N), comps=[];
   for(let s=0;s<N;s++){
-    if(!open[s]||label[s]>=0) continue;
+    if(label[s]>=0||!same(s,s)) continue;
     const id=comps.length; let sp=0; stack[sp++]=s; label[s]=id;
     let minx=w,miny=h,maxx=0,maxy=0,area=0,edge=false;
     while(sp){
@@ -905,51 +910,170 @@ function detectZones(img,sens){
       if(x<minx)minx=x; if(x>maxx)maxx=x;
       if(y<miny)miny=y; if(y>maxy)maxy=y;
       if(x===0||y===0||x===w-1||y===h-1) edge=true;
-      if(x>0)   {const q=p-1; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
-      if(x<w-1) {const q=p+1; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
-      if(y>0)   {const q=p-w; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
-      if(y<h-1) {const q=p+w; if(open[q]&&label[q]<0){label[q]=id;stack[sp++]=q;}}
+      if(x>0)  {const q=p-1; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(x<w-1){const q=p+1; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(y>0)  {const q=p-w; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(y<h-1){const q=p+w; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
     }
-    comps.push({minx,miny,maxx,maxy,area,edge});
+    comps.push({id,minx,miny,maxx,maxy,area,edge});
+  }
+  return {label,comps};
+}
+
+// Largest axis-aligned rectangle that fits ENTIRELY inside one region, via the
+// maximal-rectangle-in-histogram sweep. This replaces the old bounding box:
+// a box around an L-shaped room swallows walls and neighbours, whereas an
+// inscribed rect is always real floor. It also makes overlaps impossible,
+// since regions are disjoint and each rect stays inside its own region.
+function maxRect(label,w,id,c){
+  const bw=c.maxx-c.minx+1, bh=c.maxy-c.miny+1;
+  const heights=new Int32Array(bw), stack=new Int32Array(bw+1), left=new Int32Array(bw);
+  let best={area:0,x:0,y:0,w:0,h:0};
+  for(let y=0;y<bh;y++){
+    const row=(c.miny+y)*w+c.minx;
+    for(let x=0;x<bw;x++) heights[x]= label[row+x]===id ? heights[x]+1 : 0;
+    let sp=0;
+    for(let x=0;x<=bw;x++){
+      const cur = x<bw ? heights[x] : 0;
+      let start=x;
+      while(sp>0 && heights[stack[sp-1]]>=cur){
+        const idx=stack[--sp], ht=heights[idx];
+        const wd=x-(sp>0?stack[sp-1]+1:0);
+        const area=ht*wd;
+        if(area>best.area) best={area,x:c.minx+(sp>0?stack[sp-1]+1:0),y:c.miny+y-ht+1,w:wd,h:ht};
+        start=idx;
+      }
+      if(x<bw) stack[sp++]=x;
+    }
+  }
+  return best;
+}
+
+// Column silhouette of the site: top and bottom edge of the content per column.
+// Produces the kind of polygon STACKT has — a real shape with diagonals — where
+// the old code just took a bounding rectangle and called it the site.
+function silhouette(content,w,h,step,pad){
+  const top=[],bot=[];
+  for(let x=0;x<w;x+=step){
+    let y0=-1,y1=-1;
+    for(let y=0;y<h;y++) if(content[y*w+x]){ if(y0<0)y0=y; y1=y; }
+    // padded outward, because simplification later cuts corners inward and a
+    // zone sitting on the boundary would fall out of the polygon
+    if(y0>=0){ top.push([x,Math.max(0,y0-pad)]); bot.push([x,Math.min(h-1,y1+pad)]); }
+  }
+  if(top.length<2) return null;
+  return top.concat(bot.reverse());
+}
+
+function simplify(pts,eps){
+  if(pts.length<3) return pts;
+  let dmax=0,idx=0;
+  const [ax,ay]=pts[0], [bx,by]=pts[pts.length-1];
+  const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1;
+  for(let i=1;i<pts.length-1;i++){
+    const d=Math.abs((pts[i][0]-ax)*dy-(pts[i][1]-ay)*dx)/len;
+    if(d>dmax){ dmax=d; idx=i; }
+  }
+  if(dmax>eps) return simplify(pts.slice(0,idx+1),eps).slice(0,-1).concat(simplify(pts.slice(idx),eps));
+  return [pts[0],pts[pts.length-1]];
+}
+
+function detectZones(img,sens){
+  const MAXW=720, sc=Math.min(1,MAXW/img.width);
+  const w=Math.max(1,Math.round(img.width*sc)), h=Math.max(1,Math.round(img.height*sc));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const cx=c.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,0,0,w,h);
+  const d=cx.getImageData(0,0,w,h).data, N=w*h;
+
+  const g=new Uint8Array(N);
+  for(let i=0;i<N;i++)
+    g[i]= d[i*4+3]<40 ? 255 : (d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)|0;
+
+  // Two strategies, because plans differ wildly. Line art has dark walls round
+  // light rooms; site maps and satellite crops have coloured blocks and no
+  // walls at all — thresholding alone finds nothing there.
+  const thr=clamp(otsu(g)+(sens-0.5)*90,6,249);
+  const light=new Uint8Array(N);
+  for(let i=0;i<N;i++) light[i]= g[i]>thr ? 1:0;
+
+  const q=new Int32Array(N);                        // quantised colour key
+  const step=(1-sens)*40+22;
+  for(let i=0;i<N;i++){
+    if(d[i*4+3]<40){ q[i]=-1; continue; }
+    q[i]=((d[i*4]/step|0)<<16)|((d[i*4+1]/step|0)<<8)|(d[i*4+2]/step|0);
   }
 
-  // keep enclosed, roughly-rectangular regions of a sane size
-  const cand=comps.filter(k=>{
-    if(k.edge) return false;                       // that's the page, not a room
-    const frac=k.area/N;
-    if(frac<0.0012||frac>0.42) return false;
-    const bw=k.maxx-k.minx+1, bh=k.maxy-k.miny+1;
-    if(bw<6||bh<6) return false;
-    return k.area/(bw*bh)>0.55;                    // fills its own bounding box
-  }).sort((a,b)=>b.area-a.area);
+  const runs=[
+    labelRegions((p,c2)=> light[p]===1 && light[c2]===1, w,h),
+    labelRegions((p,c2)=> q[p]>=0 && q[p]===q[c2], w,h)
+  ];
 
-  // Bounding boxes of interlocking rooms can overlap, and the server rejects
-  // that. Trim along whichever axis costs least; drop what's left if it's slivered.
-  const out=[];
-  for(const k of cand){
-    let r={x:k.minx/w,y:k.miny/h,w:(k.maxx-k.minx+1)/w,h:(k.maxy-k.miny+1)/h};
-    let ok=true;
-    for(const a of out){
-      const ox=Math.min(r.x+r.w,a.x+a.w)-Math.max(r.x,a.x);
-      const oy=Math.min(r.y+r.h,a.y+a.h)-Math.max(r.y,a.y);
-      if(ox<=0||oy<=0) continue;
-      if(ox<oy){ if(r.x<a.x) r.w=a.x-r.x; else { const nx=a.x+a.w; r.w=r.x+r.w-nx; r.x=nx; } }
-      else     { if(r.y<a.y) r.h=a.y-r.y; else { const ny=a.y+a.h; r.h=r.y+r.h-ny; r.y=ny; } }
-      if(r.w<0.014||r.h<0.014){ ok=false; break; }
+  function harvest(run){
+    const out=[];
+    for(const k of run.comps){
+      if(k.edge) continue;                          // the page, not a room
+      const frac=k.area/N;
+      if(frac<0.0016||frac>0.40) continue;
+      if(k.maxx-k.minx<7||k.maxy-k.miny<7) continue;
+      const r=maxRect(run.label,w,k.id,k);
+      if(r.w<8||r.h<8) continue;
+      if(r.area/k.area<0.42) continue;              // region too ragged to call a room
+      out.push({x:r.x/w,y:r.y/h,w:r.w/w,h:r.h/h,area:r.area});
     }
-    if(ok) out.push(r);
-    if(out.length>=60) break;
+    return out;
   }
+  let zonesPx=harvest(runs[0]);
+  const alt=harvest(runs[1]);
+  if(alt.length>zonesPx.length) zonesPx=alt;        // whichever read the image better
 
-  // reading order, so the numbering feels human
-  out.sort((a,b)=> (a.y-b.y)||(a.x-b.x));
-  const pad=0.004;
-  const outline=[[Math.max(0,cminx/w-pad),Math.max(0,cminy/h-pad)],
-                 [Math.min(1,(cmaxx+1)/w+pad),Math.max(0,cminy/h-pad)],
-                 [Math.min(1,(cmaxx+1)/w+pad),Math.min(1,(cmaxy+1)/h+pad)],
-                 [Math.max(0,cminx/w-pad),Math.min(1,(cmaxy+1)/h+pad)]];
+  zonesPx.sort((a,b)=>b.area-a.area);
+  zonesPx=zonesPx.slice(0,60);
+  zonesPx.sort((a,b)=>(a.y-b.y)||(a.x-b.x));        // reading order
 
-  const zones=out.map((r,i)=>{
+  // site outline: everything that isn't the background the border sits in
+  const bg=labelRegions((p,c2)=> light[p]===1 && light[c2]===1, w,h);
+  const border=new Set();
+  bg.comps.forEach(k=>{ if(k.edge) border.add(k.id); });
+  const content=new Uint8Array(N);
+  for(let i=0;i<N;i++) content[i]= border.has(bg.label[i]) ? 0 : 1;
+
+  // The outline has to contain every zone or the venue won't validate, so trace
+  // it over the content AND the accepted rects rather than the content alone —
+  // on a site map of detached coloured blocks those are not the same thing.
+  const cover=Uint8Array.from(content);
+  zonesPx.forEach(r=>{
+    const x0=Math.max(0,Math.floor(r.x*w)), x1=Math.min(w,Math.ceil((r.x+r.w)*w));
+    const y0=Math.max(0,Math.floor(r.y*h)), y1=Math.min(h,Math.ceil((r.y+r.h)*h));
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) cover[y*w+x]=1;
+  });
+
+  let outline=null;
+  const sil=silhouette(cover,w,h,Math.max(2,Math.round(w/130)),Math.max(2,Math.round(w*0.008)));
+  if(sil){
+    const simp=simplify(sil,Math.max(1.5,w*0.007));
+    if(simp.length>=3&&simp.length<=48)
+      outline=simp.map(p=>[+clamp(p[0]/w,0,1).toFixed(4),+clamp(p[1]/h,0,1).toFixed(4)]);
+  }
+  if(!outline) outline=[[0,0],[1,0],[1,1],[0,1]];
+
+  // Belt and braces: simplification can still shave a corner, so shrink any
+  // straggler toward its own centre until it fits and drop what can't. The
+  // detector guarantees valid geometry rather than trusting its caller to.
+  const fits=z=>[[z.x,z.y],[z.x+z.w,z.y],[z.x+z.w,z.y+z.h],[z.x,z.y+z.h]]
+    .every(p=>inPoly(p[0],p[1],outline));
+  zonesPx=zonesPx.filter(r=>{
+    const z={x:r.x,y:r.y,w:r.w,h:r.h};
+    for(let k=0;k<8&&!fits(z);k++){
+      const cx=z.x+z.w/2, cy=z.y+z.h/2;
+      z.w*=0.9; z.h*=0.9; z.x=cx-z.w/2; z.y=cy-z.h/2;
+    }
+    if(!fits(z)||z.w<0.014||z.h<0.014) return false;
+    r.x=z.x; r.y=z.y; r.w=z.w; r.h=z.h;
+    return true;
+  });
+
+  const zones=zonesPx.map((r,i)=>{
     const frac=r.w*r.h;
     return {
       id:'zone'+(i+1), label:'Zone '+(i+1), short:'ZONE '+(i+1),
@@ -971,16 +1095,7 @@ function runDetect(){
     ed.outline=outline; ed.zones=zones; edSel=-1;
     $('#zProps').style.display='none';
 
-    // clip anything that ended up straddling the outline, so a fresh detection
-    // never lands you in the validator's lap
-    const ox=outline[0][0],oy=outline[0][1],ox2=outline[2][0],oy2=outline[2][1];
-    ed.zones=ed.zones.filter(z=>{
-      const x=Math.max(z.x,ox), y=Math.max(z.y,oy);
-      const w=Math.min(z.x+z.w,ox2)-x, h=Math.min(z.y+z.h,oy2)-y;
-      if(w<0.014||h<0.014) return false;
-      z.x=+x.toFixed(4); z.y=+y.toFixed(4); z.w=+w.toFixed(4); z.h=+h.toFixed(4);
-      return true;
-    });
+    // containment is guaranteed inside detectZones, so nothing to fix up here
 
     autoPins();
     const ms=Math.round(performance.now()-t0);
