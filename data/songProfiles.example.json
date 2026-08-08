@@ -1,0 +1,16 @@
+[
+  {"id":"example-warm-arrival","title":"Warm Arrival","artist":"Pulse Library","year":2026,"genres":["downtempo","soul"],"bpm":96,"energy":0.24,"danceability":0.34,"valence":0.72,"socialness":0.90,"intensity":0.18},
+  {"id":"example-soft-current","title":"Soft Current","artist":"North Hall","year":2026,"genres":["chill-house"],"bpm":104,"energy":0.35,"danceability":0.48,"valence":0.68,"socialness":0.82,"intensity":0.28},
+  {"id":"example-open-room","title":"Open Room","artist":"Container Lights","year":2026,"genres":["nu-disco"],"bpm":110,"energy":0.45,"danceability":0.61,"valence":0.78,"socialness":0.72,"intensity":0.38},
+  {"id":"example-easy-motion","title":"Easy Motion","artist":"Market Lane","year":2026,"genres":["funk","house"],"bpm":114,"energy":0.52,"danceability":0.72,"valence":0.75,"socialness":0.61,"intensity":0.45},
+  {"id":"example-gather-round","title":"Gather Round","artist":"Studio Three","year":2026,"genres":["indie-dance"],"bpm":116,"energy":0.48,"danceability":0.64,"valence":0.70,"socialness":0.78,"intensity":0.40},
+  {"id":"example-night-steps","title":"Night Steps","artist":"Bathurst Line","year":2026,"genres":["deep-house"],"bpm":120,"energy":0.62,"danceability":0.79,"valence":0.60,"socialness":0.44,"intensity":0.58},
+  {"id":"example-pulse-rising","title":"Pulse Rising","artist":"Signal Garden","year":2026,"genres":["house"],"bpm":124,"energy":0.76,"danceability":0.88,"valence":0.72,"socialness":0.25,"intensity":0.70},
+  {"id":"example-shared-beat","title":"Shared Beat","artist":"North Hall","year":2026,"genres":["dance-pop"],"bpm":126,"energy":0.72,"danceability":0.91,"valence":0.84,"socialness":0.30,"intensity":0.64},
+  {"id":"example-neon-arc","title":"Neon Arc","artist":"Frame Sync","year":2026,"genres":["electro-house"],"bpm":128,"energy":0.84,"danceability":0.90,"valence":0.66,"socialness":0.16,"intensity":0.82},
+  {"id":"example-high-tide","title":"High Tide","artist":"Signal Garden","year":2026,"genres":["progressive-house"],"bpm":130,"energy":0.90,"danceability":0.86,"valence":0.74,"socialness":0.12,"intensity":0.91},
+  {"id":"example-pressure-line","title":"Pressure Line","artist":"Late Transit","year":2026,"genres":["tech-house"],"bpm":132,"energy":0.88,"danceability":0.82,"valence":0.42,"socialness":0.10,"intensity":0.94},
+  {"id":"example-bright-release","title":"Bright Release","artist":"Container Lights","year":2026,"genres":["dance-pop"],"bpm":128,"energy":0.80,"danceability":0.89,"valence":0.92,"socialness":0.20,"intensity":0.71},
+  {"id":"example-afterglow","title":"Afterglow","artist":"Market Lane","year":2026,"genres":["melodic-house"],"bpm":118,"energy":0.56,"danceability":0.70,"valence":0.82,"socialness":0.58,"intensity":0.46},
+  {"id":"example-last-light","title":"Last Light","artist":"Quiet Geometry","year":2026,"genres":["ambient-pop"],"bpm":100,"energy":0.28,"danceability":0.38,"valence":0.62,"socialness":0.86,"intensity":0.22}
+]

@@ -39,10 +39,14 @@ Environment variables, all optional:
 | `FAKE` | on | `FAKE=0` disables the simulated crowd |
 | `FAKE_N` | `58` | How many simulated attendees |
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
-| `OPENAI_API_KEY` | — | Enables AI plan reading in the venue editor |
-| `GEMINI_API_KEY` | — | Same, using Gemini instead. Free key from [AI Studio](https://aistudio.google.com/apikey) |
+| `DJ_PROFILES_PATH` | `data/songProfiles.json` | Override the preprocessed song-profile database
+|
+| `OPENAI_DJ_MODEL` | `gpt-5-mini` | Optional final-selector model |
+| `DJ_AI_TOKEN` | — | Required in `X-DJ-Token` before the HTTP endpoint may spend AI credits |
+| `OPENAI_API_KEY` | — | Enables OpenAI-backed venue-plan reading and optional DJ selection; server-side only |
+| `GEMINI_API_KEY` | — | Enables venue-plan reading with Gemini. Free key from [AI Studio] (https://aistudio.google.com/apikey) |
 | `AI_PROVIDER` | auto | `openai` or `gemini`. Only needed if both keys are set |
-| `OPENAI_MODEL` | `gpt-4o` | Vision model that reads the plan |
+| `OPENAI_MODEL` | `gpt-5.4` | Vision model that reads the plan |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Vision model that reads the plan |
 | `VENUE` | first found | Which venue to start live |
 
@@ -71,12 +75,42 @@ public/
   join.html        phone view — check-in, sensors, mini map
   calibrate.html   two-point GPS calibration tool
 docs/data.md       API/data notes
+docs/song-preprocessing.md  offline song-profile generation
 CLAUDE.md          conventions and hard constraints — read before changing architecture
 ```
 
 Each HTML file is standalone: styles in a `<style>` block, logic in a `<script>` block, no imports and
 no shared bundle. To change the dashboard, open `public/dashboard.html` and edit it. Reload to see it.
 Only `server.js` changes need a restart.
+
+## Offline song preprocessing
+
+The optional Python utility analyzes legitimate local audio files before an event and
+creates `data/songProfiles.json`. The live Node application consumes only that compact
+profile database; it does not run librosa or call an LLM for song features. See
+[the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
+caching, audio-only testing, and full-library commands.
+
+## Adaptive song selection
+
+The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
+preprocessed profiles. It converts the room state into an explicit musical target,
+ranks eligible songs, explains its scores, and optionally lets OpenAI choose among
+only the top ten. AI is server-side and never required: missing keys, timeouts,
+invalid output, or unknown song IDs automatically fall back to the highest numeric
+score.
+
+```bash
+npm run select-song -- --scenario dancingGrowing
+npm run select-song -- --scenario socializing
+npm run select-song -- --scenario losingDanceFloor --json
+npm run select-song -- --list-scenarios
+```
+
+Add `--ai` to request the optional final judge. Without `data/songProfiles.json`, the
+CLI and API clearly fall back to fictional `data/songProfiles.example.json` records.
+The server also exposes `GET /api/dj/scenarios` and `POST /api/dj/select`; neither
+route changes the currently playing track. See [the DJ selection guide](docs/dj-selection.md).
 
 ## Making changes
 
@@ -176,7 +210,7 @@ Keys: OpenAI at [platform.openai.com/api-keys](https://platform.openai.com/api-k
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
 Whichever key is present is used. With both set, `AI_PROVIDER=openai|gemini` decides. Defaults are
-`gpt-4o` and `gemini-2.0-flash`; override with `OPENAI_MODEL` / `GEMINI_MODEL`. The model must be
+`gpt-5.4` and `gemini-2.0-flash`; override with `OPENAI_MODEL` / `GEMINI_MODEL`. The model must be
 vision-capable — a text-only model will fail with a clear error rather than silently misbehaving.
 
 Without a key the AI option disables itself in the dropdown and the local reader is selected. Nothing
@@ -199,6 +233,31 @@ guarantees the local reader makes, so whichever reader ran, what reaches `valida
 
 If the call fails for any reason — no quota, bad key, timeout, malformed answer — the editor falls
 back to the local reader and tells you what went wrong rather than leaving you stuck.
+
+### Which model to use
+
+Model choice matters far more than it looks. Every model tried found all 7 rooms in a labelled test
+plan and named them correctly — the difference is entirely in **how tightly the rectangles land**,
+which is exactly what zone accuracy depends on. Scored as IoU against the true room boxes, three runs
+each:
+
+| Model | Box accuracy (IoU) | Time | Tokens |
+|---|---|---|---|
+| **gpt-5.4** (default) | **0.91** | 3.2s | 1474 |
+| gpt-5.6-luna | 0.90 | 5.7s | 1800 |
+| gpt-5.6-terra | 0.90 | 6.9s | 1780 |
+| gpt-5.5 | 0.90 | 16.4s | 2510 |
+| gpt-5 | 0.58 | 36.9s | 4949 |
+| gpt-4.1 | 0.51 | 2.2s | 1623 |
+| gpt-4o | 0.47 | 4.9s | 1598 |
+
+`gpt-5.4` wins on all three axes, so it's the default. An IoU of 0.47 means a box overlapping the real
+room less than halfway — zones that look plausible in the editor and put people in the wrong place.
+The 5.6 variants are equally accurate but slower; there's no plain `gpt-5.6`, only `-luna`, `-sol` and
+`-terra`.
+
+Re-run this yourself if you want to check a newer model — the scoring harness is small, and the models
+your key can reach are listed by `GET https://api.openai.com/v1/models`.
 
 ### How the local detection works
 

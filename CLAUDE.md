@@ -24,6 +24,7 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 - Nothing may assume a zone id exists. `entrance1` is STACKT-specific; use `defaultZone()`, which prefers a `transit` zone and falls back to the first.
 - **AI keys stay server-side.** The dashboard is served over a public tunnel, so anything in client JS is public — and OpenAI keys are billable. The browser posts the image to `POST /detect` and the server calls the model. Never move a key into a page.
 - OpenAI and Gemini are both supported behind one interface (`askOpenAI` / `askGemini`, both returning raw JSON text). Adding a provider means adding one function and a schema, not touching `/detect`. Note the schema dialects differ: Gemini wants uppercase type names, OpenAI strict mode requires `additionalProperties:false` and every property in `required`.
+- **The vision model is chosen by measurement, not vintage.** Every model tried finds the rooms and labels them right; they differ almost entirely in how tightly the boxes land, which is the only thing zone accuracy depends on. Scored as IoU against known room boxes: gpt-5.4 ≈0.91, gpt-5.6-* ≈0.90, gpt-5 ≈0.58, gpt-4o ≈0.47. gpt-5.4 is also the fastest and cheapest of the accurate ones. Don't change the default on the strength of a version number — re-run the comparison.
 - **Never trust model geometry.** `repairGeometry()` clamps, de-overlaps, drops degenerates, coerces `kind` and de-duplicates ids before anything reaches `validateVenue`. A vision model returns plausible rectangles, not valid ones.
 - AI detection must stay optional. No key → the local reader is selected and the AI option disables itself; any API failure falls back to local with the reason shown. Don't make the editor depend on the network.
 - `validateVenue()` enforces the geometry rules (corners inside the outline, no overlaps, unique ids) instead of leaving them to memory. The editor mirrors it client-side to flag zones as you draw.
@@ -59,6 +60,12 @@ Do not swap these for defaults; they were chosen deliberately.
 
 Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, two-point GPS calibration).
 
+Also built: an offline Python song-profile generator and a deterministic-first Node
+song-selection engine. The selector accepts mock/future `CrowdState`, produces an
+explicit target, ranks the preprocessed library, and can optionally use a server-side
+OpenAI final judge with mandatory deterministic fallback. It does not control the
+host deck yet.
+
 Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-zone QRs still work and set
 the starting zone. `venue.geo` maps GPS onto the normalized map via origin + span + bearing; it ships
 **uncalibrated** and must be set on site with `/calibrate.html` (two known points, solved against the
@@ -78,7 +85,7 @@ Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 
 few metres deep in `y`, below GPS resolution regardless of fix quality.
 
 Deliberately not built yet:
-- Automatic track selection from crowd metrics (music is host-controlled by design for now)
+- Real sensor-to-`CrowdState` analysis or automatic playback (music remains host-controlled)
 - Any persistence
 - BLE trilateration and accelerometer dead reckoning — both evaluated and rejected as hackathon-infeasible.
 
