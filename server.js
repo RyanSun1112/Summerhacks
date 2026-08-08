@@ -160,9 +160,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(express.json({ limit: '64kb' }));
+// Two body limits, not one. 64kb protects every ordinary endpoint, but floor
+// plans and the image sent for AI reading are megabytes of data URL, and a
+// single global limit can't serve both: the small one silently 413s uploads,
+// the large one drops the protection everywhere. Registering both as global
+// middleware doesn't work either — the first to run wins, so the small limit
+// rejected the upload before the large one was ever reached.
+const smallJson = express.json({ limit: '64kb' });
+const bigJson   = express.json({ limit: PLAN_MAX });
+const needsBigBody = req => req.path === '/detect' || /^\/venues\/[^/]+\/plan$/.test(req.path);
+app.use((req, res, next) => (needsBigBody(req) ? bigJson : smallJson)(req, res, next));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: PLAN_MAX }));      // floor plans arrive as data URLs
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
