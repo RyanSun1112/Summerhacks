@@ -283,13 +283,19 @@ Rules:
 "cap" is a plausible standing capacity for the area.
 "label" is the name written on the plan if there is one, otherwise something descriptive.
 "outline" is the venue footprint: 3 to 40 points tracing its edge in order.
-"name" is the venue's name if the plan states one, otherwise an empty string.`;
+"name" is the venue's name if the plan states one, otherwise an empty string.
+
+Also report anything on the drawing that fixes it to the real world. Report ONLY what you can actually see — a wrong value here is worse than no value, so use the "unknown" value if you are not sure:
+- "widthMetres": how wide the WHOLE IMAGE is in metres. Read it off a scale bar or a printed dimension and extrapolate to the full image width. 0 if there is no scale.
+- "northDegrees": the compass bearing that straight UP in the image points to, in degrees, 0 = up is north, 90 = up is east. Read it off a north arrow or compass rose. -1 if there is no north indicator.
+- "address": any street address or place name printed on the drawing, exactly as written. Empty string if none.`;
 
 // Gemini wants uppercase type names and ignores additionalProperties
 const GEMINI_SCHEMA = {
   type: 'OBJECT',
   properties: {
     name: { type: 'STRING' },
+    widthMetres: { type: 'NUMBER' }, northDegrees: { type: 'NUMBER' }, address: { type: 'STRING' },
     outline: { type: 'ARRAY', items: { type: 'OBJECT',
       properties: { x: { type: 'NUMBER' }, y: { type: 'NUMBER' } }, required: ['x', 'y'] } },
     zones: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
@@ -305,9 +311,12 @@ const GEMINI_SCHEMA = {
 // false and every property listed in required, or the request is rejected.
 const OPENAI_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['name', 'outline', 'zones'],
+  required: ['name', 'widthMetres', 'northDegrees', 'address', 'outline', 'zones'],
   properties: {
     name: { type: 'string' },
+    widthMetres: { type: 'number' },
+    northDegrees: { type: 'number' },
+    address: { type: 'string' },
     outline: { type: 'array', items: { type: 'object', additionalProperties: false,
       required: ['x', 'y'], properties: { x: { type: 'number' }, y: { type: 'number' } } } },
     zones: { type: 'array', items: { type: 'object', additionalProperties: false,
@@ -409,6 +418,69 @@ function repairGeometry(zones, outline) {
   return out;
 }
 
+// A drawing can pin down size and rotation — a scale bar and a north arrow are
+// exactly that information — but nothing on it says where on Earth it sits
+// unless an address is printed. So this fills in what's derivable, geocodes the
+// address if there is one, and marks the result estimated. It never claims
+// calibrated: a geocode lands within tens of metres, and zones here are ~10m,
+// so this is a starting point for the two pins, not a replacement for them.
+async function geocode(address) {
+  if (!address || address.length < 6) return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='
+                          + encodeURIComponent(address),
+      { signal: ctrl.signal, headers: { 'user-agent': 'Pulse venue dashboard (hackathon project)' } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j[0]) return null;
+    return { lat: +j[0].lat, lon: +j[0].lon, display: String(j[0].display_name || '').slice(0, 120) };
+  } catch { return null; }
+  finally { clearTimeout(t); }
+}
+
+async function estimateGeo(parsed, aspect) {
+  const width = +parsed.widthMetres || 0;
+  const north = parsed.northDegrees;
+  const address = String(parsed.address || '').trim();
+
+  const got = [];
+  const geo = { calibrated: false, estimated: true,
+                origin: { lat: 0, lon: 0 }, spanX: 100, spanY: 100 / aspect, bearing: 90 };
+
+  // a scale bar read as 3m or 9km is a misread, not a small or large venue
+  if (width >= 8 && width <= 4000) {
+    geo.spanX = +width.toFixed(1);
+    geo.spanY = +(width / aspect).toFixed(1);
+    got.push(`size from a scale bar (${geo.spanX} × ${geo.spanY} m)`);
+  }
+  // map +x is image-right, which is 90 degrees clockwise of image-up
+  if (typeof north === 'number' && north >= 0 && north <= 360) {
+    geo.bearing = +(((north + 90) % 360)).toFixed(2);
+    got.push(`rotation from a north arrow (up = ${north}°)`);
+  }
+
+  const place = await geocode(address);
+  if (place) {
+    // geocoding returns the venue centre; origin is the map's top-left corner
+    const b = geo.bearing * Math.PI / 180;
+    const px = 0.5 * geo.spanX, py = 0.5 * geo.spanY;
+    const dEast = px * Math.sin(b) + py * Math.cos(b);
+    const dNorth = px * Math.cos(b) - py * Math.sin(b);
+    geo.origin = {
+      lat: +(place.lat - dNorth / M_PER_DEG).toFixed(7),
+      lon: +(place.lon - dEast / (M_PER_DEG * Math.cos(place.lat * Math.PI / 180))).toFixed(7)
+    };
+    got.push(`position from the address "${address}"`);
+    geo.placed = place.display;
+  }
+
+  geo.from = got;
+  geo.usable = got.length > 0;
+  return geo;
+}
+
 app.get('/ai', (_, res) => res.json({
   available: !!AI_KEY, provider: AI_KEY ? AI_PROVIDER : null, model: AI_KEY ? AI_MODEL : null
 }));
@@ -441,9 +513,11 @@ app.post('/detect', async (req, res) => {
     const zones = repairGeometry(parsed.zones || [], outline);
     if (!zones.length) return res.status(422).json({ error: 'the model found no usable zones in that image' });
 
+    const geo = await estimateGeo(parsed, +req.body.aspect || 1.6);
+
     res.json({ source: 'ai', provider: AI_PROVIDER, model: AI_MODEL,
                name: String(parsed.name || '').slice(0, 40),
-               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones });
+               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones, geo });
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'the model took too long to answer' : e.message;
     console.warn('[ai] detect failed:', msg);

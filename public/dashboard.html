@@ -1149,11 +1149,25 @@ async function runDetect(){
   $('#detAgain').disabled=true;
   try{
     const r=await fetch('/detect',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({image:shrinkForAI(edPlan,1152)})});
+      body:JSON.stringify({image:shrinkForAI(edPlan,1152),aspect:ed.aspect})});
     const b=await r.json();
     if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
     if(b.name&&!$('#edName').value){ $('#edName').value=b.name; ed.name=b.name; }
-    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
+
+    // Size and rotation can be read off the drawing; absolute position can't,
+    // unless an address was printed on it. Take whatever it managed and say
+    // plainly which parts are guesses — a wrong anchor is worse than none.
+    let note='';
+    if(b.geo&&b.geo.usable){
+      ed.geo={...b.geo};
+      note=`<span style="color:var(--ok)">Read from the plan:</span> ${esc(b.geo.from.join('; '))}.`
+         + (b.geo.origin.lat ? ` <b>Check the two pins below</b> — an address only locates the site to within tens of metres, which is wider than a zone.`
+                             : ` Position still needs the two pins below.`);
+    } else {
+      note='Nothing on the plan fixed it to the real world — set the two pins below.';
+    }
+    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`,note);
+    pinsFromGeo(); renderPins();
   }catch(e){
     // never leave the user stuck: fall back to the local reader and say why
     runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
@@ -1489,6 +1503,23 @@ function capturePin(i,btn){
            btn.textContent='Capture GPS here'; btn.disabled=false; },
   {enableHighAccuracy:true,maximumAge:0,timeout:20000});
 }
+// Project the estimated anchor back out to the two pins, so they show real
+// coordinates to correct instead of empty boxes. Deliberately does NOT call
+// solveGeo — that would stamp calibrated:true on the model's guess. The flag
+// flips only when you edit a pin yourself.
+function pinsFromGeo(){
+  const g=ed.geo;
+  if(!g||!g.origin||!g.origin.lat) return;
+  const b=g.bearing*Math.PI/180;
+  edPins.forEach(p=>{
+    if(!p) return;
+    const px=p.x*g.spanX, py=p.y*g.spanY;
+    p.lat=+(g.origin.lat+(px*Math.cos(b)-py*Math.sin(b))/M_DEG).toFixed(7);
+    p.lon=+(g.origin.lon+(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(g.origin.lat)))).toFixed(7);
+    p.acc=null;
+  });
+}
+
 function solveGeo(){
   const [A,B]=edPins;
   if(!A||!B||A.lat==null||B.lat==null){ $('#calProb').textContent=''; return; }

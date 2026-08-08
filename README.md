@@ -167,9 +167,9 @@ built.
 2. **Drop in a floor plan image.** Zones are found automatically — no drawing required. The image is
    traced over, never rendered on the live map, and its proportions set the venue's `aspect`, which is
    what makes coordinates line up with the real site.
-3. **Type two coordinates.** Detection drops a pin on each opposite corner of the site; you supply
-   their real lat/lon (paste from Google Maps) or stand there and capture. That's the whole manual
-   step.
+3. **Confirm where it is.** Detection drops a pin on each opposite corner of the site. If the drawing
+   carried a scale bar, a north arrow or an address, those pins arrive already filled in — otherwise
+   supply the two coordinates yourself (paste from Google Maps) or stand there and capture.
 4. **Save**, or **Save & make active** to move the live event onto it.
 
 ### Editing what came back
@@ -251,6 +251,37 @@ guarantees the local reader makes, so whichever reader ran, what reaches `valida
 
 If the call fails for any reason — no quota, bad key, timeout, malformed answer — the editor falls
 back to the local reader and tells you what went wrong rather than leaving you stuck.
+
+### Can AI do the GPS calibration too?
+
+Partly, and the split is worth understanding because it's not a limitation of the model.
+
+Calibration needs three things. A drawing can carry two of them:
+
+| Needs | Where it comes from | Can AI read it? |
+|---|---|---|
+| Size in metres | A scale bar | **Yes** |
+| Rotation vs north | A north arrow | **Yes**, when the arrow is unambiguous |
+| Position on Earth | Nothing on the drawing | **Only** if an address is printed |
+
+So when you drop a plan, the model is also asked for the scale bar, the north arrow and any printed
+address. A found address is geocoded through OpenStreetMap's Nominatim (free, no key), and the result
+back-projects into the two corner pins so they arrive **pre-filled with real coordinates you can
+correct**, rather than empty.
+
+It is reported as `estimated`, never `calibrated`. That distinction is deliberate: geocoding an
+address lands you within tens of metres of the building, and zones here are around 10m, so an
+address-derived anchor is a good starting point and a bad final answer. The flag only flips to
+calibrated when you edit a pin yourself — the claim of accuracy stays yours.
+
+Everything is validated before it's believed: a scale read as 3m or 9km is treated as a misread, and a
+plan carrying none of the three markings comes back with `usable: false` and says so, rather than
+inventing an anchor. Tested both ways — an annotated plan resolved `290 Bremner Blvd` to the real CN
+Tower and read its scale bar to within 6%; an unannotated one returned `from: []` and left the pins
+empty.
+
+The honest summary: it saves you finding coordinates for a venue whose address is on the drawing, and
+gets the size and rotation right. It does not remove the two-pin step if you want zone-level accuracy.
 
 ### Which model to use
 
