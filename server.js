@@ -5,6 +5,25 @@ const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 
+// Load .env before anything reads process.env. Ten lines beats adding a
+// dependency, and it means an API key never has to survive a shell-quoting
+// round trip — which differs between PowerShell, cmd and Git Bash and is the
+// single most common way this fails to start.
+(() => {
+  const p = path.join(__dirname, '.env');
+  if (!fs.existsSync(p)) return;
+  let n = 0;
+  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
+    if (/^\s*#/.test(line)) continue;
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let v = m[2].trim().replace(/\s+#.*$/, '');          // trailing comment, not a # inside a key
+    if (/^".*"$|^'.*'$/.test(v)) v = v.slice(1, -1);
+    if (!(m[1] in process.env)) { process.env[m[1]] = v; n++; }   // a real env var still wins
+  }
+  if (n) console.log(`Loaded ${n} setting${n > 1 ? 's' : ''} from .env`);
+})();
+
 const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);

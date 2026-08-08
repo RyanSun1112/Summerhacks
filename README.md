@@ -150,16 +150,27 @@ it picks up room names printed on the drawing, understands that a rectangle labe
 food area, and copes with site maps and photographs that defeat pure image processing. **Local** is
 the built-in geometric reader described below, needs no key, no network, and no quota.
 
-Either **OpenAI** or **Gemini** works. Set whichever key you have and start the server:
+Either **OpenAI** or **Gemini** works. The simplest way to set a key is a `.env` file, because it
+avoids shell quoting entirely — the syntax for setting an environment variable differs between
+PowerShell, cmd and Git Bash, and getting it wrong is the most common way this fails to start.
 
-```powershell
-$env:OPENAI_API_KEY="sk-..."; node server.js          # OpenAI
-$env:GEMINI_API_KEY="..."; node server.js             # Gemini
-```
 ```bash
-OPENAI_API_KEY=sk-... node server.js
-GEMINI_API_KEY=...    node server.js
+cp .env.example .env      # then edit .env and paste your key
+node server.js
 ```
+
+You should see `Loaded 1 setting from .env` at boot. That's it — no `export`, no `$env:`, no `set`.
+
+If you'd rather use the shell, the syntax depends on which one you're in:
+
+| Shell | Prompt looks like | Command |
+|---|---|---|
+| PowerShell | `PS C:\Workspace\Summerhacks>` | `$env:OPENAI_API_KEY="sk-..."` |
+| Command Prompt | `C:\Workspace\Summerhacks>` | `set OPENAI_API_KEY=sk-...` (no quotes — cmd keeps them) |
+| Git Bash | `user@host MINGW64 /c/...$` | `export OPENAI_API_KEY=sk-...` |
+
+Either way it only applies to that one window, and only to servers started from it afterwards.
+Anything set in the shell overrides `.env`.
 
 Keys: OpenAI at [platform.openai.com/api-keys](https://platform.openai.com/api-keys), Gemini free at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
