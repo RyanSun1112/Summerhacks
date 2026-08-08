@@ -265,9 +265,16 @@
         <div id="planDrop">Drop an image, or click to choose<br><span style="font-size:10px">zones are found automatically</span></div>
         <div id="detStatus" class="vhint" style="margin:0"></div>
         <div class="vfield" id="detTune" style="display:none">
-          <label>Detail <span id="detSensV" style="color:var(--ink)">balanced</span></label>
-          <input id="detSens" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
-          <button class="vbtn" id="detAgain" style="margin-top:6px">Find zones again</button>
+          <label>Method</label>
+          <select class="vsel" id="detMode">
+            <option value="ai">AI — reads the plan like a person</option>
+            <option value="local">Local — shapes and colours only</option>
+          </select>
+          <div id="detLocalTune" style="display:none;margin-top:7px">
+            <label>Detail <span id="detSensV" style="color:var(--ink)">balanced</span></label>
+            <input id="detSens" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
+          </div>
+          <button class="vbtn" id="detAgain" style="margin-top:7px">Find zones again</button>
         </div>
         <div class="vrowin">
           <div class="vfield"><label>Aspect (w÷h)</label><input class="vin" id="edAspect" value="2.884"></div>
@@ -1085,25 +1092,70 @@ function detectZones(img,sens){
   return {zones,outline};
 }
 
-function runDetect(){
+let aiInfo={available:false,model:null};
+fetch('/ai').then(r=>r.json()).then(a=>{
+  aiInfo=a;
+  if(!a.available){
+    $('#detMode').value='local';
+    $('#detMode').querySelector('option[value="ai"]').textContent='AI — needs GEMINI_API_KEY';
+    $('#detMode').querySelector('option[value="ai"]').disabled=true;
+    $('#detLocalTune').style.display='block';
+  }
+}).catch(()=>{});
+
+$('#detMode').addEventListener('change',()=>{
+  $('#detLocalTune').style.display=$('#detMode').value==='local'?'block':'none';
+});
+
+function applyDetection(zones,outline,how,extra){
+  ed.outline=outline; ed.zones=zones; edSel=-1;
+  $('#zProps').style.display='none';
+  autoPins();
+  $('#detStatus').innerHTML = zones.length
+    ? `<span class="vok">Found ${zones.length} zones</span> — ${how}. Rename or redraw any of them below.`
+    : `Nothing found — ${how}.`;
+  if(extra) $('#detStatus').innerHTML+=`<br>${extra}`;
+  renderZoneList(); renderPins(); vedDraw();
+}
+
+function runLocal(why){
+  const t0=performance.now();
+  const {zones,outline}=detectZones(edPlan,parseFloat($('#detSens').value));
+  applyDetection(zones,outline,`read locally in ${Math.round(performance.now()-t0)}ms`,why);
+  if(!zones.length) $('#detStatus').innerHTML+=' Try the <b>Detail</b> slider, or drag zones by hand.';
+}
+
+// The image is downscaled before upload: a phone photo of a plan is several MB,
+// which is slow to send and costs tokens for detail the model doesn't need.
+function shrinkForAI(img,maxPx){
+  const sc=Math.min(1,maxPx/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');
+  c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.9);
+}
+
+async function runDetect(){
   if(!edPlan) return;
-  $('#detStatus').textContent='Looking for zones…';
-  // let the status paint before the synchronous scan blocks the frame
-  setTimeout(()=>{
-    const t0=performance.now();
-    const {zones,outline}=detectZones(edPlan,parseFloat($('#detSens').value));
-    ed.outline=outline; ed.zones=zones; edSel=-1;
-    $('#zProps').style.display='none';
-
-    // containment is guaranteed inside detectZones, so nothing to fix up here
-
-    autoPins();
-    const ms=Math.round(performance.now()-t0);
-    $('#detStatus').innerHTML = ed.zones.length
-      ? `<span class="vok">Found ${ed.zones.length} zones</span> in ${ms}ms — rename or redraw any of them below.`
-      : `Nothing found. Slide <b>Detail</b>, or just drag zones on the canvas by hand.`;
-    renderZoneList(); renderPins(); vedDraw();
-  },16);
+  const useAI = $('#detMode').value==='ai' && aiInfo.available;
+  if(!useAI){
+    $('#detStatus').textContent='Looking for zones…';
+    setTimeout(()=>runLocal(''),16);           // let the status paint first
+    return;
+  }
+  $('#detStatus').innerHTML=`Asking ${esc(aiInfo.model)} to read the plan…`;
+  $('#detAgain').disabled=true;
+  try{
+    const r=await fetch('/detect',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({image:shrinkForAI(edPlan,1152)})});
+    const b=await r.json();
+    if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+    if(b.name&&!$('#edName').value){ $('#edName').value=b.name; ed.name=b.name; }
+    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
+  }catch(e){
+    // never leave the user stuck: fall back to the local reader and say why
+    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
+  }finally{ $('#detAgain').disabled=false; }
 }
 
 // Two pins at opposite corners of the detected site, so the only thing left to
