@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sensor Capture</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07101b;
+      --panel: #0f1c2c;
+      --text: #edf4ff;
+      --muted: #91a6c1;
+      --line: rgba(255, 255, 255, 0.08);
+      --accent: #66f0be;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, rgba(102, 240, 190, 0.12), transparent 30%), linear-gradient(180deg, #07101b, #0b1624);
+    }
+
+    main {
+      width: min(760px, calc(100vw - 24px));
+      margin: 0 auto;
+      padding: 20px 0 28px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(15, 28, 44, 0.95);
+      padding: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    button {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font: inherit;
+      font-weight: 700;
+      background: var(--accent);
+      color: #04150f;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+      grid-template-columns: 1.2fr 0.8fr;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 14px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-bottom: 8px;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .metric:last-child {
+      border-bottom: 0;
+    }
+
+    svg {
+      width: 100%;
+      height: 180px;
+      display: block;
+    }
+
+    .status {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>Sensor snapshot</h1>
+      <p>Tap once. The phone samples motion, orientation, and mic volume every 50ms for 5 seconds, grabs GPS, and sends one snapshot with all raw readings — no scoring, just capture.</p>
+      <button id="captureBtn">Capture 5 second snapshot</button>
+      <div class="status" id="statusText">idle</div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="label">Raw motion magnitude (chart only, not saved as a score)</div>
+          <svg id="chart" viewBox="0 0 420 180" preserveAspectRatio="none" aria-label="Motion magnitude graph"></svg>
+        </div>
+        <div class="card">
+          <div class="label">Snapshot info</div>
+          <div class="metric"><strong>Samples</strong><span id="sampleCount">0</span></div>
+          <div class="metric"><strong>Accel (x, y, z)</strong><span id="accelText">0, 0, 0</span></div>
+          <div class="metric"><strong>Orientation (α, β, γ)</strong><span id="orientText">0, 0, 0</span></div>
+          <div class="metric"><strong>Audio level</strong><span id="audioText">0.0000</span></div>
+          <div class="metric"><strong>GPS</strong><span id="gpsText">off</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      sessionId: localStorage.getItem("pulse-session-id") || crypto.randomUUID(),
+      startAt: null,
+      timer: null,
+      sampleTimer: null,
+      readings: [],
+      accelX: 0,
+      accelY: 0,
+      accelZ: 0,
+      alpha: 0,
+      beta: 0,
+      gamma: 0,
+      gps: null,
+      audioValue: 0,
+      audioContext: null,
+      audioAnalyser: null,
+      audioData: null,
+    };
+
+    localStorage.setItem("pulse-session-id", state.sessionId);
+
+    const captureBtn = document.getElementById("captureBtn");
+    const statusText = document.getElementById("statusText");
+    const sampleCount = document.getElementById("sampleCount");
+    const accelText = document.getElementById("accelText");
+    const orientText = document.getElementById("orientText");
+    const audioText = document.getElementById("audioText");
+    const gpsText = document.getElementById("gpsText");
+    const chart = document.getElementById("chart");
+
+    function round(value) {
+      return Math.round(value * 10000) / 10000;
+    }
+
+    // Raw motion magnitude, used only to draw the live chart — not saved
+    // as a derived metric. What gets saved is the raw accel_x/y/z per reading.
+    function motionMagnitude(x, y, z) {
+      return Math.sqrt((x ** 2) + (y ** 2) + (z ** 2));
+    }
+
+    function updateAudioLevel() {
+      if (!state.audioAnalyser || !state.audioData) return;
+      state.audioAnalyser.getByteTimeDomainData(state.audioData);
+      let sum = 0;
+      for (let index = 0; index < state.audioData.length; index += 1) {
+        const sample = (state.audioData[index] - 128) / 128;
+        sum += sample * sample;
+      }
+      // RMS amplitude, 0 (silence) to ~1 (loud) — this is the volume magnitude
+      state.audioValue = Math.sqrt(sum / state.audioData.length);
+    }
+
+    function renderChart() {
+      const values = state.readings.map((item) => motionMagnitude(item.accel_x, item.accel_y, item.accel_z));
+      if (!values.length) {
+        chart.innerHTML = '<rect x="0" y="0" width="420" height="180" rx="16" fill="rgba(255,255,255,0.02)" /><text x="210" y="95" text-anchor="middle" fill="#91a6c1" font-size="14">Waiting for samples</text>';
+        return;
+      }
+
+      const width = 420;
+      const height = 180;
+      const left = 12;
+      const right = width - 12;
+      const top = 16;
+      const bottom = height - 18;
+      const maxValue = Math.max(0.1, ...values);
+      const minValue = Math.min(...values);
+      const range = Math.max(0.1, maxValue - minValue);
+      const points = values.map((value, index) => {
+        const x = left + ((right - left) * (index / Math.max(1, values.length - 1)));
+        const y = bottom - ((((value - minValue) / range)) * (bottom - top));
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      const areaPath = `M ${points[0]} L ${points.join(" L ")} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${left.toFixed(1)},${bottom.toFixed(1)} Z`;
+      const linePath = `M ${points.join(" L ")}`;
+
+      chart.innerHTML = `
+        <rect x="0" y="0" width="420" height="180" rx="16" fill="rgba(255,255,255,0.02)" />
+        <path d="${areaPath}" fill="rgba(102, 240, 190, 0.16)" stroke="none"></path>
+        <path d="${linePath}" fill="none" stroke="#66f0be" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+      `;
+    }
+
+    function render() {
+      sampleCount.textContent = String(state.readings.length);
+      accelText.textContent = `${round(state.accelX)}, ${round(state.accelY)}, ${round(state.accelZ)}`;
+      orientText.textContent = `${round(state.alpha)}, ${round(state.beta)}, ${round(state.gamma)}`;
+      audioText.textContent = state.audioValue.toFixed(4);
+      gpsText.textContent = state.gps ? `${state.gps.lat.toFixed(5)}, ${state.gps.lng.toFixed(5)} (±${Math.round(state.gps.accuracy)}m)` : "off";
+      statusText.textContent = state.timer ? "capturing" : "idle";
+      renderChart();
+    }
+
+    function addReading() {
+      const now = Date.now();
+      state.readings.push({
+        reading_index: state.readings.length,
+        offset_ms: now - state.startAt,
+        accel_x: round(state.accelX),
+        accel_y: round(state.accelY),
+        accel_z: round(state.accelZ),
+        alpha: round(state.alpha),
+        beta: round(state.beta),
+        gamma: round(state.gamma),
+        audio_level: round(state.audioValue),
+      });
+    }
+
+    function startSensors() {
+      const motionHandler = (event) => {
+        const acceleration = event.acceleration || event.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+        state.accelX = acceleration.x || 0;
+        state.accelY = acceleration.y || 0;
+        state.accelZ = acceleration.z || 0;
+      };
+
+      const orientationHandler = (event) => {
+        state.alpha = event.alpha || 0;
+        state.beta = event.beta || 0;
+        state.gamma = event.gamma || 0;
+      };
+
+      const startMotion = () => window.addEventListener("devicemotion", motionHandler, { passive: true });
+      const startOrientation = () => window.addEventListener("deviceorientation", orientationHandler, { passive: true });
+
+      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+        DeviceMotionEvent.requestPermission().then((result) => {
+          if (result === "granted") startMotion();
+        }).catch(() => {});
+      } else {
+        startMotion();
+      }
+
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        DeviceOrientationEvent.requestPermission().then((result) => {
+          if (result === "granted") startOrientation();
+        }).catch(() => {});
+      } else {
+        startOrientation();
+      }
+
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+          state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = state.audioContext.createMediaStreamSource(stream);
+          state.audioAnalyser = state.audioContext.createAnalyser();
+          state.audioAnalyser.fftSize = 256;
+          state.audioData = new Uint8Array(state.audioAnalyser.fftSize);
+          source.connect(state.audioAnalyser);
+        }).catch((error) => {
+          statusText.textContent = `mic denied: ${error.message}`;
+        });
+      }
+    }
+
+    function getGps() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 4000, maximumAge: 1000 },
+        );
+      });
+    }
+
+    async function sendSnapshot() {
+      const payload = {
+        snapshot_id: crypto.randomUUID(),
+        session_id: state.sessionId,
+        captured_at: new Date(state.startAt).toISOString(),
+        duration_ms: 5000,
+        lat: state.gps ? state.gps.lat : null,
+        lng: state.gps ? state.gps.lng : null,
+        gps_accuracy: state.gps ? state.gps.accuracy : null,
+        readings: state.readings,
+      };
+
+      const response = await fetch("/api/snapshots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    }
+
+    async function captureSnapshot() {
+      if (state.timer) return;
+
+      captureBtn.disabled = true;
+      statusText.textContent = "requesting sensors";
+      state.readings = [];
+      state.gps = await getGps();
+      startSensors();
+      state.startAt = Date.now();
+      addReading();
+      render();
+
+      state.sampleTimer = setInterval(() => {
+        updateAudioLevel();
+        addReading();
+        render();
+      }, 50);
+
+      state.timer = setTimeout(async () => {
+        clearInterval(state.sampleTimer);
+        state.sampleTimer = null;
+        try {
+          statusText.textContent = "saving";
+          await sendSnapshot();
+          statusText.textContent = "saved";
+        } catch (error) {
+          statusText.textContent = `save failed: ${error.message}`;
+        } finally {
+          state.timer = null;
+          captureBtn.disabled = false;
+          render();
+        }
+      }, 5000);
+    }
+
+    captureBtn.addEventListener("click", captureSnapshot);
+    render();
+  </script>
+</body>
+</html>
