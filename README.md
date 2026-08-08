@@ -308,17 +308,36 @@ zone membership updates on its own as people move. Anyone whose GPS never gets a
 
 ### Getting a QR that actually scans
 
-**The QR is generated live by the server, not stored in this repo.** Open `/qr/event.svg` in a browser
-and print that page. Whatever `PUBLIC_URL` was set to when the server started is what gets encoded —
-which is the whole reason it works or doesn't:
+**Open `/qr` through your tunnel URL, not through localhost.** That's the whole rule.
 
-| Server started with | QR encodes | Scanning it on a phone |
+```
+https://your-tunnel.trycloudflare.com/qr        ← print this
+http://localhost:3000/qr                        ← will warn you it won't work
+```
+
+`/qr` is a printable poster: the code, and underneath it the exact URL encoded inside. If that URL
+can't work from a phone it says so in orange and explains why, so a dead poster can't look fine.
+
+The QR is generated per request from the address you reached the server on, so loading the poster
+through the tunnel is what puts the tunnel's hostname in the code. There are only two ways it goes
+wrong, and the poster names both:
+
+| Poster opened via | QR encodes | Result |
 |---|---|---|
-| `node server.js` | `http://localhost:3000/join.html` | **Dead.** The phone resolves `localhost` to itself |
-| `PUBLIC_URL=https://…trycloudflare.com node server.js` | `https://…trycloudflare.com/join.html` | Works |
+| `localhost:3000` | `http://localhost:3000/join.html` | **Dead** — a phone resolves `localhost` to itself |
+| the tunnel | `https://…trycloudflare.com/join.html` | Works |
 
-So a working QR is a two-step thing: start the tunnel, then start the server with `PUBLIC_URL` set to
-the URL the tunnel printed. Generate posters **after** that, not before.
+Proxies terminate TLS and forward plain HTTP, so the server is told the request was `http` even when
+the phone will speak `https`. `x-forwarded-proto` is honoured to get this right — without that the
+QR encodes `http://` to an HTTPS-only host, which fails in the least helpful way possible: the page
+may load, and then motion and GPS are silently blocked because it isn't a secure context.
+
+Setting `PUBLIC_URL` still works and overrides all of this — worth doing if you're printing posters
+in advance, since it pins the URL regardless of how you open the page. Just remember quick tunnels
+get a new hostname on every restart, so a poster printed against an old one is waste paper.
+
+`/qr?zone=northhall` gives the per-zone poster; `/qr/event.svg` and `/qr/<zone>.svg` still return the
+bare SVG if you'd rather place it yourself.
 
 To save one as a printable PNG:
 
@@ -452,6 +471,7 @@ HTTP wouldn't give you sensors anyway. The tunnel solves both at once.
 - **`Cannot GET /dashboard.html`** → the HTML must live in `public/`; that's the directory `server.js` serves.
 - **`EADDRINUSE`** → something's already on port 3000. `PORT=3001 node server.js`, or kill the old one.
 - **Phones report 0.00 movement** → you're on HTTP. Nothing else causes this.
+- **QR scans but nothing happens** → open `/qr` and read the URL under the code; it tells you what is wrong.
 - **Everyone stuck in Entrance 1, Fix column says "off site"** → `venue.geo` isn't calibrated. Run `/calibrate.html`.
 - **Dots drift between neighbouring containers** → GPS accuracy is worse than the zones are wide. Check the Fix column; anything over ±8m will do this.
 - **Palette never changes** → no track loaded, or the browser blocked autoplay. Click the page once.

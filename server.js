@@ -416,20 +416,73 @@ app.post('/crowd', (req, res) => {
 // curl this if the dashboard looks wrong — it's the exact payload being broadcast
 app.get('/state.json', (_, res) => res.json(publicState()));
 
+// What a phone should type to reach us. PUBLIC_URL wins; otherwise trust the
+// proxy headers, because a tunnel terminates TLS and forwards plain HTTP — so
+// req.headers.host is the public hostname while the scheme looks like http.
+// Hardcoding http:// there produced a QR that pointed at an HTTPS-only host
+// and silently killed the sensors.
+function publicOrigin(req) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  const fwd = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+  const proto = fwd || (req.socket.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
+// A QR is only as good as the URL inside it, and the two ways it goes wrong —
+// localhost, or plain http — are both invisible until phones fail in the room.
+function originProblem(origin) {
+  if (/^https?:\/\/(localhost|127\.|\[?::1)/i.test(origin))
+    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Start a tunnel and reload this page through its URL.';
+  if (origin.startsWith('http://'))
+    return 'This is plain HTTP. Phones will check in and then report 0.00 movement forever, because motion and GPS are blocked outside a secure context.';
+  return null;
+}
+
+const qrUrlFor = (req, zone) => `${publicOrigin(req)}/join.html${zone ? '?zone=' + encodeURIComponent(zone) : ''}`;
+const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
+
 // The single event-wide poster. No zone in the URL — GPS resolves it, and
 // anyone whose GPS never gets a usable fix stays in the check-in zone.
 // Registered before /qr/:zone.svg because that pattern would swallow it.
-app.get('/qr/event.svg', async (req, res) => {
-  const origin = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-  const svg = await QRCode.toString(`${origin}/join.html`, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
-  res.type('svg').send(svg);
-});
+app.get('/qr/event.svg', async (req, res) => res.type('svg').send(await qrSvg(qrUrlFor(req))));
 
-app.get('/qr/:zone.svg', async (req, res) => {
-  const origin = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-  const url = `${origin}/join.html?zone=${encodeURIComponent(req.params.zone)}`;
-  const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
-  res.type('svg').send(svg);
+app.get('/qr/:zone.svg', async (req, res) =>
+  res.type('svg').send(await qrSvg(qrUrlFor(req, req.params.zone))));
+
+// Printable poster, and the honest answer to "will this QR actually work?" —
+// it shows the encoded URL as text and refuses to look fine when it isn't.
+app.get('/qr', async (req, res) => {
+  const zone = req.query.zone ? String(req.query.zone) : '';
+  const url = qrUrlFor(req, zone);
+  const problem = originProblem(url);
+  const z = zone && zoneById[zone];
+  res.type('html').send(`<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — check-in poster</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#0A0C14;
+      font-family:'Space Grotesk',system-ui,sans-serif;padding:32px}
+ .card{max-width:620px;width:100%;text-align:center}
+ h1{font-size:40px;margin:0 0 6px;letter-spacing:-.02em}
+ .sub{font-size:17px;color:#5A6070;margin:0 0 26px}
+ .qr{width:min(78vw,380px);height:auto;display:block;margin:0 auto}
+ .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:20px;word-break:break-all}
+ .warn{margin-top:22px;padding:15px 17px;border-radius:11px;text-align:left;
+       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55}
+ .ok{margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2E9E6B}
+ @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
+</style>
+<div class="card">
+  <h1>${z ? z.label : venue.name}</h1>
+  <p class="sub">Scan to join${z ? '' : ' — your zone updates as you move'}</p>
+  ${await qrSvg(url).then(s => s.replace('<svg', '<svg class="qr"'))}
+  <div class="url">${url}</div>
+  ${problem
+    ? `<div class="warn"><b>This QR will not work for phones.</b><br>${problem}</div>`
+    : `<div class="ok">HTTPS · reachable from any phone</div>`}
+</div>`);
 });
 
 // --------------------------------------------------------------- helpers
@@ -762,5 +815,10 @@ server.listen(PORT, () => {
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
-  console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg\n`);
+  console.log(`  QR poster  http://localhost:${PORT}/qr`);
+  console.log(process.env.PUBLIC_URL
+    ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
+    : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
+      `  the page with. Open /qr through your tunnel, not localhost — the poster\n` +
+      `  tells you outright whether the code will work on a phone.\n`);
 });
