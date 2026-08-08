@@ -105,7 +105,10 @@ function zoneAt(x, y) {
 const attendees = new Map();
 const TIMEOUT_MS = 45000;
 
-let crowd = { energy: 0, sync: 0, arousal: 0, density: 0, trend: 0, count: 0, peak: 0, dwell: 0 };
+// every key computeCrowd sets, so /state.json has a stable shape from t=0
+// rather than growing fields two seconds after boot
+let crowd = { energy: 0, sync: 0, arousal: 0, density: 0, trend: 0, count: 0, peak: 0, dwell: 0,
+              steps: 0, distance: 0, located: 0 };
 let history = [];
 // Host owns the deck. Palette is derived in the host's browser from the live
 // audio spectrum and mirrored to every phone.
