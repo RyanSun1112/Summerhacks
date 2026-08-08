@@ -1,27 +1,41 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sensor Capture</title>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <title>Sensor Test</title>
+
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #07101b;
-      --panel: #0f1c2c;
-      --text: #edf4ff;
-      --muted: #91a6c1;
-      --line: rgba(255, 255, 255, 0.08);
+      --text: #eef7f3;
+      --muted: #9aabb0;
+      --line: rgba(255, 255, 255, 0.10);
       --accent: #66f0be;
+      --danger: #ff7b7b;
+      --warning: #ffd166;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: system-ui, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
-      background: radial-gradient(circle at top left, rgba(102, 240, 190, 0.12), transparent 30%), linear-gradient(180deg, #07101b, #0b1624);
+
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(102, 240, 190, 0.12),
+          transparent 30%
+        ),
+        linear-gradient(180deg, #07101b, #0b1624);
     }
 
     main {
@@ -60,11 +74,22 @@
       color: #04150f;
       cursor: pointer;
       width: 100%;
+      min-height: 52px;
     }
 
     button:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+    }
+
+    button.danger {
+      background: #ff7b7b;
+      color: #210707;
     }
 
     .grid {
@@ -101,6 +126,11 @@
       border-bottom: 0;
     }
 
+    .metric span {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
     svg {
       width: 100%;
       height: 180px;
@@ -111,274 +141,1401 @@
       margin-top: 10px;
       color: var(--muted);
       font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .status.success {
+      color: var(--accent);
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .status.warning {
+      color: var(--warning);
+    }
+
+    .permission-list {
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .permission {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 0.9rem;
+    }
+
+    .permission-status {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .permission-status.ok {
+      color: var(--accent);
+    }
+
+    .permission-status.error {
+      color: var(--danger);
+    }
+
+    .snapshot-controls {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .snapshot-controls button {
+      margin-top: 0;
+    }
+
+    .snapshot-info {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 0.9rem;
     }
 
     @media (max-width: 720px) {
       .grid {
         grid-template-columns: 1fr;
       }
+
+      .snapshot-controls {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
+
 </head>
+
 <body>
   <main>
     <section class="panel">
-      <h1>Sensor snapshot</h1>
-      <p>Tap once. The phone samples motion, orientation, and mic volume every 50ms for 5 seconds, grabs GPS, and sends one snapshot with all raw readings — no scoring, just capture.</p>
-      <button id="captureBtn">Capture 5 second snapshot</button>
-      <div class="status" id="statusText">idle</div>
 
-      <div class="grid">
-        <div class="card">
-          <div class="label">Raw motion magnitude (chart only, not saved as a score)</div>
-          <svg id="chart" viewBox="0 0 420 180" preserveAspectRatio="none" aria-label="Motion magnitude graph"></svg>
-        </div>
-        <div class="card">
-          <div class="label">Snapshot info</div>
-          <div class="metric"><strong>Samples</strong><span id="sampleCount">0</span></div>
-          <div class="metric"><strong>Accel (x, y, z)</strong><span id="accelText">0, 0, 0</span></div>
-          <div class="metric"><strong>Orientation (α, β, γ)</strong><span id="orientText">0, 0, 0</span></div>
-          <div class="metric"><strong>Audio level</strong><span id="audioText">0.0000</span></div>
-          <div class="metric"><strong>GPS</strong><span id="gpsText">off</span></div>
-        </div>
+```
+  <h1>Sensor Test</h1>
+
+  <p>
+    Enable the phone sensors and location, then capture a 5-second
+    snapshot of the raw readings.
+  </p>
+
+  <button id="enableSensorsBtn">
+    Enable Sensors &amp; Location
+  </button>
+
+  <div id="permissionStatus" class="status">
+    Waiting for permission.
+  </div>
+
+  <div class="permission-list">
+
+    <div class="permission">
+      <span>Motion</span>
+      <span id="motionPermission" class="permission-status">
+        Not requested
+      </span>
+    </div>
+
+    <div class="permission">
+      <span>Orientation</span>
+      <span id="orientationPermission" class="permission-status">
+        Not requested
+      </span>
+    </div>
+
+    <div class="permission">
+      <span>Location</span>
+      <span id="locationPermission" class="permission-status">
+        Not requested
+      </span>
+    </div>
+
+    <div class="permission">
+      <span>Microphone</span>
+      <span id="microphonePermission" class="permission-status">
+        Not requested
+      </span>
+    </div>
+
+  </div>
+
+  <div class="snapshot-controls">
+
+    <button
+      id="snapshotBtn"
+      class="secondary"
+      disabled
+    >
+      Capture 5-Second Snapshot
+    </button>
+
+    <button
+      id="stopBtn"
+      class="danger"
+      disabled
+    >
+      Stop Sensors
+    </button>
+
+  </div>
+
+  <div id="snapshotStatus" class="snapshot-info">
+    No snapshot captured yet.
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+
+      <div class="label">
+        Raw motion magnitude
+        (chart only, not saved as a score)
       </div>
-    </section>
+
+      <svg
+        id="chart"
+        viewBox="0 0 420 180"
+        preserveAspectRatio="none"
+        aria-label="Motion magnitude graph"
+      >
+        <polyline
+          id="chartLine"
+          fill="none"
+          stroke="#66f0be"
+          stroke-width="2"
+          points=""
+        ></polyline>
+      </svg>
+
+    </div>
+
+    <div class="card">
+
+      <div class="label">
+        Live Sensor Info
+      </div>
+
+      <div class="metric">
+        <strong>Samples</strong>
+        <span id="sampleCount">0</span>
+      </div>
+
+      <div class="metric">
+        <strong>Accel (x, y, z)</strong>
+        <span id="accelText">0, 0, 0</span>
+      </div>
+
+      <div class="metric">
+        <strong>Orientation (α, β, γ)</strong>
+        <span id="orientText">0, 0, 0</span>
+      </div>
+
+      <div class="metric">
+        <strong>Audio level</strong>
+        <span id="audioText">0.0000</span>
+      </div>
+
+      <div class="metric">
+        <strong>GPS</strong>
+        <span id="gpsText">off</span>
+      </div>
+
+      <div class="metric">
+        <strong>GPS accuracy</strong>
+        <span id="gpsAccuracyText">—</span>
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+```
+
   </main>
 
   <script>
-    const state = {
-      sessionId: localStorage.getItem("pulse-session-id") || crypto.randomUUID(),
-      startAt: null,
-      timer: null,
-      sampleTimer: null,
-      readings: [],
-      accelX: 0,
-      accelY: 0,
-      accelZ: 0,
-      alpha: 0,
-      beta: 0,
-      gamma: 0,
-      gps: null,
-      audioValue: 0,
-      audioContext: null,
-      audioAnalyser: null,
-      audioData: null,
+
+    const enableSensorsBtn =
+      document.getElementById("enableSensorsBtn");
+
+    const snapshotBtn =
+      document.getElementById("snapshotBtn");
+
+    const stopBtn =
+      document.getElementById("stopBtn");
+
+    const permissionStatus =
+      document.getElementById("permissionStatus");
+
+    const snapshotStatus =
+      document.getElementById("snapshotStatus");
+
+    const motionPermission =
+      document.getElementById("motionPermission");
+
+    const orientationPermission =
+      document.getElementById("orientationPermission");
+
+    const locationPermission =
+      document.getElementById("locationPermission");
+
+    const microphonePermission =
+      document.getElementById("microphonePermission");
+
+    const sampleCount =
+      document.getElementById("sampleCount");
+
+    const accelText =
+      document.getElementById("accelText");
+
+    const orientText =
+      document.getElementById("orientText");
+
+    const audioText =
+      document.getElementById("audioText");
+
+    const gpsText =
+      document.getElementById("gpsText");
+
+    const gpsAccuracyText =
+      document.getElementById("gpsAccuracyText");
+
+    const chartLine =
+      document.getElementById("chartLine");
+
+
+    /*
+     * State
+     */
+
+    let sensorsEnabled = false;
+
+    let motionHandler = null;
+    let orientationHandler = null;
+
+    let gpsWatchId = null;
+
+    let audioContext = null;
+    let analyser = null;
+    let microphoneStream = null;
+    let audioAnimationFrame = null;
+
+    let latestMotion = {
+      x: 0,
+      y: 0,
+      z: 0
     };
 
-    localStorage.setItem("pulse-session-id", state.sessionId);
+    let latestOrientation = {
+      alpha: 0,
+      beta: 0,
+      gamma: 0
+    };
 
-    const captureBtn = document.getElementById("captureBtn");
-    const statusText = document.getElementById("statusText");
-    const sampleCount = document.getElementById("sampleCount");
-    const accelText = document.getElementById("accelText");
-    const orientText = document.getElementById("orientText");
-    const audioText = document.getElementById("audioText");
-    const gpsText = document.getElementById("gpsText");
-    const chart = document.getElementById("chart");
+    let latestGPS = {
+      lat: null,
+      lng: null,
+      accuracy: null
+    };
 
-    function round(value) {
-      return Math.round(value * 10000) / 10000;
+    let latestAudioLevel = 0;
+
+    let readings = [];
+
+    let chartValues = [];
+
+    let captureStartTime = null;
+
+    let sessionId =
+      "session-" +
+      Date.now() +
+      "-" +
+      Math.random().toString(36).slice(2, 8);
+
+
+    /*
+     * Helpers
+     */
+
+    function setStatus(message, type = "") {
+      permissionStatus.textContent = message;
+      permissionStatus.className = "status " + type;
     }
 
-    // Raw motion magnitude, used only to draw the live chart — not saved
-    // as a derived metric. What gets saved is the raw accel_x/y/z per reading.
-    function motionMagnitude(x, y, z) {
-      return Math.sqrt((x ** 2) + (y ** 2) + (z ** 2));
-    }
+    function setPermission(element, text, ok = false, error = false) {
+      element.textContent = text;
 
-    function updateAudioLevel() {
-      if (!state.audioAnalyser || !state.audioData) return;
-      state.audioAnalyser.getByteTimeDomainData(state.audioData);
-      let sum = 0;
-      for (let index = 0; index < state.audioData.length; index += 1) {
-        const sample = (state.audioData[index] - 128) / 128;
-        sum += sample * sample;
+      element.className = "permission-status";
+
+      if (ok) {
+        element.classList.add("ok");
       }
-      // RMS amplitude, 0 (silence) to ~1 (loud) — this is the volume magnitude
-      state.audioValue = Math.sqrt(sum / state.audioData.length);
+
+      if (error) {
+        element.classList.add("error");
+      }
     }
 
-    function renderChart() {
-      const values = state.readings.map((item) => motionMagnitude(item.accel_x, item.accel_y, item.accel_z));
-      if (!values.length) {
-        chart.innerHTML = '<rect x="0" y="0" width="420" height="180" rx="16" fill="rgba(255,255,255,0.02)" /><text x="210" y="95" text-anchor="middle" fill="#91a6c1" font-size="14">Waiting for samples</text>';
+    function formatNumber(value) {
+      if (!Number.isFinite(value)) {
+        return "0.00";
+      }
+
+      return value.toFixed(2);
+    }
+
+    function motionMagnitude() {
+      const x = latestMotion.x || 0;
+      const y = latestMotion.y || 0;
+      const z = latestMotion.z || 0;
+
+      return Math.sqrt(
+        x * x +
+        y * y +
+        z * z
+      );
+    }
+
+
+    /*
+     * Motion permission
+     *
+     * iPhone/iPad Safari requires these permission requests
+     * to happen as a result of a user gesture.
+     */
+
+    async function requestMotionPermission() {
+
+      if (
+        typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function"
+      ) {
+
+        const result =
+          await DeviceMotionEvent.requestPermission();
+
+        if (result !== "granted") {
+          setPermission(
+            motionPermission,
+            "Denied",
+            false,
+            true
+          );
+
+          throw new Error(
+            "Motion permission was denied."
+          );
+        }
+
+        setPermission(
+          motionPermission,
+          "Granted",
+          true
+        );
+
+      } else if (
+        typeof DeviceMotionEvent !== "undefined"
+      ) {
+
+        /*
+         * Android browsers and some other browsers
+         * don't expose requestPermission().
+         *
+         * The event can be used directly.
+         */
+
+        setPermission(
+          motionPermission,
+          "Available",
+          true
+        );
+
+      } else {
+
+        setPermission(
+          motionPermission,
+          "Unavailable",
+          false,
+          true
+        );
+
+        throw new Error(
+          "Device motion is not supported by this browser."
+        );
+      }
+    }
+
+
+    /*
+     * Orientation permission
+     */
+
+    async function requestOrientationPermission() {
+
+      if (
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"
+      ) {
+
+        const result =
+          await DeviceOrientationEvent.requestPermission();
+
+        if (result !== "granted") {
+
+          setPermission(
+            orientationPermission,
+            "Denied",
+            false,
+            true
+          );
+
+          throw new Error(
+            "Orientation permission was denied."
+          );
+        }
+
+        setPermission(
+          orientationPermission,
+          "Granted",
+          true
+        );
+
+      } else if (
+        typeof DeviceOrientationEvent !== "undefined"
+      ) {
+
+        setPermission(
+          orientationPermission,
+          "Available",
+          true
+        );
+
+      } else {
+
+        setPermission(
+          orientationPermission,
+          "Unavailable",
+          false,
+          true
+        );
+      }
+    }
+
+
+    /*
+     * Location
+     */
+
+    function requestLocation() {
+
+      return new Promise((resolve, reject) => {
+
+        if (!navigator.geolocation) {
+
+          setPermission(
+            locationPermission,
+            "Unsupported",
+            false,
+            true
+          );
+
+          reject(
+            new Error(
+              "Geolocation is not supported by this browser."
+            )
+          );
+
+          return;
+        }
+
+        setPermission(
+          locationPermission,
+          "Requesting..."
+        );
+
+        /*
+         * Get the first location immediately.
+         */
+
+        navigator.geolocation.getCurrentPosition(
+
+          position => {
+
+            updateGPS(position);
+
+            setPermission(
+              locationPermission,
+              "Granted",
+              true
+            );
+
+            resolve(position);
+          },
+
+          error => {
+
+            setPermission(
+              locationPermission,
+              "Denied / unavailable",
+              false,
+              true
+            );
+
+            reject(
+              new Error(
+                "Location error: " +
+                error.message
+              )
+            );
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+
+    /*
+     * Continuously watch GPS after initial permission.
+     */
+
+    function startGPSWatch() {
+
+      if (!navigator.geolocation) {
+        return;
+      }
+
+      if (gpsWatchId !== null) {
+        return;
+      }
+
+      gpsWatchId =
+        navigator.geolocation.watchPosition(
+
+          position => {
+            updateGPS(position);
+          },
+
+          error => {
+
+            console.warn(
+              "GPS watch error:",
+              error
+            );
+
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 1000
+          }
+        );
+    }
+
+
+    function updateGPS(position) {
+
+      const coords = position.coords;
+
+      latestGPS.lat =
+        Number(coords.latitude);
+
+      latestGPS.lng =
+        Number(coords.longitude);
+
+      latestGPS.accuracy =
+        Number(coords.accuracy);
+
+      gpsText.textContent =
+        latestGPS.lat.toFixed(6) +
+        ", " +
+        latestGPS.lng.toFixed(6);
+
+      gpsAccuracyText.textContent =
+        latestGPS.accuracy.toFixed(1) +
+        " m";
+    }
+
+
+    /*
+     * Microphone
+     *
+     * Your existing API has audio_level, so this page
+     * also requests microphone access and calculates a
+     * simple normalized audio level.
+     */
+
+    async function requestMicrophonePermission() {
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+
+        setPermission(
+          microphonePermission,
+          "Unsupported",
+          false,
+          true
+        );
+
+        return;
+      }
+
+      try {
+
+        microphoneStream =
+          await navigator.mediaDevices.getUserMedia({
+            audio: true
+          });
+
+        setPermission(
+          microphonePermission,
+          "Granted",
+          true
+        );
+
+        startAudioMeter();
+
+      } catch (error) {
+
+        console.warn(
+          "Microphone permission:",
+          error
+        );
+
+        setPermission(
+          microphonePermission,
+          "Denied",
+          false,
+          true
+        );
+
+        /*
+         * Microphone is optional for sensor collection.
+         * Don't stop motion/GPS if the user doesn't want
+         * microphone access.
+         */
+
+        latestAudioLevel = 0;
+
+        audioText.textContent = "0.0000";
+      }
+    }
+
+
+    /*
+     * Audio meter
+     */
+
+    function startAudioMeter() {
+
+      if (!microphoneStream) {
+        return;
+      }
+
+      try {
+
+        const AudioContextClass =
+          window.AudioContext ||
+          window.webkitAudioContext;
+
+        if (!AudioContextClass) {
+          return;
+        }
+
+        audioContext =
+          new AudioContextClass();
+
+        const source =
+          audioContext.createMediaStreamSource(
+            microphoneStream
+          );
+
+        analyser =
+          audioContext.createAnalyser();
+
+        analyser.fftSize = 256;
+
+        source.connect(analyser);
+
+        const data =
+          new Uint8Array(
+            analyser.fftSize
+          );
+
+        function updateAudio() {
+
+          if (!analyser) {
+            return;
+          }
+
+          analyser.getByteTimeDomainData(data);
+
+          let sum = 0;
+
+          for (let i = 0; i < data.length; i++) {
+
+            const normalized =
+              (data[i] - 128) / 128;
+
+            sum +=
+              normalized *
+              normalized;
+          }
+
+          const rms =
+            Math.sqrt(
+              sum / data.length
+            );
+
+          latestAudioLevel = rms;
+
+          audioText.textContent =
+            rms.toFixed(4);
+
+          audioAnimationFrame =
+            requestAnimationFrame(
+              updateAudio
+            );
+        }
+
+        updateAudio();
+
+      } catch (error) {
+
+        console.warn(
+          "Audio meter error:",
+          error
+        );
+      }
+    }
+
+
+    /*
+     * Start motion/orientation event listeners.
+     */
+
+    function startMotionSensors() {
+
+      if (motionHandler) {
+        return;
+      }
+
+      motionHandler =
+        event => {
+
+          const acceleration =
+            event.accelerationIncludingGravity ||
+            event.acceleration;
+
+          if (!acceleration) {
+            return;
+          }
+
+          latestMotion.x =
+            Number(acceleration.x || 0);
+
+          latestMotion.y =
+            Number(acceleration.y || 0);
+
+          latestMotion.z =
+            Number(acceleration.z || 0);
+
+          accelText.textContent =
+            formatNumber(latestMotion.x) +
+            ", " +
+            formatNumber(latestMotion.y) +
+            ", " +
+            formatNumber(latestMotion.z);
+        };
+
+
+      orientationHandler =
+        event => {
+
+          latestOrientation.alpha =
+            Number(event.alpha || 0);
+
+          latestOrientation.beta =
+            Number(event.beta || 0);
+
+          latestOrientation.gamma =
+            Number(event.gamma || 0);
+
+          orientText.textContent =
+            formatNumber(
+              latestOrientation.alpha
+            ) +
+            ", " +
+            formatNumber(
+              latestOrientation.beta
+            ) +
+            ", " +
+            formatNumber(
+              latestOrientation.gamma
+            );
+        };
+
+
+      window.addEventListener(
+        "devicemotion",
+        motionHandler
+      );
+
+      window.addEventListener(
+        "deviceorientation",
+        orientationHandler
+      );
+    }
+
+
+    /*
+     * Stop motion/orientation.
+     */
+
+    function stopMotionSensors() {
+
+      if (motionHandler) {
+
+        window.removeEventListener(
+          "devicemotion",
+          motionHandler
+        );
+
+        motionHandler = null;
+      }
+
+      if (orientationHandler) {
+
+        window.removeEventListener(
+          "deviceorientation",
+          orientationHandler
+        );
+
+        orientationHandler = null;
+      }
+    }
+
+
+    /*
+     * Chart
+     */
+
+    function updateChart(value) {
+
+      chartValues.push(value);
+
+      /*
+       * Keep the most recent 80 values.
+       */
+
+      if (chartValues.length > 80) {
+        chartValues.shift();
+      }
+
+      if (chartValues.length === 0) {
+        chartLine.setAttribute(
+          "points",
+          ""
+        );
+
         return;
       }
 
       const width = 420;
       const height = 180;
-      const left = 12;
-      const right = width - 12;
-      const top = 16;
-      const bottom = height - 18;
-      const maxValue = Math.max(0.1, ...values);
-      const minValue = Math.min(...values);
-      const range = Math.max(0.1, maxValue - minValue);
-      const points = values.map((value, index) => {
-        const x = left + ((right - left) * (index / Math.max(1, values.length - 1)));
-        const y = bottom - ((((value - minValue) / range)) * (bottom - top));
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      });
-      const areaPath = `M ${points[0]} L ${points.join(" L ")} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${left.toFixed(1)},${bottom.toFixed(1)} Z`;
-      const linePath = `M ${points.join(" L ")}`;
 
-      chart.innerHTML = `
-        <rect x="0" y="0" width="420" height="180" rx="16" fill="rgba(255,255,255,0.02)" />
-        <path d="${areaPath}" fill="rgba(102, 240, 190, 0.16)" stroke="none"></path>
-        <path d="${linePath}" fill="none" stroke="#66f0be" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-      `;
-    }
-
-    function render() {
-      sampleCount.textContent = String(state.readings.length);
-      accelText.textContent = `${round(state.accelX)}, ${round(state.accelY)}, ${round(state.accelZ)}`;
-      orientText.textContent = `${round(state.alpha)}, ${round(state.beta)}, ${round(state.gamma)}`;
-      audioText.textContent = state.audioValue.toFixed(4);
-      gpsText.textContent = state.gps ? `${state.gps.lat.toFixed(5)}, ${state.gps.lng.toFixed(5)} (±${Math.round(state.gps.accuracy)}m)` : "off";
-      statusText.textContent = state.timer ? "capturing" : "idle";
-      renderChart();
-    }
-
-    function addReading() {
-      const now = Date.now();
-      state.readings.push({
-        reading_index: state.readings.length,
-        offset_ms: now - state.startAt,
-        accel_x: round(state.accelX),
-        accel_y: round(state.accelY),
-        accel_z: round(state.accelZ),
-        alpha: round(state.alpha),
-        beta: round(state.beta),
-        gamma: round(state.gamma),
-        audio_level: round(state.audioValue),
-      });
-    }
-
-    function startSensors() {
-      const motionHandler = (event) => {
-        const acceleration = event.acceleration || event.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
-        state.accelX = acceleration.x || 0;
-        state.accelY = acceleration.y || 0;
-        state.accelZ = acceleration.z || 0;
-      };
-
-      const orientationHandler = (event) => {
-        state.alpha = event.alpha || 0;
-        state.beta = event.beta || 0;
-        state.gamma = event.gamma || 0;
-      };
-
-      const startMotion = () => window.addEventListener("devicemotion", motionHandler, { passive: true });
-      const startOrientation = () => window.addEventListener("deviceorientation", orientationHandler, { passive: true });
-
-      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-        DeviceMotionEvent.requestPermission().then((result) => {
-          if (result === "granted") startMotion();
-        }).catch(() => {});
-      } else {
-        startMotion();
-      }
-
-      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-        DeviceOrientationEvent.requestPermission().then((result) => {
-          if (result === "granted") startOrientation();
-        }).catch(() => {});
-      } else {
-        startOrientation();
-      }
-
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-          state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const source = state.audioContext.createMediaStreamSource(stream);
-          state.audioAnalyser = state.audioContext.createAnalyser();
-          state.audioAnalyser.fftSize = 256;
-          state.audioData = new Uint8Array(state.audioAnalyser.fftSize);
-          source.connect(state.audioAnalyser);
-        }).catch((error) => {
-          statusText.textContent = `mic denied: ${error.message}`;
-        });
-      }
-    }
-
-    function getGps() {
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-          resolve(null);
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (position) => resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-          }),
-          () => resolve(null),
-          { enableHighAccuracy: true, timeout: 4000, maximumAge: 1000 },
+      let max =
+        Math.max(
+          ...chartValues,
+          1
         );
-      });
+
+      const points =
+        chartValues
+          .map((value, index) => {
+
+            const x =
+              index /
+              Math.max(
+                chartValues.length - 1,
+                1
+              ) *
+              width;
+
+            const y =
+              height -
+              (
+                value /
+                max
+              ) *
+              (
+                height - 10
+              ) -
+              5;
+
+            return (
+              x.toFixed(1) +
+              "," +
+              y.toFixed(1)
+            );
+          })
+          .join(" ");
+
+      chartLine.setAttribute(
+        "points",
+        points
+      );
     }
 
-    async function sendSnapshot() {
-      const payload = {
-        snapshot_id: crypto.randomUUID(),
-        session_id: state.sessionId,
-        captured_at: new Date(state.startAt).toISOString(),
-        duration_ms: 5000,
-        lat: state.gps ? state.gps.lat : null,
-        lng: state.gps ? state.gps.lng : null,
-        gps_accuracy: state.gps ? state.gps.accuracy : null,
-        readings: state.readings,
+
+    /*
+     * Take a single raw reading.
+     */
+
+    function collectReading() {
+
+      if (captureStartTime === null) {
+        return;
+      }
+
+      const offset =
+        Date.now() -
+        captureStartTime;
+
+      const magnitude =
+        motionMagnitude();
+
+      const reading = {
+
+        reading_index:
+          readings.length,
+
+        offset_ms:
+          offset,
+
+        accel_x:
+          latestMotion.x,
+
+        accel_y:
+          latestMotion.y,
+
+        accel_z:
+          latestMotion.z,
+
+        alpha:
+          latestOrientation.alpha,
+
+        beta:
+          latestOrientation.beta,
+
+        gamma:
+          latestOrientation.gamma,
+
+        audio_level:
+          latestAudioLevel
       };
 
-      const response = await fetch("/api/snapshots", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      readings.push(reading);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      sampleCount.textContent =
+        readings.length;
+
+      updateChart(magnitude);
     }
+
+
+    /*
+     * Capture a 5-second snapshot.
+     */
 
     async function captureSnapshot() {
-      if (state.timer) return;
 
-      captureBtn.disabled = true;
-      statusText.textContent = "requesting sensors";
-      state.readings = [];
-      state.gps = await getGps();
-      startSensors();
-      state.startAt = Date.now();
-      addReading();
-      render();
+      if (!sensorsEnabled) {
 
-      state.sampleTimer = setInterval(() => {
-        updateAudioLevel();
-        addReading();
-        render();
-      }, 50);
+        snapshotStatus.textContent =
+          "Enable the sensors before capturing a snapshot.";
 
-      state.timer = setTimeout(async () => {
-        clearInterval(state.sampleTimer);
-        state.sampleTimer = null;
-        try {
-          statusText.textContent = "saving";
-          await sendSnapshot();
-          statusText.textContent = "saved";
-        } catch (error) {
-          statusText.textContent = `save failed: ${error.message}`;
-        } finally {
-          state.timer = null;
-          captureBtn.disabled = false;
-          render();
+        return;
+      }
+
+      snapshotBtn.disabled = true;
+
+      readings = [];
+
+      chartValues = [];
+
+      captureStartTime = Date.now();
+
+      sampleCount.textContent = "0";
+
+      snapshotStatus.textContent =
+        "Capturing for 5 seconds...";
+
+      /*
+       * Collect approximately 10 samples/second.
+       */
+
+      const interval =
+        setInterval(
+          collectReading,
+          100
+        );
+
+      /*
+       * Capture immediately as well.
+       */
+
+      collectReading();
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            5000
+          )
+      );
+
+      clearInterval(interval);
+
+      captureStartTime = null;
+
+      snapshotStatus.textContent =
+        "Uploading snapshot...";
+
+      try {
+
+        const snapshotId =
+          sessionId +
+          "-" +
+          new Date()
+            .toISOString();
+
+        const payload = {
+
+          session_id:
+            sessionId,
+
+          snapshot_id:
+            snapshotId,
+
+          captured_at:
+            new Date()
+              .toISOString(),
+
+          duration_ms:
+            5000,
+
+          lat:
+            latestGPS.lat,
+
+          lng:
+            latestGPS.lng,
+
+          gps_accuracy:
+            latestGPS.accuracy,
+
+          readings:
+            readings
+        };
+
+        const response =
+          await fetch(
+            "/api/snapshots",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body:
+                JSON.stringify(
+                  payload
+                )
+            }
+          );
+
+        if (!response.ok) {
+
+          const text =
+            await response.text();
+
+          throw new Error(
+            "Server returned " +
+            response.status +
+            ": " +
+            text
+          );
         }
-      }, 5000);
+
+        const result =
+          await response.json();
+
+        snapshotStatus.textContent =
+          "Snapshot saved successfully. " +
+          result.reading_count +
+          " readings uploaded.";
+
+      } catch (error) {
+
+        console.error(
+          "Snapshot upload failed:",
+          error
+        );
+
+        snapshotStatus.textContent =
+          "Snapshot captured, but upload failed: " +
+          error.message;
+      }
+
+      snapshotBtn.disabled =
+        false;
     }
 
-    captureBtn.addEventListener("click", captureSnapshot);
-    render();
+
+    /*
+     * Enable everything.
+     *
+     * IMPORTANT:
+     * This function is called directly from the button
+     * click, which is required by iOS Safari for the
+     * motion/orientation permission prompts.
+     */
+
+    enableSensorsBtn.addEventListener(
+      "click",
+      async () => {
+
+        enableSensorsBtn.disabled = true;
+
+        setStatus(
+          "Requesting motion permission..."
+        );
+
+        try {
+
+          /*
+           * Request motion first.
+           */
+
+          await requestMotionPermission();
+
+          setStatus(
+            "Requesting orientation permission..."
+          );
+
+          /*
+           * Request orientation.
+           */
+
+          await requestOrientationPermission();
+
+          /*
+           * Request GPS.
+           */
+
+          setStatus(
+            "Requesting location permission..."
+          );
+
+          try {
+
+            await requestLocation();
+
+          } catch (locationError) {
+
+            /*
+             * Location is important to the snapshot,
+             * but allow the sensor test to continue.
+             */
+
+            console.warn(
+              locationError
+            );
+          }
+
+          /*
+           * Start continuous GPS updates.
+           */
+
+          startGPSWatch();
+
+          /*
+           * Microphone is optional.
+           */
+
+          setStatus(
+            "Requesting microphone permission..."
+          );
+
+          await requestMicrophonePermission();
+
+          /*
+           * Start sensor listeners.
+           */
+
+          startMotionSensors();
+
+          sensorsEnabled = true;
+
+          snapshotBtn.disabled = false;
+          stopBtn.disabled = false;
+
+          enableSensorsBtn.textContent =
+            "Sensors Enabled";
+
+          setStatus(
+            "Sensors and location are enabled.",
+            "success"
+          );
+
+        } catch (error) {
+
+          console.error(
+            error
+          );
+
+          setStatus(
+            error.message ||
+            "Could not enable sensors.",
+            "error"
+          );
+
+          enableSensorsBtn.disabled = false;
+
+          enableSensorsBtn.textContent =
+            "Try Again";
+        }
+      }
+    );
+
+
+    /*
+     * Snapshot button.
+     */
+
+    snapshotBtn.addEventListener(
+      "click",
+      captureSnapshot
+    );
+
+
+    /*
+     * Stop button.
+     */
+
+    stopBtn.addEventListener(
+      "click",
+      () => {
+
+        stopMotionSensors();
+
+        if (gpsWatchId !== null) {
+
+          navigator.geolocation.clearWatch(
+            gpsWatchId
+          );
+
+          gpsWatchId = null;
+        }
+
+        if (audioAnimationFrame !== null) {
+
+          cancelAnimationFrame(
+            audioAnimationFrame
+          );
+
+          audioAnimationFrame = null;
+        }
+
+        if (microphoneStream) {
+
+          microphoneStream
+            .getTracks()
+            .forEach(
+              track =>
+                track.stop()
+            );
+
+          microphoneStream = null;
+        }
+
+        if (audioContext) {
+
+          audioContext
+            .close()
+            .catch(
+              () => {}
+            );
+
+          audioContext = null;
+        }
+
+        analyser = null;
+
+        sensorsEnabled = false;
+
+        snapshotBtn.disabled = true;
+        stopBtn.disabled = true;
+
+        enableSensorsBtn.disabled = false;
+
+        enableSensorsBtn.textContent =
+          "Enable Sensors & Location";
+
+        setStatus(
+          "Sensors stopped.",
+          "warning"
+        );
+      }
+    );
+
+
+    /*
+     * Helpful diagnostic information.
+     */
+
+    console.log(
+      "Sensor test loaded."
+    );
+
+    console.log(
+      "Current URL:",
+      window.location.href
+    );
+
+    console.log(
+      "Secure context:",
+      window.isSecureContext
+    );
+
+    if (!window.isSecureContext) {
+
+      setStatus(
+        "Warning: this page is not running in a secure HTTPS context.",
+        "error"
+      );
+    }
   </script>
+
 </body>
 </html>
+
