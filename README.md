@@ -142,11 +142,15 @@ route changes the currently playing track. See [the DJ selection guide](docs/dj-
 | Metrics, sockets, fake crowd | `server.js` | Yes |
 | API keys, ports, model | `.env` | Yes — read once at boot |
 
-**Use `npm run dev` while working.** It's `node --watch server.js`, which restarts on every save — no
-dependency, it's built into Node. Forgetting to restart is the most common way a change appears not to
-have worked: the old process keeps answering, so the dashboard and `/ai` look healthy while serving
-code from before your edit. Reload the browser with Ctrl+Shift+R too, or a cached `dashboard.html`
-will hide client-side changes the same way.
+**Use `npm run dev` while working.** It does two things: starts a cloudflared quick tunnel (when the
+binary is present — fetch it once with `npm run get-tunnel`) and runs `node --watch server.js` with
+`PUBLIC_URL` set to the tunnel, so the server restarts on every save **and QR codes automatically
+encode the tunnel URL**. The tunnel lives outside the server process, so its URL survives those
+restarts. No binary → it still runs, just without a tunnel (`npm run dev:local` is the plain
+watcher). Forgetting to restart is the most common way a change appears not to have worked: the old
+process keeps answering, so the dashboard and `/ai` look healthy while serving code from before your
+edit. Reload the browser with Ctrl+Shift+R too, or a cached `dashboard.html` will hide client-side
+changes the same way.
 
 `venue.json` is entirely normalized 0–1 coordinates, so changing venue means editing that one file —
 never hardcode coordinates in the clients. After editing it, check every zone corner still falls inside
@@ -571,37 +575,29 @@ Use localhost for developing the dashboard, and the tunnel whenever a phone is i
 
 `DeviceMotionEvent` and Web Bluetooth are hard-blocked on plain HTTP. Phones will check in fine and then report 0.00 movement forever, with no error anywhere. This is the most common way this project fails.
 
-A Cloudflare quick tunnel gives you a public HTTPS URL in one command, with no account and no config.
-
-**macOS / Linux**
-
-```bash
-brew install cloudflared          # or: https://github.com/cloudflare/cloudflared/releases
-cloudflared tunnel --url http://localhost:3000
-```
-
-**Windows** — `winget install --id Cloudflare.cloudflared`, or if you don't have winget, the binary
-needs no install at all:
-
-```powershell
-curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
-.\cloudflared.exe tunnel --url http://localhost:3000
-```
-
-It prints a `https://something.trycloudflare.com` URL. Restart the server in a second terminal with
-that URL in `PUBLIC_URL`:
+A Cloudflare quick tunnel gives you a public HTTPS URL with no account and no config — and it's
+automated here:
 
 ```bash
-PUBLIC_URL=https://your-tunnel.trycloudflare.com node server.js
+npm run get-tunnel     # one time: downloads the official cloudflared binary (~60 MB, gitignored)
+npm run dev            # every time: tunnel + server together
 ```
+
+`npm run dev` starts the tunnel, waits for its URL, and launches the server with `PUBLIC_URL` already
+set — it prints the dashboard and QR-poster links to open. QR codes encode the tunnel automatically,
+even if you're browsing the dashboard on localhost. (macOS: `brew install cloudflared` instead of
+`get-tunnel`; `TUNNEL=0 npm run dev` skips the tunnel on purpose.)
+
+Doing it by hand still works — run `cloudflared tunnel --url http://localhost:3000` yourself and start
+the server with that URL in `PUBLIC_URL`:
+
 ```powershell
 $env:PUBLIC_URL="https://your-tunnel.trycloudflare.com"; node server.js
 ```
 
-`PUBLIC_URL` matters — it's what gets encoded into the QR posters, and it overrides the request's Host
-header entirely, so posters are correct no matter which address generated them. Without it they point
-at localhost and nobody can check in. The URL is random and changes every time you restart the tunnel,
-so regenerate posters after restarting.
+`PUBLIC_URL` is what gets encoded into the QR posters, and it overrides the request's Host header
+entirely, so posters are correct no matter which address generated them. The tunnel URL is random and
+changes every time the tunnel restarts, so regenerate posters after restarting `npm run dev`.
 
 **Don't count on the local network instead.** Campus and guest Wi-Fi (UofT's included) normally run
 client isolation, so a phone cannot reach your laptop's LAN address even on the same SSID — and plain

@@ -926,11 +926,20 @@ function publicOrigin(req) {
 // localhost, or plain http — are both invisible until phones fail in the room.
 function originProblem(origin) {
   if (/^https?:\/\/(localhost|127\.|\[?::1)/i.test(origin))
-    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Start a tunnel and reload this page through its URL.';
+    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Run "npm run dev" (it starts the tunnel automatically once cloudflared is installed via "npm run get-tunnel").';
   if (origin.startsWith('http://'))
     return 'This is plain HTTP. Phones will check in and then report 0.00 movement forever, because motion and GPS are blocked outside a secure context.';
   return null;
 }
+
+// The address phones can actually reach, and what's wrong with it if anything.
+// The dashboard's QR modal asks here instead of trusting location.origin —
+// the server knows about PUBLIC_URL / the tunnel; the browser only knows how
+// it happened to be opened.
+app.get('/public-url', (req, res) => {
+  const origin = publicOrigin(req);
+  res.json({ origin, fixed: !!process.env.PUBLIC_URL, problem: originProblem(origin) });
+});
 
 const qrUrlFor = (req, opts = {}) => {
   const q = new URLSearchParams();
