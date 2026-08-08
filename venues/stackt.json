@@ -1,0 +1,55 @@
+{
+  "name": "STACKT Market",
+  "subtitle": "Summerhacks · Toronto",
+  "aspect": 2.884,
+  "geo": {
+    "calibrated": false,
+    "origin": { "lat": 43.64330, "lon": -79.40810 },
+    "spanX": 153,
+    "spanY": 53,
+    "bearing": 90,
+    "_note": "Maps GPS onto the normalized map. origin = map (0,0) i.e. top-left corner; spanX/spanY = site size in metres along the map's x/y axes; bearing = compass heading of the map's +x direction. These values are ESTIMATED from public map data and are almost certainly wrong in the details. Open /calibrate.html on site, stand on two known corners, and paste the result back here. Until then GPS points land outside the outline and are rejected for zone assignment, so people keep the zone they checked in with."
+  },
+  "outline": [[0.000,0.000],[1.000,0.000],[1.000,1.000],[0.558,1.000],[0.014,0.468]],
+  "streets": [
+    { "label": "TECUMSETH ST.",  "x": -0.010, "y": 0.24,  "rot": -90 },
+    { "label": "BATHURST ST.",   "x": 1.010,  "y": 0.22,  "rot": -90 },
+    { "label": "FRONT ST.",      "x": 1.010,  "y": 0.82,  "rot": -90 },
+    { "label": "COMMUNITY LANE", "x": 0.72,   "y": -0.050, "rot": 0 }
+  ],
+  "entrances": [
+    { "id": "e3", "label": "ENTRANCE 3", "x": 0.040, "y": -0.030 },
+    { "id": "e2", "label": "ENTRANCE 2", "x": 1.000, "y": 0.038 },
+    { "id": "e1", "label": "ENTRANCE 1", "x": 1.000, "y": 0.566 }
+  ],
+  "route": [[1.000,0.566],[0.512,0.566],[0.512,0.470],[0.512,0.352],[0.443,0.352],[0.443,0.440]],
+  "containers": [
+    { "x": 0.806, "y": 0.075, "w": 0.178, "h": 0.175, "cols": 6, "rows": 1 },
+    { "x": 0.919, "y": 0.108, "w": 0.065, "h": 0.435, "cols": 1, "rows": 9 },
+    { "x": 0.714, "y": 0.200, "w": 0.080, "h": 0.082, "cols": 3, "rows": 1 },
+    { "x": 0.780, "y": 0.470, "w": 0.089, "h": 0.068, "cols": 3, "rows": 1 },
+    { "x": 0.628, "y": 0.352, "w": 0.062, "h": 0.188, "cols": 1, "rows": 5 },
+    { "x": 0.290, "y": 0.078, "w": 0.155, "h": 0.095, "cols": 8, "rows": 1 }
+  ],
+  "zones": [
+    { "id": "studio",      "label": "Studio 3-101",  "short": "STUDIO",     "kind": "event",   "x": 0.443, "y": 0.428, "w": 0.055, "h": 0.064, "cap": 90 },
+    { "id": "northhall",   "label": "North Hall",    "short": "N. HALL",    "kind": "event",   "x": 0.497, "y": 0.310, "w": 0.075, "h": 0.066, "cap": 120 },
+    { "id": "lookout",     "label": "Lookout",       "short": "LOOKOUT",    "kind": "event",   "x": 0.513, "y": 0.438, "w": 0.058, "h": 0.064, "cap": 40 },
+    { "id": "solarium",    "label": "Solarium",      "short": "SOLARIUM",   "kind": "event",   "x": 0.578, "y": 0.385, "w": 0.026, "h": 0.144, "cap": 30 },
+    { "id": "gallery",     "label": "Gallery 3-107", "short": "3-107",      "kind": "event",   "x": 0.443, "y": 0.310, "w": 0.050, "h": 0.052, "cap": 40 },
+    { "id": "courtyard2",  "label": "Courtyard 2",   "short": "COURT 2",    "kind": "social",  "x": 0.698, "y": 0.392, "w": 0.070, "h": 0.068, "cap": 80 },
+    { "id": "courtyard1",  "label": "Courtyard 1",   "short": "COURT 1",    "kind": "social",  "x": 0.874, "y": 0.338, "w": 0.032, "h": 0.186, "cap": 50 },
+    { "id": "sidestreet",  "label": "Side Street",   "short": "SIDE ST",    "kind": "social",  "x": 0.812, "y": 0.290, "w": 0.058, "h": 0.048, "cap": 40 },
+    { "id": "westpatio",   "label": "West Patio",    "short": "W. PATIO",   "kind": "food",    "x": 0.254, "y": 0.330, "w": 0.066, "h": 0.056, "cap": 60 },
+    { "id": "westlawn",    "label": "West Lawn",     "short": "W. LAWN",    "kind": "social",  "x": 0.348, "y": 0.330, "w": 0.068, "h": 0.056, "cap": 70 },
+    { "id": "westcommons", "label": "West Commons",  "short": "W. COMMONS", "kind": "food",    "x": 0.035, "y": 0.288, "w": 0.140, "h": 0.078, "cap": 100 },
+    { "id": "marketplace", "label": "Marketplace",   "short": "MARKET",     "kind": "market",  "x": 0.736, "y": 0.292, "w": 0.070, "h": 0.048, "cap": 60 },
+    { "id": "southlawn",   "label": "South Lawn",    "short": "S. LAWN",    "kind": "social",  "x": 0.618, "y": 0.658, "w": 0.072, "h": 0.056, "cap": 80 },
+    { "id": "pavilion",    "label": "Pavilion",      "short": "PAVILION",   "kind": "event",   "x": 0.886, "y": 0.706, "w": 0.060, "h": 0.050, "cap": 60 },
+    { "id": "barkyard",    "label": "Bark Yard",     "short": "BARK YARD",  "kind": "outdoor", "x": 0.453, "y": 0.005, "w": 0.219, "h": 0.178, "cap": 40 },
+    { "id": "pocketpark",  "label": "Pocket Park",   "short": "POCKET PK",  "kind": "outdoor", "x": 0.806, "y": 0.022, "w": 0.178, "h": 0.036, "cap": 40 },
+    { "id": "playzone",    "label": "Play Zone",     "short": "PLAY",       "kind": "outdoor", "x": 0.688, "y": 0.016, "w": 0.048, "h": 0.044, "cap": 25 },
+    { "id": "parking",     "label": "Parking",       "short": "PARKING",    "kind": "transit", "x": 0.252, "y": 0.064, "w": 0.197, "h": 0.166, "cap": 30 },
+    { "id": "entrance1",   "label": "Entrance 1",    "short": "ENTRANCE",   "kind": "transit", "x": 0.928, "y": 0.548, "w": 0.062, "h": 0.042, "cap": 30 }
+  ]
+}

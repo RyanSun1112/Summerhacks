@@ -11,6 +11,7 @@
   :root{
     --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
     --ink:#F0EFF7; --muted:#7E7D99;
+    --ok:#3ECF8E; --warn:#F0A93B;
     --rule:rgba(240,239,247,.10);
     --glass:rgba(12,15,34,.72);
     --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
@@ -90,8 +91,73 @@
   .lg{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
   .lg i{width:14px;height:8px;border-radius:2px;display:block;flex:none}
 
+  /* left rail — metrics stacked above the venue switcher, so neither needs a
+     magic top offset and the list can scroll without shoving the legend off */
+  #leftrail{position:absolute;top:20px;left:22px;width:208px;z-index:4;
+    display:flex;flex-direction:column;gap:11px;max-height:calc(100% - 150px)}
+  #leftrail .panel{position:static;width:100%}
+  #venues{padding:13px 14px 12px;display:flex;flex-direction:column;min-height:0}
+  #venueList{overflow-y:auto;margin:7px -4px 0;padding:0 4px;min-height:0}
+  .vrow{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:6px;cursor:pointer;
+    border:1px solid transparent;transition:background-color .15s,border-color .15s}
+  .vrow:hover{background:rgba(240,239,247,.05)}
+  .vrow.sel{border-color:var(--accent);background:rgba(240,239,247,.05)}
+  .vrow .vn{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vrow .vz{font-family:var(--mono);font-size:9px;color:var(--muted);flex:none}
+  .live{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#080A18;background:var(--accent);
+    padding:2px 5px;border-radius:3px;flex:none}
+  .vbtn{margin-top:9px;width:100%;font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.14em;
+    text-transform:uppercase;background:none;border:1px solid var(--rule);color:var(--muted);
+    padding:9px 8px;border-radius:5px;cursor:pointer;transition:color .2s,border-color .2s}
+  .vbtn:hover{color:var(--ink);border-color:var(--accent)}
+  .vbtn.go{background:var(--accent);border-color:var(--accent);color:#080A18}
+  .vbtn:disabled{opacity:.35;cursor:not-allowed}
+
+  /* preview banner — shown when the map is rendering a venue that isn't live */
+  #previewBar{position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:6;
+    display:none;align-items:center;gap:12px;padding:9px 15px;border-radius:7px;
+    background:var(--glass);backdrop-filter:blur(18px);border:1px solid var(--accent2);
+    font-size:12px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  #previewBar.on{display:flex}
+
   .sheet{position:absolute;inset:0;z-index:5;overflow-y:auto;padding:24px 30px;background:var(--ground);display:none}
   .sheet.on{display:block}
+
+  /* ---------------- venue editor ---------------- */
+  #sheet-venues{padding:0;overflow:hidden}
+  .ved{display:grid;grid-template-columns:236px minmax(0,1fr) 262px;height:100%}
+  .ved-col{overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px}
+  .ved-col:first-child{border-right:1px solid var(--rule)}
+  .ved-col:last-child{border-left:1px solid var(--rule)}
+  .ved-main{display:flex;flex-direction:column;min-width:0;padding:14px 16px}
+  .vsec{display:flex;flex-direction:column;gap:8px}
+  .vsec > .lab{margin-bottom:1px}
+  .vfield{display:flex;flex-direction:column;gap:5px}
+  .vfield label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .vin,.vsel{background:#0E111A;color:var(--ink);border:1px solid var(--rule);border-radius:6px;
+    padding:9px 9px;font-family:var(--mono);font-size:12px;width:100%}
+  .vsel{font-family:var(--sans)}
+  .vrowin{display:flex;gap:7px}
+  .vrowin .vfield{flex:1;min-width:0}
+  #planDrop{border:1px dashed var(--rule);border-radius:8px;padding:16px 12px;text-align:center;
+    font-size:11.5px;color:var(--muted);cursor:pointer;transition:border-color .2s,color .2s}
+  #planDrop:hover,#planDrop.over{border-color:var(--accent);color:var(--ink)}
+  .vtools{display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap;align-items:center}
+  .vtool{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    background:none;border:1px solid var(--rule);color:var(--muted);padding:7px 11px;border-radius:5px;cursor:pointer}
+  .vtool.on{border-color:var(--accent);color:var(--ink);background:rgba(201,48,143,.12)}
+  .vcanvas-wrap{flex:1;min-height:0;position:relative;border:1px solid var(--rule);border-radius:9px;
+    overflow:hidden;background:#0B0D16;display:grid;place-items:center}
+  #vedCanvas{display:block;cursor:crosshair;max-width:100%;max-height:100%}
+  .vhint{font-size:11px;color:var(--muted);margin-top:9px;line-height:1.5}
+  .vprob{font-size:11px;line-height:1.55;color:var(--warn);white-space:pre-wrap}
+  .vok{font-size:11px;color:var(--ok)}
+  .zlist{display:flex;flex-direction:column;gap:3px;max-height:190px;overflow-y:auto}
+  .zrow{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;cursor:pointer;font-size:11.5px}
+  .zrow:hover{background:rgba(240,239,247,.05)}
+  .zrow.sel{background:rgba(201,48,143,.16)}
+  .zrow .zk{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-left:auto}
+  .zswatch{width:9px;height:9px;border-radius:2px;flex:none}
   table{width:100%;border-collapse:collapse}
   th{text-align:left;font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);padding:0 14px 11px 0;border-bottom:1px solid var(--rule)}
   td{padding:10px 14px 10px 0;border-bottom:1px solid var(--rule);font-size:13px}
@@ -114,20 +180,35 @@
     <button role="tab" data-v="map" aria-selected="true">Map</button>
     <button role="tab" data-v="people" aria-selected="false">People</button>
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
+    <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
 </header>
 
 <div class="stage">
   <canvas id="map"></canvas>
 
-  <div class="panel" id="metrics">
-    <div class="lab" style="margin-bottom:5px">Crowd</div>
-    <div class="m"><span class="lab">Energy</span><b id="mEnergy">0.00</b></div>
-    <div class="m"><span class="lab">Sync</span><b id="mSync">0.00</b></div>
-    <div class="m"><span class="lab">Arousal</span><b id="mArousal">0.00</b></div>
-    <div class="m"><span class="lab">In sessions</span><b id="mDensity">0%</b></div>
-    <div class="m"><span class="lab">Avg dwell</span><b id="mDwell">0m</b></div>
-    <canvas id="spark"></canvas>
+  <div id="previewBar">
+    <span>Previewing <b id="pvName">—</b> — not the live event</span>
+    <button class="vbtn go" id="pvActivate" style="margin:0;width:auto;padding:6px 12px">Make active</button>
+    <button class="vbtn" id="pvBack" style="margin:0;width:auto;padding:6px 12px">Back to live</button>
+  </div>
+
+  <div id="leftrail">
+    <div class="panel" id="metrics">
+      <div class="lab" style="margin-bottom:5px">Crowd</div>
+      <div class="m"><span class="lab">Energy</span><b id="mEnergy">0.00</b></div>
+      <div class="m"><span class="lab">Sync</span><b id="mSync">0.00</b></div>
+      <div class="m"><span class="lab">Arousal</span><b id="mArousal">0.00</b></div>
+      <div class="m"><span class="lab">In sessions</span><b id="mDensity">0%</b></div>
+      <div class="m"><span class="lab">Avg dwell</span><b id="mDwell">0m</b></div>
+      <canvas id="spark"></canvas>
+    </div>
+
+    <div class="panel" id="venues">
+      <div class="lab">Venue</div>
+      <div id="venueList"></div>
+      <button class="vbtn" id="newVenueBtn">+ New venue</button>
+    </div>
   </div>
 
   <div class="panel" id="legend">
@@ -168,7 +249,116 @@
       <tbody id="zoneRows"></tbody>
     </table>
   </div>
+
+  <div class="sheet" id="sheet-venues">
+   <div class="ved">
+
+    <div class="ved-col">
+      <div class="vsec">
+        <span class="lab">Editing</span>
+        <div class="vfield"><label>Name</label><input class="vin" id="edName" placeholder="Warehouse 9" maxlength="40"></div>
+        <div class="vfield"><label>Subtitle</label><input class="vin" id="edSub" placeholder="Winter session" maxlength="60"></div>
+      </div>
+
+      <div class="vsec">
+        <span class="lab">1 · Floor plan</span>
+        <div id="planDrop">Drop an image, or click to choose<br><span style="font-size:10px">zones are found automatically</span></div>
+        <div id="detStatus" class="vhint" style="margin:0"></div>
+        <div class="vfield" id="detTune" style="display:none">
+          <label>Method</label>
+          <select class="vsel" id="detMode">
+            <option value="ai">AI — reads the plan like a person</option>
+            <option value="local">Local — shapes and colours only</option>
+          </select>
+          <div id="detLocalTune" style="display:none;margin-top:7px">
+            <label>Detail <span id="detSensV" style="color:var(--ink)">balanced</span></label>
+            <input id="detSens" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
+          </div>
+          <button class="vbtn" id="detAgain" style="margin-top:7px">Find zones again</button>
+        </div>
+        <div class="vrowin">
+          <div class="vfield"><label>Aspect (w÷h)</label><input class="vin" id="edAspect" value="2.884"></div>
+          <div class="vfield"><label>Editor opacity</label><input class="vin" id="edPlanOp" type="range" min="0" max="1" step="0.05" value="0.5" style="padding:0"></div>
+        </div>
+        <label class="vhint" style="margin:0;display:flex;gap:7px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="edShowPlan" checked style="accent-color:var(--accent)">
+          Show the plan faintly under the live map
+        </label>
+      </div>
+
+      <div class="vsec">
+        <span class="lab">2 · Where is it?</span>
+        <div class="vhint" style="margin:0">Two opposite corners of the site. Right-click the spot in Google Maps and paste, or stand there and capture.</div>
+        <div id="pinList"></div>
+        <div class="vprob" id="calProb"></div>
+      </div>
+
+      <div class="vsec">
+        <span class="lab">Simulated crowd</span>
+        <div class="vrowin">
+          <div class="vfield"><label>Attendees</label><input class="vin" id="cwN" type="number" min="0" max="400" value="58"></div>
+          <div class="vfield"><label>With HR</label><input class="vin" id="cwHr" type="number" min="0" max="100" value="42"></div>
+        </div>
+        <div class="vfield"><label>Liveliness <span id="cwLivV" style="color:var(--ink)">0.70</span></label>
+          <input id="cwLiv" type="range" min="0" max="1" step="0.05" value="0.7" style="width:100%"></div>
+        <div class="vfield"><label>Spread</label>
+          <select class="vsel" id="cwSpread">
+            <option value="capacity">Weighted by kind &amp; capacity</option>
+            <option value="even">Even across zones</option>
+          </select></div>
+        <button class="vbtn" id="cwApply">Apply &amp; regenerate</button>
+      </div>
+    </div>
+
+    <div class="ved-main">
+      <div class="vtools">
+        <button class="vtool on" id="tZone">Draw zones</button>
+        <button class="vtool" id="tOutline">Trace outline</button>
+        <button class="vtool" id="tPin">Place ref pin</button>
+        <button class="vtool" id="tClearOutline" style="margin-left:auto">Reset outline</button>
+      </div>
+      <div class="vcanvas-wrap"><canvas id="vedCanvas"></canvas></div>
+      <div class="vhint" id="vedHint">Drag on the canvas to draw a zone. Click a zone to select it.</div>
+    </div>
+
+    <div class="ved-col">
+      <div class="vsec">
+        <span class="lab">Zones (<span id="zCount">0</span>)</span>
+        <div class="zlist" id="zList"></div>
+      </div>
+
+      <div class="vsec" id="zProps" style="display:none">
+        <span class="lab">Selected zone</span>
+        <div class="vfield"><label>Label</label><input class="vin" id="zLabel" maxlength="30"></div>
+        <div class="vrowin">
+          <div class="vfield"><label>Short</label><input class="vin" id="zShort" maxlength="12"></div>
+          <div class="vfield"><label>Capacity</label><input class="vin" id="zCap" type="number" min="1" max="2000"></div>
+        </div>
+        <div class="vfield"><label>Kind</label>
+          <select class="vsel" id="zKind">
+            <option value="event">event — gets the accent colour</option>
+            <option value="social">social</option>
+            <option value="food">food</option>
+            <option value="market">market</option>
+            <option value="outdoor">outdoor</option>
+            <option value="transit">transit — check-in fallback</option>
+          </select></div>
+        <button class="vbtn" id="zDelete">Delete zone</button>
+      </div>
+
+      <div class="vsec">
+        <span class="lab">3 · Save</span>
+        <div class="vprob" id="edProb"></div>
+        <button class="vbtn" id="edSave">Save venue</button>
+        <button class="vbtn go" id="edSaveGo">Save &amp; make active</button>
+      </div>
+    </div>
+
+   </div>
+  </div>
 </div>
+
+<input type="file" id="planFile" accept="image/*" hidden>
 
 <input type="file" id="file" accept="audio/*" hidden>
 <audio id="deck" crossorigin="anonymous"></audio>
@@ -362,6 +552,16 @@ function draw(){
   const a=accentNow(), a2=accent2Now(), t=performance.now()/1000, pulse=beatFlash;
   ctx.clearRect(0,0,r.width,r.height);
 
+  // Floor plan underlay. STACKT doesn't need one — it has hand-traced
+  // containers, streets and entrances carrying the detail. A venue built in the
+  // editor has none of that, so without the plan showing through it reads as
+  // bare boxes on a rectangle. Off by default wherever traced detail exists.
+  if(mapPlan&&mapPlan.complete&&mapPlan.naturalWidth&&venue.showPlan!==false){
+    ctx.save(); ctx.globalAlpha=0.30;
+    ctx.drawImage(mapPlan,MX,MY,MW,MH);
+    ctx.restore();
+  }
+
   // site outline, traced from the STACKT plan
   ctx.beginPath();
   venue.outline.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
@@ -371,9 +571,11 @@ function draw(){
   ctx.fillStyle=gg; ctx.fill();
   ctx.strokeStyle=rgba(a,.35+pulse*.45); ctx.lineWidth=1.4+pulse*1.2; ctx.stroke();
 
-  // container units — the thing that makes this read as STACKT
+  // container units — the thing that makes this read as STACKT.
+  // Optional: a venue built in the editor has no containers, route, streets or
+  // entrances, so every one of these is guarded rather than assumed.
   ctx.lineWidth=1;
-  venue.containers.forEach(b=>{
+  (venue.containers||[]).forEach(b=>{
     const cw=b.w/b.cols, ch=b.h/b.rows;
     for(let c=0;c<b.cols;c++) for(let rr=0;rr<b.rows;rr++){
       const q=px(b.x+c*cw, b.y+rr*ch);
@@ -384,12 +586,14 @@ function draw(){
   });
 
   // the Summerhacks route from the plan, animated
-  ctx.save();
-  ctx.setLineDash([7,7]); ctx.lineDashOffset=-t*22;
-  ctx.beginPath();
-  venue.route.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
-  ctx.strokeStyle=rgba(a2,.55); ctx.lineWidth=1.6; ctx.stroke();
-  ctx.restore();
+  if(venue.route&&venue.route.length){
+    ctx.save();
+    ctx.setLineDash([7,7]); ctx.lineDashOffset=-t*22;
+    ctx.beginPath();
+    venue.route.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
+    ctx.strokeStyle=rgba(a2,.55); ctx.lineWidth=1.6; ctx.stroke();
+    ctx.restore();
+  }
 
   // zones — fill brightens with occupancy, and lifts on every beat
   const zc=state?state.zones:{};
@@ -427,8 +631,9 @@ function draw(){
     ctx.drawImage(heat,MX,MY,MW,MH);
   }
 
-  // people
-  if(state) state.people.forEach(p=>{
+  // people — hidden while previewing another venue, since their anchors are
+  // coordinates in the LIVE venue and mean nothing on a different map
+  if(state&&!previewId) state.people.forEach(p=>{
     let pos=smooth.get(p.id);
     if(!pos){ pos={x:p.anchor.x,y:p.anchor.y}; smooth.set(p.id,pos); }
     const wob=0.0022+p.energy*0.009;
@@ -450,7 +655,7 @@ function draw(){
   if(state){ const ids=new Set(state.people.map(p=>p.id)); for(const k of smooth.keys()) if(!ids.has(k)) smooth.delete(k); }
 
   // streets and entrances
-  venue.streets.forEach(s=>{
+  (venue.streets||[]).forEach(s=>{
     const q=px(s.x,s.y);
     ctx.save(); ctx.translate(q[0],q[1]); ctx.rotate(s.rot*Math.PI/180);
     ctx.font='600 8.5px "Space Grotesk",sans-serif';
@@ -458,7 +663,7 @@ function draw(){
     ctx.fillText(s.label,0,0); ctx.restore();
   });
   ctx.textAlign='left';
-  venue.entrances.forEach(e=>{
+  (venue.entrances||[]).forEach(e=>{
     const q=px(e.x,e.y);
     ctx.fillStyle=rgba(a,.9); ctx.fillRect(q[0]-3,q[1]-3,6,6);
     ctx.font='600 8px "IBM Plex Mono",monospace'; ctx.fillStyle='rgba(126,125,153,.9)';
@@ -484,7 +689,28 @@ setInterval(()=>{
 },900);
 
 /* =============================================================== STATE */
-socket.on('venue',v=>{ venue=v; $('#venueName').textContent=v.name+' · '+v.subtitle; fit(); });
+// `venue` is whatever is being DRAWN; `liveVenue` is the one the event is
+// actually running on. They differ only while previewing.
+let liveVenue=null, previewId=null, venueIndex={active:null,venues:[]}, mapPlan=null;
+
+// the plan behind whichever venue is being drawn; 404s harmlessly if there is none
+function loadMapPlan(id){
+  if(!id){ mapPlan=null; return; }
+  const img=new Image();
+  img.onload=()=>{ mapPlan=img; };
+  img.onerror=()=>{ mapPlan=null; };
+  mapPlan=null;
+  img.src='/venues/'+id+'/plan?t='+Date.now();
+}
+
+socket.on('venue',v=>{
+  liveVenue=v;
+  if(!previewId){
+    venue=v; $('#venueName').textContent=v.name+(v.subtitle?' · '+v.subtitle:'');
+    loadMapPlan(v.id); fit();
+  }
+  loadVenueList();
+});
 socket.on('state',s=>{
   state=s;
   $('#count').textContent=s.crowd.count;
@@ -534,11 +760,689 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
   document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
   $('#sheet-people').classList.toggle('on',view==='people');
   $('#sheet-zones').classList.toggle('on',view==='zones');
-  ['#metrics','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
+  $('#sheet-venues').classList.toggle('on',view==='venues');
+  ['#leftrail','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
   if(view==='map') fit();
   if(view==='people'&&state) renderPeople();
   if(view==='zones'&&state) renderZones();
+  if(view==='venues') vedFit();
 }));
+
+/* ========================================================= VENUE SWITCHER */
+async function loadVenueList(){
+  try{ venueIndex=await fetch('/venues').then(r=>r.json()); }catch(e){ return; }
+  $('#venueList').innerHTML=venueIndex.venues.map(v=>{
+    const sel=(previewId||venueIndex.active)===v.id;
+    return `<div class="vrow${sel?' sel':''}" data-id="${v.id}">
+      <span class="vn">${esc(v.name)}</span>
+      ${v.id===venueIndex.active?'<span class="live">LIVE</span>':`<span class="vz">${v.zones}z</span>`}
+    </div>`;
+  }).join('');
+  $('#venueList').querySelectorAll('.vrow').forEach(r=>
+    r.addEventListener('click',()=>previewVenue(r.dataset.id)));
+}
+
+async function previewVenue(id){
+  if(id===venueIndex.active){ backToLive(); return; }
+  const v=await fetch('/venues/'+id).then(r=>r.json());
+  previewId=id; venue=v;
+  $('#venueName').textContent=v.name+(v.subtitle?' · '+v.subtitle:'');
+  $('#pvName').textContent=v.name;
+  $('#previewBar').classList.add('on');
+  loadMapPlan(id); fit(); loadVenueList();
+}
+function backToLive(){
+  previewId=null;
+  if(liveVenue){ venue=liveVenue; $('#venueName').textContent=liveVenue.name+(liveVenue.subtitle?' · '+liveVenue.subtitle:''); loadMapPlan(liveVenue.id); }
+  $('#previewBar').classList.remove('on');
+  fit(); loadVenueList();
+}
+$('#pvBack').addEventListener('click',backToLive);
+$('#pvActivate').addEventListener('click',async()=>{
+  if(!previewId) return;
+  const name=venue.name;
+  if(!confirm(`Move the live event to "${name}"?\n\nEveryone checked in will be reassigned to its check-in zone, and the simulated crowd is regenerated.`)) return;
+  await fetch('/venues/'+previewId+'/activate',{method:'POST'});
+  previewId=null; $('#previewBar').classList.remove('on');
+});
+$('#newVenueBtn').addEventListener('click',()=>{ vedNew(); document.querySelector('nav button[data-v="venues"]').click(); });
+loadVenueList();
+
+/* =========================================================== VENUE EDITOR */
+const RECT=[[0,0],[1,0],[1,1],[0,1]];
+let ed=null, edId=null, edPlan=null, edMode='zone', edSel=-1, edPins=[null,null];
+const vc=$('#vedCanvas'), vx=vc.getContext('2d');
+let VW=0,VH=0;
+
+const KINDCOL={event:'#3B4FE0',social:'rgba(240,239,247,.34)',food:'rgba(240,239,247,.26)',
+               market:'rgba(240,239,247,.20)',outdoor:'rgba(240,239,247,.16)',transit:'rgba(240,239,247,.12)'};
+const zslug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,24);
+
+function vedNew(){
+  ed={name:'',subtitle:'',aspect:1.6,outline:RECT.map(p=>p.slice()),zones:[],showPlan:true,
+      geo:{calibrated:false,origin:{lat:0,lon:0},spanX:100,spanY:62.5,bearing:0}};
+  edId=null; edPlan=null; edSel=-1; edPins=[null,null];
+  syncFormFromEd(); vedFit();
+}
+
+async function vedLoad(id){
+  const v=await fetch('/venues/'+id).then(r=>r.json());
+  ed=JSON.parse(JSON.stringify(v)); edId=id; edSel=-1; edPins=[null,null];
+  edPlan=null;
+  const img=new Image();
+  img.onload=()=>{ edPlan=img; vedDraw(); };
+  img.src='/venues/'+id+'/plan?t='+Date.now();     // 404s harmlessly if none
+  syncFormFromEd(); vedFit();
+}
+
+function syncFormFromEd(){
+  $('#edName').value=ed.name||''; $('#edSub').value=ed.subtitle||'';
+  $('#edAspect').value=ed.aspect||1.6;
+  $('#edShowPlan').checked=ed.showPlan!==false;
+  renderZoneList(); renderPins();
+}
+$('#edShowPlan').addEventListener('change',()=>{ if(ed) ed.showPlan=$('#edShowPlan').checked; });
+
+['edName','edSub'].forEach(id=>$('#'+id).addEventListener('input',()=>{
+  ed.name=$('#edName').value; ed.subtitle=$('#edSub').value;
+}));
+$('#edAspect').addEventListener('change',()=>{
+  const a=parseFloat($('#edAspect').value);
+  if(a>0){ ed.aspect=a; vedFit(); }
+});
+$('#edPlanOp').addEventListener('input',vedDraw);
+
+/* ---- floor plan ---- */
+$('#planDrop').addEventListener('click',()=>$('#planFile').click());
+$('#planDrop').addEventListener('dragover',e=>{e.preventDefault();$('#planDrop').classList.add('over')});
+$('#planDrop').addEventListener('dragleave',()=>$('#planDrop').classList.remove('over'));
+$('#planDrop').addEventListener('drop',e=>{
+  e.preventDefault(); $('#planDrop').classList.remove('over');
+  if(e.dataTransfer.files[0]) usePlan(e.dataTransfer.files[0]);
+});
+$('#planFile').addEventListener('change',e=>{ if(e.target.files[0]) usePlan(e.target.files[0]); });
+
+function usePlan(file){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      edPlan=img; edPlan.dataUrl=fr.result;
+      // the plan's own proportions become the venue aspect — that's what makes
+      // traced coordinates line up with the real site
+      ed.aspect=+(img.width/img.height).toFixed(3);
+      $('#edAspect').value=ed.aspect;
+      $('#planDrop').innerHTML=`${img.width}×${img.height} loaded<br><span style="font-size:10px">aspect set to ${ed.aspect}</span>`;
+      $('#detTune').style.display='flex';
+      runDetect();
+      vedFit();
+    };
+    img.src=fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+
+/* -------------------- automatic zone detection --------------------
+   Floor plans are line art: dark walls enclosing light rooms. Threshold to
+   binary, flood-fill the light regions, and each enclosed region is a room.
+   Its bounding box becomes a zone. Works well on clean plans, poorly on
+   photos or open-plan spaces where rooms aren't fully enclosed — hence the
+   detail slider and the fact that everything stays editable afterwards. */
+function otsu(g){
+  const hist=new Uint32Array(256);
+  for(let i=0;i<g.length;i++) hist[g[i]]++;
+  let sum=0; for(let i=0;i<256;i++) sum+=i*hist[i];
+  let sumB=0,wB=0,best=0,thr=128;
+  for(let i=0;i<256;i++){
+    wB+=hist[i]; if(!wB) continue;
+    const wF=g.length-wB; if(!wF) break;
+    sumB+=i*hist[i];
+    const d=(sumB/wB)-((sum-sumB)/wF), between=wB*wF*d*d;
+    if(between>best){ best=between; thr=i; }
+  }
+  return thr;
+}
+
+// 4-connected labelling. Every pixel is pushed once, so the stack is bounded
+// by the image and this can't blow up on a pathological plan.
+function labelRegions(same,w,h){
+  const N=w*h, label=new Int32Array(N).fill(-1), stack=new Int32Array(N), comps=[];
+  for(let s=0;s<N;s++){
+    if(label[s]>=0||!same(s,s)) continue;
+    const id=comps.length; let sp=0; stack[sp++]=s; label[s]=id;
+    let minx=w,miny=h,maxx=0,maxy=0,area=0,edge=false;
+    while(sp){
+      const p=stack[--sp], x=p%w, y=(p/w)|0;
+      area++;
+      if(x<minx)minx=x; if(x>maxx)maxx=x;
+      if(y<miny)miny=y; if(y>maxy)maxy=y;
+      if(x===0||y===0||x===w-1||y===h-1) edge=true;
+      if(x>0)  {const q=p-1; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(x<w-1){const q=p+1; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(y>0)  {const q=p-w; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+      if(y<h-1){const q=p+w; if(label[q]<0&&same(p,q)){label[q]=id;stack[sp++]=q;}}
+    }
+    comps.push({id,minx,miny,maxx,maxy,area,edge});
+  }
+  return {label,comps};
+}
+
+// Largest axis-aligned rectangle that fits ENTIRELY inside one region, via the
+// maximal-rectangle-in-histogram sweep. This replaces the old bounding box:
+// a box around an L-shaped room swallows walls and neighbours, whereas an
+// inscribed rect is always real floor. It also makes overlaps impossible,
+// since regions are disjoint and each rect stays inside its own region.
+function maxRect(label,w,id,c){
+  const bw=c.maxx-c.minx+1, bh=c.maxy-c.miny+1;
+  const heights=new Int32Array(bw), stack=new Int32Array(bw+1), left=new Int32Array(bw);
+  let best={area:0,x:0,y:0,w:0,h:0};
+  for(let y=0;y<bh;y++){
+    const row=(c.miny+y)*w+c.minx;
+    for(let x=0;x<bw;x++) heights[x]= label[row+x]===id ? heights[x]+1 : 0;
+    let sp=0;
+    for(let x=0;x<=bw;x++){
+      const cur = x<bw ? heights[x] : 0;
+      let start=x;
+      while(sp>0 && heights[stack[sp-1]]>=cur){
+        const idx=stack[--sp], ht=heights[idx];
+        const wd=x-(sp>0?stack[sp-1]+1:0);
+        const area=ht*wd;
+        if(area>best.area) best={area,x:c.minx+(sp>0?stack[sp-1]+1:0),y:c.miny+y-ht+1,w:wd,h:ht};
+        start=idx;
+      }
+      if(x<bw) stack[sp++]=x;
+    }
+  }
+  return best;
+}
+
+// Column silhouette of the site: top and bottom edge of the content per column.
+// Produces the kind of polygon STACKT has — a real shape with diagonals — where
+// the old code just took a bounding rectangle and called it the site.
+function silhouette(content,w,h,step,pad){
+  const top=[],bot=[];
+  for(let x=0;x<w;x+=step){
+    let y0=-1,y1=-1;
+    for(let y=0;y<h;y++) if(content[y*w+x]){ if(y0<0)y0=y; y1=y; }
+    // padded outward, because simplification later cuts corners inward and a
+    // zone sitting on the boundary would fall out of the polygon
+    if(y0>=0){ top.push([x,Math.max(0,y0-pad)]); bot.push([x,Math.min(h-1,y1+pad)]); }
+  }
+  if(top.length<2) return null;
+  return top.concat(bot.reverse());
+}
+
+function simplify(pts,eps){
+  if(pts.length<3) return pts;
+  let dmax=0,idx=0;
+  const [ax,ay]=pts[0], [bx,by]=pts[pts.length-1];
+  const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1;
+  for(let i=1;i<pts.length-1;i++){
+    const d=Math.abs((pts[i][0]-ax)*dy-(pts[i][1]-ay)*dx)/len;
+    if(d>dmax){ dmax=d; idx=i; }
+  }
+  if(dmax>eps) return simplify(pts.slice(0,idx+1),eps).slice(0,-1).concat(simplify(pts.slice(idx),eps));
+  return [pts[0],pts[pts.length-1]];
+}
+
+function detectZones(img,sens){
+  const MAXW=720, sc=Math.min(1,MAXW/img.width);
+  const w=Math.max(1,Math.round(img.width*sc)), h=Math.max(1,Math.round(img.height*sc));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const cx=c.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,0,0,w,h);
+  const d=cx.getImageData(0,0,w,h).data, N=w*h;
+
+  const g=new Uint8Array(N);
+  for(let i=0;i<N;i++)
+    g[i]= d[i*4+3]<40 ? 255 : (d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)|0;
+
+  // Two strategies, because plans differ wildly. Line art has dark walls round
+  // light rooms; site maps and satellite crops have coloured blocks and no
+  // walls at all — thresholding alone finds nothing there.
+  const thr=clamp(otsu(g)+(sens-0.5)*90,6,249);
+  const light=new Uint8Array(N);
+  for(let i=0;i<N;i++) light[i]= g[i]>thr ? 1:0;
+
+  const q=new Int32Array(N);                        // quantised colour key
+  const step=(1-sens)*40+22;
+  for(let i=0;i<N;i++){
+    if(d[i*4+3]<40){ q[i]=-1; continue; }
+    q[i]=((d[i*4]/step|0)<<16)|((d[i*4+1]/step|0)<<8)|(d[i*4+2]/step|0);
+  }
+
+  const runs=[
+    labelRegions((p,c2)=> light[p]===1 && light[c2]===1, w,h),
+    labelRegions((p,c2)=> q[p]>=0 && q[p]===q[c2], w,h)
+  ];
+
+  function harvest(run){
+    const out=[];
+    for(const k of run.comps){
+      if(k.edge) continue;                          // the page, not a room
+      const frac=k.area/N;
+      if(frac<0.0016||frac>0.40) continue;
+      if(k.maxx-k.minx<7||k.maxy-k.miny<7) continue;
+      const r=maxRect(run.label,w,k.id,k);
+      if(r.w<8||r.h<8) continue;
+      if(r.area/k.area<0.42) continue;              // region too ragged to call a room
+      out.push({x:r.x/w,y:r.y/h,w:r.w/w,h:r.h/h,area:r.area});
+    }
+    return out;
+  }
+  let zonesPx=harvest(runs[0]);
+  const alt=harvest(runs[1]);
+  if(alt.length>zonesPx.length) zonesPx=alt;        // whichever read the image better
+
+  zonesPx.sort((a,b)=>b.area-a.area);
+  zonesPx=zonesPx.slice(0,60);
+  zonesPx.sort((a,b)=>(a.y-b.y)||(a.x-b.x));        // reading order
+
+  // site outline: everything that isn't the background the border sits in
+  const bg=labelRegions((p,c2)=> light[p]===1 && light[c2]===1, w,h);
+  const border=new Set();
+  bg.comps.forEach(k=>{ if(k.edge) border.add(k.id); });
+  const content=new Uint8Array(N);
+  for(let i=0;i<N;i++) content[i]= border.has(bg.label[i]) ? 0 : 1;
+
+  // The outline has to contain every zone or the venue won't validate, so trace
+  // it over the content AND the accepted rects rather than the content alone —
+  // on a site map of detached coloured blocks those are not the same thing.
+  const cover=Uint8Array.from(content);
+  zonesPx.forEach(r=>{
+    const x0=Math.max(0,Math.floor(r.x*w)), x1=Math.min(w,Math.ceil((r.x+r.w)*w));
+    const y0=Math.max(0,Math.floor(r.y*h)), y1=Math.min(h,Math.ceil((r.y+r.h)*h));
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) cover[y*w+x]=1;
+  });
+
+  let outline=null;
+  const sil=silhouette(cover,w,h,Math.max(2,Math.round(w/130)),Math.max(2,Math.round(w*0.008)));
+  if(sil){
+    const simp=simplify(sil,Math.max(1.5,w*0.007));
+    if(simp.length>=3&&simp.length<=48)
+      outline=simp.map(p=>[+clamp(p[0]/w,0,1).toFixed(4),+clamp(p[1]/h,0,1).toFixed(4)]);
+  }
+  if(!outline) outline=[[0,0],[1,0],[1,1],[0,1]];
+
+  // Belt and braces: simplification can still shave a corner, so shrink any
+  // straggler toward its own centre until it fits and drop what can't. The
+  // detector guarantees valid geometry rather than trusting its caller to.
+  const fits=z=>[[z.x,z.y],[z.x+z.w,z.y],[z.x+z.w,z.y+z.h],[z.x,z.y+z.h]]
+    .every(p=>inPoly(p[0],p[1],outline));
+  zonesPx=zonesPx.filter(r=>{
+    const z={x:r.x,y:r.y,w:r.w,h:r.h};
+    for(let k=0;k<8&&!fits(z);k++){
+      const cx=z.x+z.w/2, cy=z.y+z.h/2;
+      z.w*=0.9; z.h*=0.9; z.x=cx-z.w/2; z.y=cy-z.h/2;
+    }
+    if(!fits(z)||z.w<0.014||z.h<0.014) return false;
+    r.x=z.x; r.y=z.y; r.w=z.w; r.h=z.h;
+    return true;
+  });
+
+  const zones=zonesPx.map((r,i)=>{
+    const frac=r.w*r.h;
+    return {
+      id:'zone'+(i+1), label:'Zone '+(i+1), short:'ZONE '+(i+1),
+      kind: frac>0.045?'event' : frac>0.012?'social' : 'transit',
+      x:+r.x.toFixed(4), y:+r.y.toFixed(4), w:+r.w.toFixed(4), h:+r.h.toFixed(4),
+      cap: clamp(Math.round(frac*1400),6,300)
+    };
+  });
+  return {zones,outline};
+}
+
+let aiInfo={available:false,provider:null,model:null};
+fetch('/ai').then(r=>r.json()).then(a=>{
+  aiInfo=a;
+  const opt=$('#detMode').querySelector('option[value="ai"]');
+  if(a.available){ opt.textContent=`AI — ${a.model} reads the plan`; }
+  else{
+    opt.textContent='AI — needs OPENAI_API_KEY or GEMINI_API_KEY';
+    opt.disabled=true;
+    $('#detMode').value='local';
+    $('#detLocalTune').style.display='block';
+  }
+}).catch(()=>{});
+
+$('#detMode').addEventListener('change',()=>{
+  $('#detLocalTune').style.display=$('#detMode').value==='local'?'block':'none';
+});
+
+function applyDetection(zones,outline,how,extra){
+  ed.outline=outline; ed.zones=zones; edSel=-1;
+  $('#zProps').style.display='none';
+  autoPins();
+  $('#detStatus').innerHTML = zones.length
+    ? `<span class="vok">Found ${zones.length} zones</span> — ${how}. Rename or redraw any of them below.`
+    : `Nothing found — ${how}.`;
+  if(extra) $('#detStatus').innerHTML+=`<br>${extra}`;
+  renderZoneList(); renderPins(); vedDraw();
+}
+
+function runLocal(why){
+  const t0=performance.now();
+  const {zones,outline}=detectZones(edPlan,parseFloat($('#detSens').value));
+  applyDetection(zones,outline,`read locally in ${Math.round(performance.now()-t0)}ms`,why);
+  if(!zones.length) $('#detStatus').innerHTML+=' Try the <b>Detail</b> slider, or drag zones by hand.';
+}
+
+// The image is downscaled before upload: a phone photo of a plan is several MB,
+// which is slow to send and costs tokens for detail the model doesn't need.
+function shrinkForAI(img,maxPx){
+  const sc=Math.min(1,maxPx/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');
+  c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.9);
+}
+
+async function runDetect(){
+  if(!edPlan) return;
+  const useAI = $('#detMode').value==='ai' && aiInfo.available;
+  if(!useAI){
+    $('#detStatus').textContent='Looking for zones…';
+    setTimeout(()=>runLocal(''),16);           // let the status paint first
+    return;
+  }
+  $('#detStatus').innerHTML=`Asking ${esc(aiInfo.model)} to read the plan…`;
+  $('#detAgain').disabled=true;
+  try{
+    const r=await fetch('/detect',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({image:shrinkForAI(edPlan,1152)})});
+    const b=await r.json();
+    if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+    if(b.name&&!$('#edName').value){ $('#edName').value=b.name; ed.name=b.name; }
+    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
+  }catch(e){
+    // never leave the user stuck: fall back to the local reader and say why
+    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
+  }finally{ $('#detAgain').disabled=false; }
+}
+
+// Two pins at opposite corners of the detected site, so the only thing left to
+// supply is the two coordinates.
+function autoPins(){
+  const o=ed.outline;
+  if(!o||o.length<3) return;
+  const xs=o.map(p=>p[0]), ys=o.map(p=>p[1]);
+  const keep=[edPins[0]&&edPins[0].lat,edPins[1]&&edPins[1].lat];
+  edPins[0]={x:+Math.min(...xs).toFixed(4),y:+Math.min(...ys).toFixed(4),lat:null,lon:null,acc:null};
+  edPins[1]={x:+Math.max(...xs).toFixed(4),y:+Math.max(...ys).toFixed(4),lat:null,lon:null,acc:null};
+  // don't discard coordinates already typed in
+  [0,1].forEach(i=>{ if(keep[i]!=null){ edPins[i].lat=keep[i]; } });
+}
+
+$('#detSens').addEventListener('input',()=>{
+  const v=parseFloat($('#detSens').value);
+  $('#detSensV').textContent = v<0.3?'coarse — fewer, larger':v>0.7?'fine — more, smaller':'balanced';
+});
+$('#detAgain').addEventListener('click',runDetect);
+
+/* ---- canvas ---- */
+function vedFit(){
+  if(!ed||view!=='venues') return;
+  const wrap=vc.parentElement, r=wrap.getBoundingClientRect();
+  let w=r.width-16, h=w/ed.aspect;
+  if(h>r.height-16){ h=r.height-16; w=h*ed.aspect; }
+  const dpr=devicePixelRatio||1;
+  vc.style.width=w+'px'; vc.style.height=h+'px';
+  vc.width=Math.round(w*dpr); vc.height=Math.round(h*dpr);
+  vx.setTransform(dpr,0,0,dpr,0,0);
+  VW=w; VH=h; vedDraw();
+}
+addEventListener('resize',()=>{ if(view==='venues') vedFit(); });
+
+const vpx=(x,y)=>[x*VW,y*VH];
+const vnorm=e=>{ const r=vc.getBoundingClientRect();
+  return [clamp((e.clientX-r.left)/r.width,0,1), clamp((e.clientY-r.top)/r.height,0,1)]; };
+
+function inPoly(x,y,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [xi,yi]=poly[i],[xj,yj]=poly[j];
+    if((yi>y)!==(yj>y) && x<((xj-xi)*(y-yi))/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+// mirrors the server's validateVenue so problems show while you draw, not on save
+function zoneBad(z,i){
+  const c=[[z.x,z.y],[z.x+z.w,z.y],[z.x+z.w,z.y+z.h],[z.x,z.y+z.h]];
+  if(!c.every(p=>inPoly(p[0],p[1],ed.outline))) return 'outside outline';
+  for(let j=0;j<ed.zones.length;j++){
+    if(j===i) continue; const b=ed.zones[j];
+    if(z.x<b.x+b.w&&b.x<z.x+z.w&&z.y<b.y+b.h&&b.y<z.y+z.h) return 'overlaps '+b.id;
+  }
+  return null;
+}
+
+let drag=null;
+function vedDraw(){
+  if(!ed) return;
+  vx.clearRect(0,0,VW,VH);
+
+  if(edPlan){ vx.globalAlpha=parseFloat($('#edPlanOp').value); vx.drawImage(edPlan,0,0,VW,VH); vx.globalAlpha=1; }
+  else { vx.fillStyle='#0B0D16'; vx.fillRect(0,0,VW,VH); }
+
+  // outline
+  if(ed.outline.length>1){
+    vx.beginPath();
+    ed.outline.forEach((p,i)=>{ const q=vpx(p[0],p[1]); i?vx.lineTo(q[0],q[1]):vx.moveTo(q[0],q[1]); });
+    if(ed.outline.length>2) vx.closePath();
+    vx.strokeStyle='rgba(123,63,212,.9)'; vx.lineWidth=1.6; vx.stroke();
+    if(edMode==='outline') ed.outline.forEach(p=>{ const q=vpx(p[0],p[1]);
+      vx.fillStyle='#7B3FD4'; vx.fillRect(q[0]-3,q[1]-3,6,6); });
+  }
+
+  // zones
+  ed.zones.forEach((z,i)=>{
+    const q=vpx(z.x,z.y), w=z.w*VW, h=z.h*VH, bad=zoneBad(z,i);
+    vx.fillStyle=bad?'rgba(240,169,59,.20)':(z.kind==='event'?'rgba(59,79,224,.28)':'rgba(240,239,247,.10)');
+    vx.fillRect(q[0],q[1],w,h);
+    vx.strokeStyle=bad?'#F0A93B':(i===edSel?'#F0EFF7':KINDCOL[z.kind]||'rgba(240,239,247,.3)');
+    vx.lineWidth=i===edSel?2:1; vx.strokeRect(q[0]+.5,q[1]+.5,w,h);
+    if(h>13&&w>26){
+      vx.font='600 8.5px "IBM Plex Mono",monospace'; vx.fillStyle='rgba(240,239,247,.85)';
+      vx.fillText((z.short||z.label||z.id).slice(0,14),q[0]+4,q[1]+11);
+    }
+  });
+
+  if(drag){
+    vx.setLineDash([4,4]); vx.strokeStyle='#F0EFF7'; vx.lineWidth=1;
+    const a=vpx(Math.min(drag.x0,drag.x1),Math.min(drag.y0,drag.y1));
+    vx.strokeRect(a[0],a[1],Math.abs(drag.x1-drag.x0)*VW,Math.abs(drag.y1-drag.y0)*VH);
+    vx.setLineDash([]);
+  }
+
+  edPins.forEach((p,i)=>{ if(!p) return;
+    const q=vpx(p.x,p.y);
+    vx.beginPath(); vx.arc(q[0],q[1],6,0,7);
+    vx.fillStyle=p.lat!=null?'#3ECF8E':'#F0A93B'; vx.fill();
+    vx.font='700 9px "IBM Plex Mono",monospace'; vx.fillStyle='#080A18';
+    vx.fillText(String.fromCharCode(65+i),q[0]-3,q[1]+3);
+  });
+}
+
+vc.addEventListener('pointerdown',e=>{
+  const [x,y]=vnorm(e);
+  if(edMode==='outline'){
+    ed.outline.push([+x.toFixed(4),+y.toFixed(4)]); vedDraw(); return;
+  }
+  if(edMode==='pin'){
+    // both pins exist after detection, so move whichever is nearer rather than
+    // cycling through slots
+    let slot=0;
+    if(!edPins[0]) slot=0;
+    else if(!edPins[1]) slot=1;
+    else slot = Math.hypot(x-edPins[0].x,y-edPins[0].y) <= Math.hypot(x-edPins[1].x,y-edPins[1].y) ? 0 : 1;
+    const keep=edPins[slot]||{};
+    edPins[slot]={x:+x.toFixed(4),y:+y.toFixed(4),lat:keep.lat??null,lon:keep.lon??null,acc:null};
+    renderPins(); solveGeo(); vedDraw(); return;
+  }
+  // clicking an existing zone selects it instead of starting a new one
+  const hit=ed.zones.findIndex(z=>x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h);
+  if(hit>=0){ selectZone(hit); return; }
+  drag={x0:x,y0:y,x1:x,y1:y}; vc.setPointerCapture(e.pointerId);
+});
+vc.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=vnorm(e); drag.x1=x; drag.y1=y; vedDraw(); });
+vc.addEventListener('pointerup',()=>{
+  if(!drag) return;
+  const x=Math.min(drag.x0,drag.x1), y=Math.min(drag.y0,drag.y1);
+  const w=Math.abs(drag.x1-drag.x0), h=Math.abs(drag.y1-drag.y0);
+  drag=null;
+  if(w<0.012||h<0.012){ vedDraw(); return; }        // ignore stray clicks
+  const n=ed.zones.length+1;
+  ed.zones.push({id:'zone'+n,label:'Zone '+n,short:'ZONE '+n,kind:'event',
+                 x:+x.toFixed(4),y:+y.toFixed(4),w:+w.toFixed(4),h:+h.toFixed(4),cap:40});
+  selectZone(ed.zones.length-1); renderZoneList();
+});
+
+/* ---- modes ---- */
+const MODES={tZone:'zone',tOutline:'outline',tPin:'pin'};
+const HINTS={zone:'Drag on the canvas to draw a zone. Click a zone to select it.',
+  outline:'Click to add outline points, one per corner. Reset clears it back to the full rectangle.',
+  pin:'Click where a known point is. Then give it real coordinates on the right.'};
+Object.keys(MODES).forEach(id=>$('#'+id).addEventListener('click',()=>{
+  edMode=MODES[id];
+  Object.keys(MODES).forEach(k=>$('#'+k).classList.toggle('on',k===id));
+  $('#vedHint').textContent=HINTS[edMode];
+  vedDraw();
+}));
+$('#tClearOutline').addEventListener('click',()=>{ ed.outline=RECT.map(p=>p.slice()); vedDraw(); });
+
+/* ---- zone list + props ---- */
+function renderZoneList(){
+  $('#zCount').textContent=ed.zones.length;
+  $('#zList').innerHTML=ed.zones.map((z,i)=>{
+    const bad=zoneBad(z,i);
+    return `<div class="zrow${i===edSel?' sel':''}" data-i="${i}">
+      <span class="zswatch" style="background:${KINDCOL[z.kind]||'#555'}"></span>
+      <span>${esc(z.label||z.id)}</span>
+      <span class="zk">${bad?'<span style="color:var(--warn)">'+esc(bad)+'</span>':z.kind}</span></div>`;
+  }).join('');
+  $('#zList').querySelectorAll('.zrow').forEach(r=>
+    r.addEventListener('click',()=>selectZone(+r.dataset.i)));
+}
+function selectZone(i){
+  edSel=i; const z=ed.zones[i];
+  $('#zProps').style.display=z?'flex':'none';
+  if(z){ $('#zLabel').value=z.label||''; $('#zShort').value=z.short||'';
+         $('#zCap').value=z.cap||40; $('#zKind').value=z.kind||'event'; }
+  renderZoneList(); vedDraw();
+}
+function bindZoneField(el,fn){ $(el).addEventListener('input',()=>{ const z=ed.zones[edSel]; if(!z) return; fn(z); renderZoneList(); vedDraw(); }); }
+bindZoneField('#zLabel',z=>{ z.label=$('#zLabel').value; z.id=zslug(z.label)||z.id; });
+bindZoneField('#zShort',z=>z.short=$('#zShort').value);
+bindZoneField('#zCap',  z=>z.cap=parseInt($('#zCap').value,10)||40);
+bindZoneField('#zKind', z=>z.kind=$('#zKind').value);
+$('#zDelete').addEventListener('click',()=>{
+  if(edSel<0) return;
+  ed.zones.splice(edSel,1); edSel=-1;
+  $('#zProps').style.display='none'; renderZoneList(); vedDraw();
+});
+
+/* ---- calibration: same two-point solve as calibrate.html ---- */
+const M_DEG=111320, rd=d=>d*Math.PI/180, dg=r=>r*180/Math.PI;
+function renderPins(){
+  const WHERE=['top-left corner','bottom-right corner'];
+  $('#pinList').innerHTML=edPins.map((p,i)=>{
+    const tag=String.fromCharCode(65+i);
+    if(!p) return `<div class="vhint" style="margin:6px 0">Pin ${tag}: drop it with “Place ref pin”.</div>`;
+    return `<div class="vfield" style="margin-top:9px">
+      <label>${tag} — ${WHERE[i]}</label>
+      <input class="vin" data-pin="${i}" placeholder="43.643300, -79.408100"
+             value="${p.lat!=null?p.lat+', '+p.lon:''}">
+      <button class="vbtn" data-cap="${i}" style="margin-top:5px">Capture GPS here</button></div>`;
+  }).join('');
+  $('#pinList').querySelectorAll('input[data-pin]').forEach(el=>
+    el.addEventListener('change',()=>{
+      const p=edPins[+el.dataset.pin], v=parseLL(el.value);
+      if(!v){ $('#calProb').textContent='Could not read those coordinates.'; return; }
+      p.lat=v.lat; p.lon=v.lon; p.acc=null; solveGeo(); vedDraw();
+    }));
+  $('#pinList').querySelectorAll('button[data-cap]').forEach(el=>
+    el.addEventListener('click',()=>capturePin(+el.dataset.cap,el)));
+}
+function parseLL(s){
+  const at=String(s).match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if(at) return {lat:+at[1],lon:+at[2]};
+  const n=String(s).match(/-?\d+(\.\d+)?/g);
+  if(!n||n.length<2) return null;
+  const lat=+n[0],lon=+n[1];
+  return (Math.abs(lat)<=90&&Math.abs(lon)<=180)?{lat,lon}:null;
+}
+function capturePin(i,btn){
+  if(!navigator.geolocation){ $('#calProb').textContent='No location support in this browser.'; return; }
+  btn.textContent='Averaging…'; btn.disabled=true;
+  const got=[];
+  const w=navigator.geolocation.watchPosition(pos=>{
+    got.push(pos.coords);
+    if(got.length<5) return;
+    navigator.geolocation.clearWatch(w);
+    edPins[i].lat=+(got.reduce((s,c)=>s+c.latitude,0)/got.length).toFixed(7);
+    edPins[i].lon=+(got.reduce((s,c)=>s+c.longitude,0)/got.length).toFixed(7);
+    edPins[i].acc=got.reduce((s,c)=>s+c.accuracy,0)/got.length;
+    renderPins(); solveGeo(); vedDraw();
+  },err=>{ $('#calProb').textContent=err.code===1?'Location permission denied.':'No fix.';
+           btn.textContent='Capture GPS here'; btn.disabled=false; },
+  {enableHighAccuracy:true,maximumAge:0,timeout:20000});
+}
+function solveGeo(){
+  const [A,B]=edPins;
+  if(!A||!B||A.lat==null||B.lat==null){ $('#calProb').textContent=''; return; }
+  const dE=(B.lon-A.lon)*M_DEG*Math.cos(rd(A.lat)), dN=(B.lat-A.lat)*M_DEG;
+  const u=B.x-A.x, v=(B.y-A.y)/ed.aspect;
+  const R=Math.hypot(u,v), D=Math.hypot(dE,dN);
+  if(R<0.05){ $('#calProb').textContent='Pins are too close together on the map.'; return; }
+  if(D<5){ $('#calProb').textContent='Those two coordinates are under 5 m apart.'; return; }
+  const spanX=D/R, b=Math.atan2(dE,dN)-Math.atan2(v,u);
+  const ax=A.x*spanX, ay=(A.y/ed.aspect)*spanX;
+  const lat0=A.lat-(ax*Math.cos(b)-ay*Math.sin(b))/M_DEG;
+  const lon0=A.lon-(ax*Math.sin(b)+ay*Math.cos(b))/(M_DEG*Math.cos(rd(A.lat)));
+  let bearing=dg(b)%360; if(bearing<0) bearing+=360;
+  ed.geo={calibrated:true,origin:{lat:+lat0.toFixed(7),lon:+lon0.toFixed(7)},
+          spanX:+spanX.toFixed(1),spanY:+(spanX/ed.aspect).toFixed(1),bearing:+bearing.toFixed(2)};
+  $('#calProb').innerHTML=`<span class="vok">Solved: ${ed.geo.spanX} × ${ed.geo.spanY} m, bearing ${ed.geo.bearing}°</span>`
+    +((spanX<15||spanX>2000)?'<br>That site size looks wrong — check the pins.':'');
+}
+
+/* ---- save ---- */
+async function edSaveVenue(activate){
+  ed.name=$('#edName').value.trim(); ed.subtitle=$('#edSub').value.trim();
+  if(!ed.name){ $('#edProb').textContent='Give the venue a name first.'; return; }
+  $('#edProb').textContent='';
+  const r=await fetch('/venues',{method:'POST',headers:{'content-type':'application/json'},
+                                 body:JSON.stringify(ed)});
+  const body=await r.json();
+  if(!r.ok){ $('#edProb').textContent=(body.problems||[body.error]).join('\n'); return; }
+  edId=body.id;
+  if(edPlan&&edPlan.dataUrl){
+    await fetch('/venues/'+edId+'/plan',{method:'PUT',headers:{'content-type':'application/json'},
+                                         body:JSON.stringify({image:edPlan.dataUrl})});
+  }
+  $('#edProb').innerHTML='<span class="vok">Saved as '+esc(edId)+'</span>';
+  if(activate){ await fetch('/venues/'+edId+'/activate',{method:'POST'}); previewId=null; $('#previewBar').classList.remove('on'); }
+  loadVenueList();
+}
+$('#edSave').addEventListener('click',()=>edSaveVenue(false));
+$('#edSaveGo').addEventListener('click',()=>edSaveVenue(true));
+
+/* ---- crowd settings ---- */
+$('#cwLiv').addEventListener('input',()=>$('#cwLivV').textContent=(+$('#cwLiv').value).toFixed(2));
+$('#cwApply').addEventListener('click',async()=>{
+  const r=await fetch('/crowd',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({n:$('#cwN').value,liveliness:$('#cwLiv').value,
+                         hrPct:(+$('#cwHr').value)/100,spread:$('#cwSpread').value})}).then(r=>r.json());
+  $('#cwN').value=r.n;
+});
+fetch('/crowd').then(r=>r.json()).then(c=>{
+  $('#cwN').value=c.n; $('#cwLiv').value=c.liveliness; $('#cwLivV').textContent=c.liveliness.toFixed(2);
+  $('#cwHr').value=Math.round(c.hrPct*100); $('#cwSpread').value=c.spread;
+});
+
+// open the editor on whatever is live, so the tab is never blank
+socket.on('venue',()=>{ if(!ed&&venueIndex.active) vedLoad(venueIndex.active); });
+setTimeout(()=>{ if(!ed) venueIndex.active?vedLoad(venueIndex.active):vedNew(); },600);
 </script>
 </body>
 </html>
