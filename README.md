@@ -120,6 +120,13 @@ route changes the currently playing track. See [the DJ selection guide](docs/dj-
 | Anything the host sees | `public/dashboard.html` | No, just reload |
 | Anything a phone sees | `public/join.html` | No, just reload |
 | Metrics, sockets, fake crowd | `server.js` | Yes |
+| API keys, ports, model | `.env` | Yes — read once at boot |
+
+**Use `npm run dev` while working.** It's `node --watch server.js`, which restarts on every save — no
+dependency, it's built into Node. Forgetting to restart is the most common way a change appears not to
+have worked: the old process keeps answering, so the dashboard and `/ai` look healthy while serving
+code from before your edit. Reload the browser with Ctrl+Shift+R too, or a cached `dashboard.html`
+will hide client-side changes the same way.
 
 `venue.json` is entirely normalized 0–1 coordinates, so changing venue means editing that one file —
 never hardcode coordinates in the clients. After editing it, check every zone corner still falls inside
