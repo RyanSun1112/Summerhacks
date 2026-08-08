@@ -6,21 +6,6 @@ const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 const { createClient } = require('@supabase/supabase-js');
-
-// Tiny .env loader — no dotenv package, keeps the no-build stack lean.
-(function loadEnv() {
-  const p = path.join(__dirname, '.env');
-  if (!fs.existsSync(p)) return;
-  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const i = line.indexOf('=');
-    if (i < 1) continue;
-    const key = line.slice(0, i).trim();
-    let val = line.slice(i + 1).trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))
-      val = val.slice(1, -1);
-    if (process.env[key] === undefined) process.env[key] = val;
-  }
 const {
   MOCK_SCENARIOS,
   getMockScenario,
@@ -1109,8 +1094,8 @@ server.listen(PORT, () => {
   console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
-  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}\n`);
-  console.log(`  QR poster  http://localhost:${PORT}/qr`);
+  console.log(`  QR page    http://localhost:${PORT}/qr`);
+  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
