@@ -1,0 +1,12 @@
+# Offline song preprocessing (Python 3.10+)
+librosa>=0.11.0,<1
+numpy>=1.26,<3
+soundfile>=0.12.1,<1
+audioread>=3.0,<4
+mutagen>=1.47,<2
+pydantic>=2.7,<3
+openai>=2.0,<3
+python-dotenv>=1.0,<2
+
+# Tests
+pytest>=8,<10

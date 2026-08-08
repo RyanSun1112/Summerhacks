@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Legitimately obtained local audio and resumable generated caches stay local.
+/audio/
+/songs/
+/cache/
+
+# Generated outputs can be recreated from local inputs.
+/data/rawAudioFeatures.json
+/data/rawLLMAnnotations.json
+/data/songPreprocessingReport.json
