@@ -59,6 +59,12 @@ Do not swap these for defaults; they were chosen deliberately.
 
 Built: host dashboard (map/people/zones/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, two-point GPS calibration).
 
+Also built: an offline Python song-profile generator and a deterministic-first Node
+song-selection engine. The selector accepts mock/future `CrowdState`, produces an
+explicit target, ranks the preprocessed library, and can optionally use a server-side
+OpenAI final judge with mandatory deterministic fallback. It does not control the
+host deck yet.
+
 Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-zone QRs still work and set
 the starting zone. `venue.geo` maps GPS onto the normalized map via origin + span + bearing; it ships
 **uncalibrated** and must be set on site with `/calibrate.html` (two known points, solved against the
@@ -78,7 +84,7 @@ Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 
 few metres deep in `y`, below GPS resolution regardless of fix quality.
 
 Deliberately not built yet:
-- Automatic track selection from crowd metrics (music is host-controlled by design for now)
+- Real sensor-to-`CrowdState` analysis or automatic playback (music remains host-controlled)
 - Any persistence
 - BLE trilateration and accelerometer dead reckoning — both evaluated and rejected as hackathon-infeasible.
 
