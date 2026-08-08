@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — STACKT Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99;
+    --rule:rgba(240,239,247,.10);
+    --glass:rgba(12,15,34,.72);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--ground);color:var(--ink);font-family:var(--sans);
+    display:flex;flex-direction:column;transition:background-color 1.6s linear;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 80% 60% at 50% 48%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
+    transition:background 1.6s linear;
+  }
+  .lab{font-size:9.5px;font-weight:600;letter-spacing:.20em;text-transform:uppercase;color:var(--muted)}
+
+  header{
+    position:relative;z-index:3;flex:none;display:flex;align-items:center;gap:18px;
+    padding:15px 26px;border-bottom:1px solid var(--rule);
+    background:linear-gradient(180deg,rgba(8,10,24,.92),rgba(8,10,24,.30));
+    backdrop-filter:blur(14px);
+  }
+  .beacon{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);animation:bl 2.2s ease-in-out infinite}
+  @keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
+  .mark{display:flex;align-items:baseline;gap:11px}
+  .mark b{font-size:16px;font-weight:700;letter-spacing:.20em;text-transform:uppercase}
+  .mark span{font-size:11px;color:var(--muted);letter-spacing:.05em}
+  .hc{display:flex;align-items:baseline;gap:7px;margin-left:10px}
+  .hc b{font-family:var(--mono);font-size:19px;font-weight:500}
+  nav{margin-left:auto;display:flex;gap:3px}
+  nav button{
+    font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);background:none;border:1px solid transparent;padding:9px 17px;cursor:pointer;
+    border-radius:4px;transition:color .2s,background-color .2s,border-color .2s;
+  }
+  nav button:hover{color:var(--ink);border-color:var(--rule)}
+  nav button[aria-selected="true"]{color:#080A18;background:var(--accent);border-color:var(--accent)}
+  nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .stage{position:relative;flex:1;min-height:0;z-index:1}
+  #map{position:absolute;inset:0;width:100%;height:100%}
+
+  .panel{
+    position:absolute;z-index:4;background:var(--glass);backdrop-filter:blur(18px) saturate(1.3);
+    border:1px solid var(--rule);border-radius:9px;box-shadow:0 18px 50px rgba(0,0,0,.55);
+  }
+  #metrics{top:20px;left:22px;width:208px;padding:15px 17px 12px}
+  .m{display:flex;align-items:baseline;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--rule)}
+  .m:last-of-type{border-bottom:0}
+  .m b{font-family:var(--mono);font-size:15px;font-weight:500}
+  #spark{width:100%;height:34px;display:block;margin-top:8px}
+
+  #radio{bottom:20px;right:22px;width:328px;padding:15px 17px 16px;overflow:hidden}
+  #radio::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  #spectrum{width:100%;height:46px;display:block;margin-bottom:12px}
+  .rt{font-size:14.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ra{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seek{height:3px;background:rgba(240,239,247,.13);border-radius:2px;margin-top:12px;position:relative;cursor:pointer}
+  .seek i{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--accent);border-radius:2px}
+  .times{display:flex;justify-content:space-between;margin-top:6px}
+  .times span{font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+  .ctrls{display:flex;align-items:center;gap:9px;margin-top:12px}
+  .rbtn{width:38px;height:38px;flex:none;border-radius:50%;border:0;cursor:pointer;background:var(--accent);color:#080A18;display:grid;place-items:center;transition:transform .15s,opacity .2s}
+  .rbtn:hover{transform:scale(1.07)}
+  .rbtn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+  .rbtn svg{width:15px;height:15px;fill:currentColor}
+  .load{flex:1;font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;background:none;border:1px solid var(--rule);color:var(--muted);padding:11px 8px;border-radius:5px;cursor:pointer;transition:color .2s,border-color .2s}
+  .load:hover{color:var(--ink);border-color:var(--accent)}
+  #vol{width:60px;accent-color:var(--accent)}
+  .sws{display:flex;gap:4px;margin-top:12px;align-items:center}
+  .sw{width:15px;height:15px;border-radius:3px;transition:background-color .5s}
+  .sws .lab{margin-left:auto;font-size:8.5px}
+
+  #legend{bottom:20px;left:22px;padding:13px 15px;display:flex;flex-direction:column;gap:7px}
+  .lg{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
+  .lg i{width:14px;height:8px;border-radius:2px;display:block;flex:none}
+
+  .sheet{position:absolute;inset:0;z-index:5;overflow-y:auto;padding:24px 30px;background:var(--ground);display:none}
+  .sheet.on{display:block}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);padding:0 14px 11px 0;border-bottom:1px solid var(--rule)}
+  td{padding:10px 14px 10px 0;border-bottom:1px solid var(--rule);font-size:13px}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .meter{width:80px;height:3px;background:rgba(240,239,247,.12);display:inline-block;vertical-align:middle;border-radius:2px;overflow:hidden}
+  .meter i{display:block;height:100%;background:var(--accent)}
+  .chip{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border:1px solid var(--rule);border-radius:3px;color:var(--muted)}
+  .dim{color:var(--muted);font-size:11px}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="beacon"></span>
+  <div class="mark"><b>Pulse</b><span id="venueName">STACKT Market</span></div>
+  <div class="hc"><b id="count">0</b><span class="lab">in venue</span></div>
+  <div class="hc"><b id="peak" style="font-size:14px;color:var(--muted)">0</b><span class="lab">peak</span></div>
+  <nav role="tablist">
+    <button role="tab" data-v="map" aria-selected="true">Map</button>
+    <button role="tab" data-v="people" aria-selected="false">People</button>
+    <button role="tab" data-v="zones" aria-selected="false">Zones</button>
+  </nav>
+</header>
+
+<div class="stage">
+  <canvas id="map"></canvas>
+
+  <div class="panel" id="metrics">
+    <div class="lab" style="margin-bottom:5px">Crowd</div>
+    <div class="m"><span class="lab">Energy</span><b id="mEnergy">0.00</b></div>
+    <div class="m"><span class="lab">Sync</span><b id="mSync">0.00</b></div>
+    <div class="m"><span class="lab">Arousal</span><b id="mArousal">0.00</b></div>
+    <div class="m"><span class="lab">In sessions</span><b id="mDensity">0%</b></div>
+    <div class="m"><span class="lab">Avg dwell</span><b id="mDwell">0m</b></div>
+    <canvas id="spark"></canvas>
+  </div>
+
+  <div class="panel" id="legend">
+    <div class="lg"><i style="background:var(--accent)"></i> Session space</div>
+    <div class="lg"><i style="background:rgba(240,239,247,.30)"></i> Social &amp; food</div>
+    <div class="lg"><i style="background:rgba(240,239,247,.13)"></i> Container units</div>
+    <div class="lg"><i style="background:var(--accent2)"></i> Event route</div>
+  </div>
+
+  <div class="panel" id="radio">
+    <canvas id="spectrum"></canvas>
+    <div class="rt" id="rTitle">No track loaded</div>
+    <div class="ra" id="rArtist">Load an MP3 — the venue palette follows it</div>
+    <div class="seek" id="seek"><i id="seekFill"></i></div>
+    <div class="times"><span id="tNow">0:00</span><span id="tEnd">0:00</span></div>
+    <div class="ctrls">
+      <button class="rbtn" id="play" disabled aria-label="Play"><svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="load" id="loadBtn">Load track</button>
+      <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
+    </div>
+    <div class="sws">
+      <span class="sw" id="sw0"></span><span class="sw" id="sw1"></span>
+      <span class="sw" id="sw2"></span><span class="sw" id="sw3"></span>
+      <span class="lab">Palette from spectrum</span>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet-people">
+    <table>
+      <thead><tr><th>Name</th><th>Team</th><th>Zone</th><th>Movement</th><th>Heart</th><th>Steps</th><th>Fix</th><th>Dwell</th></tr></thead>
+      <tbody id="peopleRows"></tbody>
+    </table>
+  </div>
+
+  <div class="sheet" id="sheet-zones">
+    <table>
+      <thead><tr><th>Zone</th><th>Type</th><th>People</th><th>Capacity</th><th>Movement</th></tr></thead>
+      <tbody id="zoneRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<input type="file" id="file" accept="audio/*" hidden>
+<audio id="deck" crossorigin="anonymous"></audio>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket=io(), $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
+let venue=null, state=null, view='map';
+const smooth=new Map();
+
+/* ==========================================================
+   PALETTE DERIVED FROM THE AUDIO ITSELF
+   Spectral centroid picks the position on the ramp: bass-heavy
+   material sits in indigo, bright material pushes toward amber.
+   None of this is a preset — it's measured off the signal.
+   ========================================================== */
+const ACCENT =[[59,79,224],[123,63,212],[201,48,143],[240,85,60],[255,167,36]];
+const ACCENT2=[[80,140,255],[168,80,235],[236,72,110],[255,138,58],[255,214,92]];
+const GROUND =[[8,10,24],[12,9,30],[24,8,28],[28,11,18],[26,17,9]];
+function ramp(st,t){
+  t=clamp(t,0,1)*(st.length-1); const i=Math.floor(t), f=t-i;
+  const a=st[i], b=st[Math.min(i+1,st.length-1)];
+  return [Math.round(lerp(a[0],b[0],f)),Math.round(lerp(a[1],b[1],f)),Math.round(lerp(a[2],b[2],f))];
+}
+const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+let AU={centroid:0.20,bass:0,mid:0,treble:0,level:0,beat:0,spectrum:new Array(48).fill(0)};
+let tone=0.20, beatFlash=0;
+const accentNow =()=>ramp(ACCENT,tone);
+const accent2Now=()=>ramp(ACCENT2,tone);
+
+function applyPalette(){
+  tone=lerp(tone,AU.centroid,0.03);          // slow drift so it never strobes
+  beatFlash=Math.max(0,beatFlash-0.045);
+  const a=accentNow(), a2=accent2Now(), g=ramp(GROUND,tone);
+  const st=document.documentElement.style;
+  st.setProperty('--accent',rgb(a));
+  st.setProperty('--accent2',rgb(a2));
+  st.setProperty('--ground',rgb(g));
+  st.setProperty('--glass',`rgba(${g[0]+4},${g[1]+5},${g[2]+10},.74)`);
+  $('#sw0').style.background=rgb(g);
+  $('#sw1').style.background=rgb(a);
+  $('#sw2').style.background=rgb(a2);
+  $('#sw3').style.background=rgba(a2,.35);
+}
+
+/* ================================================================ AUDIO */
+const deck=$('#deck');
+let actx=null, analyser=null, freq=null, bassAvg=0, lastBeat=0;
+let music={title:'—',artist:'',playing:false,position:0,duration:0};
+
+$('#loadBtn').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  deck.src=URL.createObjectURL(f);
+  const nice=f.name.replace(/\.[^.]+$/,'').replace(/[_]+/g,' ').trim();
+  const parts=nice.split(/\s+[-–]\s+/);
+  music.title=(parts[1]||parts[0]).trim();
+  music.artist=(parts[1]?parts[0]:'Local file').trim();
+  $('#rTitle').textContent=music.title;
+  $('#rArtist').textContent=music.artist;
+  $('#play').disabled=false;
+  deck.play().catch(()=>{});
+});
+
+function initAudio(){
+  if(actx) return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  const src=actx.createMediaElementSource(deck);
+  analyser=actx.createAnalyser();
+  analyser.fftSize=1024; analyser.smoothingTimeConstant=0.72;
+  src.connect(analyser); analyser.connect(actx.destination);
+  freq=new Uint8Array(analyser.frequencyBinCount);
+}
+
+function analyse(){
+  if(!analyser||deck.paused){
+    AU.level=lerp(AU.level,0,0.05); AU.bass=lerp(AU.bass,0,0.05);
+    for(let i=0;i<AU.spectrum.length;i++) AU.spectrum[i]*=0.90;
+    return;
+  }
+  analyser.getByteFrequencyData(freq);
+  const n=freq.length, nyq=actx.sampleRate/2, hz=i=>i*nyq/n;
+  let bass=0,bc=0,mid=0,mc=0,tre=0,tc=0,num=0,den=0;
+  for(let i=1;i<n;i++){
+    const m=freq[i]/255, f=hz(i);
+    if(f<250){bass+=m;bc++} else if(f<3000){mid+=m;mc++} else {tre+=m;tc++}
+    num+=f*m; den+=m;
+  }
+  bass=bc?bass/bc:0; mid=mc?mid/mc:0; tre=tc?tre/tc:0;
+
+  // log-scaled centroid — brightness is heard logarithmically, not linearly
+  const cHz=den?num/den:200;
+  AU.centroid=clamp(((Math.log2(clamp(cHz,80,8000))-6.3)/6.7)*1.15,0,1);
+  AU.bass=bass; AU.mid=mid; AU.treble=tre;
+  AU.level=clamp(bass*0.5+mid*0.4+tre*0.3,0,1);
+
+  // onset detection: a bass spike above its own rolling average
+  bassAvg=lerp(bassAvg,bass,0.06);
+  const now=performance.now();
+  if(bass>bassAvg*1.32 && bass>0.16 && now-lastBeat>240){ lastBeat=now; beatFlash=1; AU.beat=1; }
+  else AU.beat=Math.max(0,AU.beat-0.06);
+
+  // downsampled bars, shared with every phone
+  const bars=48, out=[];
+  for(let i=0;i<bars;i++){
+    const lo=Math.floor(Math.pow(i/bars,1.7)*n), hi=Math.max(lo+1,Math.floor(Math.pow((i+1)/bars,1.7)*n));
+    let s=0; for(let j=lo;j<hi;j++) s+=freq[j];
+    out.push(Math.round(s/(hi-lo)));
+  }
+  AU.spectrum=out;
+  socket.emit('music:frame',{bass:AU.bass,mid:AU.mid,treble:AU.treble,level:AU.level,
+    centroid:AU.centroid,beat:AU.beat,tone,spectrum:out});
+}
+
+const pushMusic=()=>socket.emit('music:state',music);
+$('#play').addEventListener('click',()=>deck.paused?deck.play():deck.pause());
+deck.addEventListener('play',()=>{ initAudio(); actx.resume(); music.playing=true; setIcon(true); pushMusic(); });
+deck.addEventListener('pause',()=>{ music.playing=false; setIcon(false); pushMusic(); });
+deck.addEventListener('loadedmetadata',()=>{ music.duration=deck.duration; pushMusic(); });
+deck.volume=0.8;
+$('#vol').addEventListener('input',e=>deck.volume=+e.target.value);
+function setIcon(p){
+  $('#playIcon').innerHTML = p?'<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>';
+  $('#play').setAttribute('aria-label',p?'Pause':'Play');
+}
+$('#seek').addEventListener('click',e=>{
+  if(!deck.duration) return;
+  const r=e.currentTarget.getBoundingClientRect();
+  deck.currentTime=((e.clientX-r.left)/r.width)*deck.duration;
+});
+const fmt=s=>{ s=Math.max(0,s|0); return ((s/60)|0)+':'+String(s%60).padStart(2,'0') };
+setInterval(()=>{
+  if(!deck.duration) return;
+  music.position=deck.currentTime;
+  $('#seekFill').style.width=(deck.currentTime/deck.duration*100)+'%';
+  $('#tNow').textContent=fmt(deck.currentTime);
+  $('#tEnd').textContent=fmt(deck.duration);
+  pushMusic();
+},500);
+
+/* ====================================================== SPECTRUM BARS */
+const sp=$('#spectrum'), spx=sp.getContext('2d');
+function drawSpectrum(){
+  const dpr=devicePixelRatio||1, w=sp.clientWidth||300, h=46;
+  if(sp.width!==Math.round(w*dpr)){ sp.width=w*dpr; sp.height=h*dpr; }
+  spx.setTransform(dpr,0,0,dpr,0,0); spx.clearRect(0,0,w,h);
+  const bars=AU.spectrum.length||48, a=accentNow(), a2=accent2Now(), bw=w/bars;
+  for(let i=0;i<bars;i++){
+    const v=(AU.spectrum[i]||0)/255;
+    const bh=Math.max(1.5,Math.pow(v,1.25)*h);
+    const c=ramp([a,a2],i/bars);
+    spx.fillStyle=rgba(c,.32+v*.68);
+    spx.fillRect(i*bw+0.5,h-bh,Math.max(1,bw-1.5),bh);
+  }
+}
+
+/* ================================================================= MAP */
+const cv=$('#map'), ctx=cv.getContext('2d');
+let MW=0,MH=0,MX=0,MY=0,heat=null;
+function fit(){
+  const dpr=devicePixelRatio||1, r=cv.parentElement.getBoundingClientRect();
+  cv.width=r.width*dpr; cv.height=r.height*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(!venue) return;
+  const padX=Math.max(96,r.width*0.075), padY=70;
+  let w=r.width-padX*2, h=w/venue.aspect;
+  if(h>r.height-padY*2){ h=r.height-padY*2; w=h*venue.aspect; }
+  MW=w; MH=h; MX=(r.width-w)/2; MY=(r.height-h)/2;
+  heat=Object.assign(document.createElement('canvas'),{width:Math.max(1,w|0),height:Math.max(1,h|0)});
+}
+addEventListener('resize',fit);
+const px=(nx,ny)=>[MX+nx*MW, MY+ny*MH];
+
+function kindStyle(kind,a){
+  if(kind==='event')  return {fill:rgba(a,.15), stroke:rgba(a,.75), text:rgba(a,1)};
+  if(kind==='social') return {fill:'rgba(240,239,247,.055)',stroke:'rgba(240,239,247,.30)',text:'rgba(240,239,247,.70)'};
+  if(kind==='food'||kind==='market')
+                      return {fill:'rgba(240,239,247,.042)',stroke:'rgba(240,239,247,.24)',text:'rgba(240,239,247,.60)'};
+  return {fill:'rgba(240,239,247,.020)',stroke:'rgba(240,239,247,.14)',text:'rgba(240,239,247,.40)'};
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  analyse(); applyPalette(); drawSpectrum();
+  if(!venue||view!=='map') return;
+  if(!MW) fit();
+  const r=cv.parentElement.getBoundingClientRect();
+  const a=accentNow(), a2=accent2Now(), t=performance.now()/1000, pulse=beatFlash;
+  ctx.clearRect(0,0,r.width,r.height);
+
+  // site outline, traced from the STACKT plan
+  ctx.beginPath();
+  venue.outline.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
+  ctx.closePath();
+  const gg=ctx.createLinearGradient(MX,MY,MX+MW,MY+MH);
+  gg.addColorStop(0,rgba(a,.06)); gg.addColorStop(1,rgba(a2,.03));
+  ctx.fillStyle=gg; ctx.fill();
+  ctx.strokeStyle=rgba(a,.35+pulse*.45); ctx.lineWidth=1.4+pulse*1.2; ctx.stroke();
+
+  // container units — the thing that makes this read as STACKT
+  ctx.lineWidth=1;
+  venue.containers.forEach(b=>{
+    const cw=b.w/b.cols, ch=b.h/b.rows;
+    for(let c=0;c<b.cols;c++) for(let rr=0;rr<b.rows;rr++){
+      const q=px(b.x+c*cw, b.y+rr*ch);
+      const w=cw*MW-1.5, h=ch*MH-1.5;
+      ctx.fillStyle='rgba(240,239,247,.036)'; ctx.fillRect(q[0],q[1],w,h);
+      ctx.strokeStyle='rgba(240,239,247,.13)'; ctx.strokeRect(q[0]+.5,q[1]+.5,w,h);
+    }
+  });
+
+  // the Summerhacks route from the plan, animated
+  ctx.save();
+  ctx.setLineDash([7,7]); ctx.lineDashOffset=-t*22;
+  ctx.beginPath();
+  venue.route.forEach((p,i)=>{ const q=px(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
+  ctx.strokeStyle=rgba(a2,.55); ctx.lineWidth=1.6; ctx.stroke();
+  ctx.restore();
+
+  // zones — fill brightens with occupancy, and lifts on every beat
+  const zc=state?state.zones:{};
+  venue.zones.forEach(z=>{
+    const q=px(z.x,z.y), w=z.w*MW, h=z.h*MH;
+    const info=zc[z.id]||{n:0,energy:0};
+    const load=clamp(info.n/(z.cap||40),0,1);
+    const s=kindStyle(z.kind,a);
+    ctx.fillStyle=s.fill; ctx.fillRect(q[0],q[1],w,h);
+    if(load>0){ ctx.fillStyle=rgba(a,.07+load*.30+pulse*load*.14); ctx.fillRect(q[0],q[1],w,h); }
+    ctx.strokeStyle=s.stroke; ctx.lineWidth=z.kind==='event'?1.3:1;
+    ctx.strokeRect(q[0]+.5,q[1]+.5,w,h);
+    if(w>44){
+      ctx.font='600 8.5px "IBM Plex Mono",monospace'; ctx.fillStyle=s.text;
+      ctx.fillText(z.short,q[0]+6,q[1]+13);
+      if(info.n){
+        ctx.font='500 10px "IBM Plex Mono",monospace'; ctx.fillStyle=rgba(a,.95);
+        ctx.fillText(String(info.n),q[0]+6,q[1]+h-6);
+      }
+    }
+  });
+
+  // heat pools, composited under the dots
+  if(heat&&state&&heat.width>1){
+    const hx=heat.getContext('2d');
+    hx.clearRect(0,0,heat.width,heat.height);
+    hx.globalCompositeOperation='lighter';
+    state.people.forEach(p=>{
+      const pos=smooth.get(p.id); if(!pos) return;
+      const rad=16+p.energy*54, cx=pos.x*MW, cy=pos.y*MH;
+      const g=hx.createRadialGradient(cx,cy,0,cx,cy,rad);
+      g.addColorStop(0,rgba(a2,.04+p.energy*.17)); g.addColorStop(1,rgba(a2,0));
+      hx.fillStyle=g; hx.beginPath(); hx.arc(cx,cy,rad,0,7); hx.fill();
+    });
+    ctx.drawImage(heat,MX,MY,MW,MH);
+  }
+
+  // people
+  if(state) state.people.forEach(p=>{
+    let pos=smooth.get(p.id);
+    if(!pos){ pos={x:p.anchor.x,y:p.anchor.y}; smooth.set(p.id,pos); }
+    const wob=0.0022+p.energy*0.009;
+    const tx=p.anchor.x+Math.sin(t*(0.32+p.seed*0.5)+p.seed*9)*wob;
+    const ty=p.anchor.y+Math.cos(t*(0.27+p.seed*0.6)+p.seed*5)*wob*venue.aspect;
+    pos.x=lerp(pos.x,tx,0.045); pos.y=lerp(pos.y,ty,0.045);
+    const q=px(pos.x,pos.y);
+
+    // SIGNATURE: ring expands at this person's real heart rate. when the room
+    // locks in, the rings visibly fall into step with one another.
+    if(p.hr){
+      const per=60/p.hr, ph=(t%per)/per, e=Math.pow(1-ph,2.6);
+      ctx.beginPath(); ctx.arc(q[0],q[1],3.2+(1-e)*13,0,7);
+      ctx.strokeStyle=rgba(a,e*.8); ctx.lineWidth=1.2; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(q[0],q[1],2.5+p.energy*1.4,0,7);
+    ctx.fillStyle=p.hr?rgb(a):'rgba(240,239,247,.5)'; ctx.fill();
+  });
+  if(state){ const ids=new Set(state.people.map(p=>p.id)); for(const k of smooth.keys()) if(!ids.has(k)) smooth.delete(k); }
+
+  // streets and entrances
+  venue.streets.forEach(s=>{
+    const q=px(s.x,s.y);
+    ctx.save(); ctx.translate(q[0],q[1]); ctx.rotate(s.rot*Math.PI/180);
+    ctx.font='600 8.5px "Space Grotesk",sans-serif';
+    ctx.fillStyle='rgba(126,125,153,.75)'; ctx.textAlign='center';
+    ctx.fillText(s.label,0,0); ctx.restore();
+  });
+  ctx.textAlign='left';
+  venue.entrances.forEach(e=>{
+    const q=px(e.x,e.y);
+    ctx.fillStyle=rgba(a,.9); ctx.fillRect(q[0]-3,q[1]-3,6,6);
+    ctx.font='600 8px "IBM Plex Mono",monospace'; ctx.fillStyle='rgba(126,125,153,.9)';
+    ctx.fillText(e.label, e.x>0.5?q[0]+10:q[0]+10, q[1]+3);
+  });
+}
+requestAnimationFrame(draw);
+
+/* =============================================================== SPARK */
+const spk=$('#spark'), skx=spk.getContext('2d');
+setInterval(()=>{
+  if(!state||!state.history.length||view!=='map') return;
+  const dpr=devicePixelRatio||1, w=spk.clientWidth||180, h=34;
+  spk.width=w*dpr; spk.height=h*dpr; skx.setTransform(dpr,0,0,dpr,0,0);
+  skx.clearRect(0,0,w,h);
+  const hist=state.history, a=accentNow(), st=w/Math.max(hist.length-1,1);
+  skx.beginPath(); skx.moveTo(0,h);
+  hist.forEach((p,i)=>skx.lineTo(i*st,h-p.energy*(h-4)));
+  skx.lineTo(w,h); skx.closePath(); skx.fillStyle=rgba(a,.18); skx.fill();
+  skx.beginPath();
+  hist.forEach((p,i)=>i?skx.lineTo(i*st,h-p.energy*(h-4)):skx.moveTo(0,h-p.energy*(h-4)));
+  skx.strokeStyle=rgb(a); skx.lineWidth=1.3; skx.stroke();
+},900);
+
+/* =============================================================== STATE */
+socket.on('venue',v=>{ venue=v; $('#venueName').textContent=v.name+' · '+v.subtitle; fit(); });
+socket.on('state',s=>{
+  state=s;
+  $('#count').textContent=s.crowd.count;
+  $('#peak').textContent=s.crowd.peak;
+  $('#mEnergy').textContent=s.crowd.energy.toFixed(2);
+  $('#mSync').textContent=s.crowd.sync.toFixed(2);
+  $('#mArousal').textContent=s.crowd.arousal.toFixed(2);
+  $('#mDensity').textContent=Math.round(s.crowd.density*100)+'%';
+  $('#mDwell').textContent=Math.round(s.crowd.dwell)+'m';
+  if(view==='people') renderPeople();
+  if(view==='zones') renderZones();
+});
+
+const esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const zoneLabel=id=>{ const z=venue&&venue.zones.find(z=>z.id===id); return z?z.label:id; };
+
+function renderPeople(){
+  $('#peopleRows').innerHTML=state.people.slice().sort((x,y)=>y.energy-x.energy).map(p=>{
+    const m=Math.max(0,Math.round((Date.now()-p.joinedAt)/60000));
+    const hr=p.hr
+      ? `<span class="n">${p.hr}</span>${p.hrBaseline?` <span class="dim">+${Math.round((p.hr/p.hrBaseline-1)*100)}%</span>`:''}`
+      : '<span class="dim">no sensor</span>';
+    // 'offsite' means GPS mapped outside the venue outline — venue.geo needs
+    // calibrating. 'weak' means the fix was too vague to trust.
+    const fix=!p.gps?'<span class="dim">—</span>'
+      :p.gpsNote==='offsite'?'<span class="dim">off site</span>'
+      :p.gpsNote==='weak'?`<span class="dim">weak</span>`
+      :`<span class="n">±${Math.round(p.gps.accuracy||0)}m</span>`;
+    const steps=p.steps?`<span class="n">${p.steps.toLocaleString()}</span>`:'<span class="dim">—</span>';
+    return `<tr><td>${esc(p.name)}</td><td><span class="chip">${esc(p.team||'—')}</span></td>
+      <td>${esc(zoneLabel(p.zone))}</td>
+      <td><span class="meter"><i style="width:${Math.round(p.energy*100)}%"></i></span></td>
+      <td>${hr}</td><td>${steps}</td><td>${fix}</td><td class="n">${m}m</td></tr>`;
+  }).join('');
+}
+function renderZones(){
+  $('#zoneRows').innerHTML=venue.zones.map(z=>{
+    const i=state.zones[z.id]||{n:0,energy:0};
+    return `<tr><td>${esc(z.label)}</td><td><span class="chip">${z.kind}</span></td>
+      <td class="n">${i.n}</td><td class="n">${Math.round(i.n/(z.cap||40)*100)}% <span class="dim">of ${z.cap}</span></td>
+      <td><span class="meter"><i style="width:${Math.round(i.energy*100)}%"></i></span></td></tr>`;
+  }).join('');
+}
+
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+  view=b.dataset.v;
+  document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  $('#sheet-people').classList.toggle('on',view==='people');
+  $('#sheet-zones').classList.toggle('on',view==='zones');
+  ['#metrics','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
+  if(view==='map') fit();
+  if(view==='people'&&state) renderPeople();
+  if(view==='zones'&&state) renderZones();
+}));
+</script>
+</body>
+</html>

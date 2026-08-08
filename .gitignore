@@ -1,0 +1,20 @@
+node_modules/
+
+# tunnel binary — everyone downloads their own, it's ~70MB
+cloudflared
+cloudflared.exe
+
+# local overrides
+.env
+.env.local
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# audio dropped in for the radio player
+*.mp3
+*.m4a
+*.wav

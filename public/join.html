@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080A18">
+<title>Pulse — STACKT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99; --rule:rgba(240,239,247,.11);
+    --glass:rgba(12,15,34,.80);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    background:var(--ground);color:var(--ink);font-family:var(--sans);
+    min-height:100dvh;transition:background-color 1.6s linear;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 90% 50% at 50% 30%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%);
+    transition:background 1.6s linear;
+  }
+  .wrap{position:relative;z-index:1;padding:24px 20px calc(20px + env(safe-area-inset-bottom))}
+  .lab{font-size:9.5px;font-weight:600;letter-spacing:.20em;text-transform:uppercase;color:var(--muted)}
+
+  header{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+  .beacon{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:bl 2.2s ease-in-out infinite}
+  @keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
+  .wm{font-size:13px;font-weight:700;letter-spacing:.24em;text-transform:uppercase}
+  .zt{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+
+  h1{font-size:27px;font-weight:700;line-height:1.15;letter-spacing:-.015em}
+  p.sub{color:var(--muted);font-size:14px;line-height:1.55;margin-top:12px}
+
+  input{
+    width:100%;margin-top:24px;padding:15px 16px;font-family:var(--sans);font-size:16px;
+    background:rgba(240,239,247,.05);border:1px solid var(--rule);border-radius:6px;color:var(--ink);
+  }
+  input:focus{outline:none;border-color:var(--accent)}
+  input::placeholder{color:var(--muted)}
+  button.primary{
+    width:100%;margin-top:12px;padding:16px;border:0;border-radius:6px;cursor:pointer;
+    font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    background:var(--accent);color:#080A18;
+  }
+  button.primary:disabled{opacity:.35}
+  button.ghost{
+    width:100%;margin-top:10px;padding:14px;border-radius:6px;cursor:pointer;
+    font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    background:none;border:1px solid var(--rule);color:var(--muted);
+  }
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .consent{margin-top:22px;font-size:11.5px;line-height:1.6;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px}
+  .err{color:#FF8A6B;font-size:12px;margin-top:12px;line-height:1.5}
+  .hint{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
+
+  .screen{display:none}
+  .screen.on{display:block}
+
+  /* live */
+  .card{background:var(--glass);border:1px solid var(--rule);border-radius:10px;backdrop-filter:blur(16px)}
+  #mapCard{padding:12px;margin-bottom:14px;overflow:hidden}
+  #mini{width:100%;display:block}
+  .maphead{display:flex;align-items:baseline;margin-bottom:9px}
+  .maphead .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .stat{padding:13px 14px}
+  .stat b{display:block;font-family:var(--mono);font-size:21px;font-weight:400;margin-top:5px}
+  .stat .d{font-size:10px;color:var(--muted);margin-top:3px}
+
+  /* radio, pinned bottom */
+  #radio{
+    position:sticky;bottom:0;margin:0 -20px -20px;padding:13px 20px calc(15px + env(safe-area-inset-bottom));
+    background:var(--glass);backdrop-filter:blur(20px);border-top:1px solid var(--rule);
+  }
+  #radio::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  #spectrum{width:100%;height:32px;display:block;margin-bottom:10px}
+  .rrow{display:flex;align-items:center;gap:12px}
+  .rmeta{min-width:0;flex:1}
+  .rt{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ra{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rstate{font-family:var(--mono);font-size:9.5px;color:var(--accent);letter-spacing:.08em;flex:none}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="beacon"></span>
+  <span class="wm">Pulse</span>
+  <span class="zt" id="zoneTag">—</span>
+</header>
+
+<section class="screen on" id="s-join">
+  <h1>You're part of the music.</h1>
+  <p class="sub">How this room moves shapes what plays. Add your name and you're in.</p>
+  <input id="name" placeholder="Your name" autocomplete="given-name" maxlength="24">
+  <button class="primary" id="go">Check in</button>
+  <div class="consent">
+    While you're here your phone shares how much it's moving, your location inside the venue, your step
+    count, and your heart rate if you connect a monitor. Location is used to place you on the venue map
+    and is only recorded while this page is open. Nothing is kept after the event ends, and your name
+    only appears on the host's screen.
+  </div>
+</section>
+
+<section class="screen" id="s-sensors">
+  <h1>Turn on movement.</h1>
+  <p class="sub">Your phone's motion sensor and location are what the venue runs on. One tap starts both.</p>
+  <button class="primary" id="motionBtn">Start movement &amp; location</button>
+  <button class="ghost" id="hrBtn">Connect heart monitor</button>
+  <div class="err" id="err"></div>
+  <div class="hint">No monitor? Skip it — movement alone works.</div>
+  <button class="ghost" id="skipSensors" style="margin-top:20px">Continue</button>
+</section>
+
+<section class="screen" id="s-live">
+  <div class="card" id="mapCard">
+    <div class="maphead"><span class="lab">STACKT Market</span><span class="n" id="mapCount">0 here</span></div>
+    <canvas id="mini"></canvas>
+  </div>
+
+  <div class="grid">
+    <div class="card stat"><span class="lab">Your movement</span><b id="myEnergy">0.00</b><div class="d" id="myRank">—</div></div>
+    <div class="card stat"><span class="lab">Your heart</span><b id="myHr">—</b><div class="d" id="myHrD">no sensor</div></div>
+    <div class="card stat"><span class="lab">Room energy</span><b id="roomEnergy">0.00</b><div class="d" id="roomTrend">—</div></div>
+    <div class="card stat"><span class="lab">Room sync</span><b id="roomSync">0.00</b><div class="d">moving together</div></div>
+    <div class="card stat"><span class="lab">Your steps</span><b id="mySteps">0</b><div class="d" id="myDist">0 m</div></div>
+    <div class="card stat"><span class="lab">Location</span><b id="myFix" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b><div class="d" id="myFixD">not started</div></div>
+  </div>
+
+  <div class="card stat" style="margin-bottom:14px">
+    <span class="lab">Your zone</span>
+    <b id="zoneName" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b>
+    <div class="d" id="zoneCount">—</div>
+  </div>
+
+  <div class="hint">Your zone updates on its own as you move around the venue.</div>
+
+  <div id="radio">
+    <canvas id="spectrum"></canvas>
+    <div class="rrow">
+      <div class="rmeta">
+        <div class="rt" id="rTitle">Nothing playing</div>
+        <div class="ra" id="rArtist">Waiting for the host</div>
+      </div>
+      <span class="rstate" id="rState">IDLE</span>
+    </div>
+  </div>
+</section>
+
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket=io(), $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
+const zone=new URLSearchParams(location.search).get('zone')||'entrance1';
+
+let myId=localStorage.getItem('pulse:id')||('p-'+Math.random().toString(36).slice(2,10));
+localStorage.setItem('pulse:id',myId);
+const savedName=localStorage.getItem('pulse:name');
+if(savedName) $('#name').value=savedName;
+
+let venue=null, state=null, myEnergy=0, myHr=null, myHrBase=null, motionOn=false;
+const show=id=>document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+
+/* palette mirrors the host, driven by the same spectrum */
+const ACCENT =[[59,79,224],[123,63,212],[201,48,143],[240,85,60],[255,167,36]];
+const ACCENT2=[[80,140,255],[168,80,235],[236,72,110],[255,138,58],[255,214,92]];
+const GROUND =[[8,10,24],[12,9,30],[24,8,28],[28,11,18],[26,17,9]];
+function ramp(st,t){
+  t=clamp(t,0,1)*(st.length-1); const i=Math.floor(t), f=t-i;
+  const a=st[i], b=st[Math.min(i+1,st.length-1)];
+  return[Math.round(lerp(a[0],b[0],f)),Math.round(lerp(a[1],b[1],f)),Math.round(lerp(a[2],b[2],f))];
+}
+const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`, rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+let AU={centroid:.20,bass:0,level:0,beat:0,spectrum:new Array(48).fill(0)}, tone=.20, beatFlash=0;
+const accentNow=()=>ramp(ACCENT,tone), accent2Now=()=>ramp(ACCENT2,tone);
+
+socket.on('music:frame',f=>{
+  AU=f;
+  if(f.beat>0.9) beatFlash=1;
+});
+socket.on('music:state',m=>{
+  $('#rTitle').textContent=m.title||'Nothing playing';
+  $('#rArtist').textContent=m.artist||'Waiting for the host';
+  $('#rState').textContent=m.playing?'ON AIR':'PAUSED';
+});
+
+/* ---------------- check in ---------------- */
+$('#go').addEventListener('click',()=>{
+  const name=$('#name').value.trim()||'Guest';
+  localStorage.setItem('pulse:name',name);
+  socket.emit('join',{id:myId,name,zone},res=>{
+    if(res&&res.ok){ $('#zoneTag').textContent=res.zoneLabel.toUpperCase(); show('s-sensors'); }
+  });
+});
+$('#name').addEventListener('keydown',e=>{if(e.key==='Enter')$('#go').click()});
+$('#skipSensors').addEventListener('click',()=>show('s-live'));
+
+socket.on('connect',()=>{
+  if(!savedName) return;
+  socket.emit('join',{id:myId,name:savedName,zone},res=>{
+    if(!res||!res.ok) return;
+    $('#zoneTag').textContent=res.zoneLabel.toUpperCase();
+    show(motionOn?'s-live':'s-sensors');
+  });
+});
+
+/* ---------------- movement ----------------
+   sample at device rate, summarise to one float every 500ms.
+   raw 30Hz from 100 phones would melt the server.              */
+let buf=[];
+const onMotion=e=>{
+  const a=e.accelerationIncludingGravity||e.acceleration; if(!a) return;
+  const mag=Math.hypot(a.x||0,a.y||0,a.z||0)-9.81;
+  buf.push(mag);
+  stepDetect(Math.abs(mag),Date.now());
+};
+setInterval(()=>{
+  if(buf.length){
+    const rms=Math.sqrt(buf.reduce((s,v)=>s+v*v,0)/buf.length); buf=[];
+    myEnergy=lerp(myEnergy,clamp(rms/12,0,1),0.5);
+    socket.emit('motion',{energy:myEnergy});
+  }
+  if(steps!==sentSteps){ socket.emit('steps',{steps,distance}); sentSteps=steps; }
+},500);
+
+/* ---------------- steps ----------------
+   Peak detection on the accelerometer stream the movement metric already
+   samples. The refractory gap caps it near 4 steps/sec, so shaking the phone
+   doesn't inflate the count the way a bare threshold would. */
+let steps=0, sentSteps=0, distance=0, stepArmed=false, lastStep=0;
+const STEP_ON=1.9, STEP_OFF=0.7, STEP_GAP=260, STRIDE=0.75;
+function stepDetect(mag,now){
+  if(!stepArmed && mag>STEP_ON && now-lastStep>STEP_GAP){
+    stepArmed=true; lastStep=now; steps++; distance=steps*STRIDE;
+  } else if(stepArmed && mag<STEP_OFF) stepArmed=false;
+}
+
+/* ---------------- location ----------------
+   One fix a second is plenty. The server owns the GPS -> zone maths and the
+   hysteresis, so the phone just reports raw coords and accuracy. */
+let myFix=null, lastGeoSent=0;
+function startGeo(){
+  if(!navigator.geolocation){ myFix={err:'This browser has no location support'}; return; }
+  navigator.geolocation.watchPosition(pos=>{
+    const {latitude:lat,longitude:lon,accuracy}=pos.coords;
+    myFix={lat,lon,accuracy};
+    const now=Date.now();
+    if(now-lastGeoSent<1000) return;
+    lastGeoSent=now;
+    socket.emit('geo',{lat,lon,accuracy});
+  },err=>{
+    myFix={err:err.code===1?'Location permission denied':'No location fix yet'};
+  },{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+}
+
+$('#motionBtn').addEventListener('click',async()=>{
+  try{
+    // iOS demands this inside a user gesture, and only over HTTPS
+    if(typeof DeviceMotionEvent!=='undefined'&&DeviceMotionEvent.requestPermission){
+      const r=await DeviceMotionEvent.requestPermission();
+      if(r!=='granted') throw new Error('Motion access was declined. Reload and allow it to take part.');
+    }
+    addEventListener('devicemotion',onMotion);
+    motionOn=true;
+    // asked for inside the same gesture; the browser queues the two prompts
+    startGeo();
+    $('#motionBtn').textContent='Movement on'; $('#motionBtn').disabled=true;
+    setTimeout(()=>show('s-live'),450);
+  }catch(err){ $('#err').textContent=err.message; }
+});
+
+/* ---------------- heart rate (BLE GATT 0x180D) ---------------- */
+$('#hrBtn').addEventListener('click',async()=>{
+  if(!navigator.bluetooth){
+    $('#err').textContent="This browser can't reach Bluetooth — Chrome on Android or a laptop works, iPhone doesn't. Movement alone is enough.";
+    return;
+  }
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
+    const srv=await dev.gatt.connect();
+    const ch=await (await srv.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
+    await ch.startNotifications();
+    ch.addEventListener('characteristicvaluechanged',e=>{
+      const v=e.target.value, flags=v.getUint8(0);
+      myHr=(flags&1)?v.getUint16(1,true):v.getUint8(1);   // bit 0 selects 8- vs 16-bit
+      socket.emit('hr',{bpm:myHr});
+    });
+    $('#hrBtn').textContent='Heart monitor connected'; $('#err').textContent='';
+  }catch(err){ $('#err').textContent='Could not connect: '+err.message; }
+});
+
+/* ---------------- mini map ---------------- */
+const mini=$('#mini'), mx=mini.getContext('2d');
+let MW=0,MH=0;
+function fitMini(){
+  if(!venue) return;
+  const w=mini.parentElement.clientWidth-24, h=w/venue.aspect, dpr=devicePixelRatio||1;
+  mini.style.width=w+'px'; mini.style.height=h+'px';
+  mini.width=w*dpr; mini.height=h*dpr; mx.setTransform(dpr,0,0,dpr,0,0);
+  MW=w; MH=h;
+}
+addEventListener('resize',fitMini);
+const smooth=new Map();
+
+function loop(){
+  requestAnimationFrame(loop);
+  tone=lerp(tone,AU.centroid||0.2,0.03);
+  beatFlash=Math.max(0,beatFlash-0.045);
+  const a=accentNow(), a2=accent2Now(), g=ramp(GROUND,tone), st=document.documentElement.style;
+  st.setProperty('--accent',rgb(a)); st.setProperty('--accent2',rgb(a2));
+  st.setProperty('--ground',rgb(g));
+  st.setProperty('--glass',`rgba(${g[0]+5},${g[1]+6},${g[2]+12},.82)`);
+
+  drawSpectrum(a,a2);
+  if(!venue||!MW||!state) return;
+
+  const t=performance.now()/1000, pulse=beatFlash;
+  mx.clearRect(0,0,MW,MH);
+  const px=(nx,ny)=>[nx*MW,ny*MH];
+
+  mx.beginPath();
+  venue.outline.forEach((p,i)=>{const q=px(p[0],p[1]); i?mx.lineTo(q[0],q[1]):mx.moveTo(q[0],q[1])});
+  mx.closePath(); mx.fillStyle=rgba(a,.055); mx.fill();
+  mx.strokeStyle=rgba(a,.32+pulse*.4); mx.lineWidth=1+pulse*.8; mx.stroke();
+
+  venue.containers.forEach(b=>{
+    const cw=b.w/b.cols, ch=b.h/b.rows;
+    for(let c=0;c<b.cols;c++)for(let r=0;r<b.rows;r++){
+      const q=px(b.x+c*cw,b.y+r*ch);
+      mx.strokeStyle='rgba(240,239,247,.11)'; mx.lineWidth=1;
+      mx.strokeRect(q[0]+.5,q[1]+.5,cw*MW-1.5,ch*MH-1.5);
+    }
+  });
+
+  venue.zones.forEach(z=>{
+    const q=px(z.x,z.y), w=z.w*MW, h=z.h*MH;
+    const info=(state.zones||{})[z.id]||{n:0};
+    const load=clamp(info.n/(z.cap||40),0,1);
+    const mine=z.id===myZone;
+    mx.fillStyle = z.kind==='event' ? rgba(a,.13) : 'rgba(240,239,247,.035)';
+    mx.fillRect(q[0],q[1],w,h);
+    if(load) { mx.fillStyle=rgba(a,.06+load*.30+pulse*load*.12); mx.fillRect(q[0],q[1],w,h); }
+    mx.strokeStyle = mine ? rgba(a2,.95) : (z.kind==='event'?rgba(a,.6):'rgba(240,239,247,.20)');
+    mx.lineWidth = mine ? 1.6 : 1;
+    mx.strokeRect(q[0]+.5,q[1]+.5,w,h);
+  });
+
+  state.people.forEach(p=>{
+    let pos=smooth.get(p.id);
+    if(!pos){ pos={x:p.anchor.x,y:p.anchor.y}; smooth.set(p.id,pos); }
+    const wob=0.0022+p.energy*0.009;
+    pos.x=lerp(pos.x,p.anchor.x+Math.sin(t*(0.32+p.seed*0.5)+p.seed*9)*wob,0.045);
+    pos.y=lerp(pos.y,p.anchor.y+Math.cos(t*(0.27+p.seed*0.6)+p.seed*5)*wob*venue.aspect,0.045);
+    const q=px(pos.x,pos.y);
+    const me=p.id===myId;
+    if(p.hr){
+      const per=60/p.hr, ph=(t%per)/per, e=Math.pow(1-ph,2.6);
+      mx.beginPath(); mx.arc(q[0],q[1],2+(1-e)*8,0,7);
+      mx.strokeStyle=rgba(me?a2:a,e*.8); mx.lineWidth=1; mx.stroke();
+    }
+    mx.beginPath(); mx.arc(q[0],q[1],me?3.2:1.9,0,7);
+    mx.fillStyle=me?rgb(a2):(p.hr?rgb(a):'rgba(240,239,247,.5)'); mx.fill();
+  });
+  const ids=new Set(state.people.map(p=>p.id));
+  for(const k of smooth.keys()) if(!ids.has(k)) smooth.delete(k);
+}
+requestAnimationFrame(loop);
+
+const sp=$('#spectrum'), spx=sp.getContext('2d');
+function drawSpectrum(a,a2){
+  const dpr=devicePixelRatio||1, w=sp.clientWidth||320, h=32;
+  if(sp.width!==Math.round(w*dpr)){ sp.width=w*dpr; sp.height=h*dpr; }
+  spx.setTransform(dpr,0,0,dpr,0,0); spx.clearRect(0,0,w,h);
+  const bars=(AU.spectrum||[]).length||48, bw=w/bars;
+  for(let i=0;i<bars;i++){
+    const v=((AU.spectrum||[])[i]||0)/255;
+    const bh=Math.max(1.5,Math.pow(v,1.25)*h);
+    spx.fillStyle=rgba(ramp([a,a2],i/bars),.32+v*.68);
+    spx.fillRect(i*bw+.5,h-bh,Math.max(1,bw-1.5),bh);
+  }
+}
+
+/* ---------------- state ---------------- */
+let myZone=zone;
+socket.on('venue',v=>{ venue=v; fitMini(); });
+socket.on('state',s=>{
+  state=s;
+  if(!venue) return;
+  const me=s.people.find(p=>p.id===myId);
+  if(me){ myZone=me.zone; myHrBase=me.hrBaseline; }
+  const z=venue.zones.find(z=>z.id===myZone);
+  const zi=(s.zones||{})[myZone]||{n:0};
+
+  $('#mapCount').textContent=s.crowd.count+' here';
+  $('#myEnergy').textContent=myEnergy.toFixed(2);
+  const rank=s.people.filter(p=>p.energy>myEnergy).length+1;
+  $('#myRank').textContent=me?`#${rank} of ${s.crowd.count}`:'not checked in';
+  $('#myHr').textContent=myHr?Math.round(myHr):'—';
+  $('#myHrD').textContent=myHr?(myHrBase?`+${Math.round((myHr/myHrBase-1)*100)}% over resting`:'finding your baseline'):'no sensor';
+  $('#roomEnergy').textContent=s.crowd.energy.toFixed(2);
+  $('#roomTrend').textContent=s.crowd.trend>0.02?'rising':s.crowd.trend<-0.02?'cooling':'steady';
+  $('#roomSync').textContent=s.crowd.sync.toFixed(2);
+  $('#zoneName').textContent=z?z.label:'—';
+  $('#zoneCount').textContent=`${zi.n} of ${z?z.cap:'—'} capacity`;
+
+  $('#mySteps').textContent=steps.toLocaleString();
+  $('#myDist').textContent=distance<1000?`${Math.round(distance)} m`:`${(distance/1000).toFixed(2)} km`;
+
+  // gpsNote comes from the server: 'weak' = fix too vague to trust,
+  // 'offsite' = it mapped outside the venue, so venue.geo needs calibrating
+  if(!myFix) { $('#myFix').textContent='—'; $('#myFixD').textContent='not started'; }
+  else if(myFix.err){ $('#myFix').textContent='Off'; $('#myFixD').textContent=myFix.err; }
+  else {
+    const note=me&&me.gpsNote;
+    $('#myFix').textContent=note==='offsite'?'Off site':note==='weak'?'Weak':'Located';
+    $('#myFixD').textContent=note==='offsite'?'venue not calibrated'
+      :`±${Math.round(myFix.accuracy)} m accuracy`;
+  }
+});
+</script>
+</body>
+</html>
