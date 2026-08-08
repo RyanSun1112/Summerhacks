@@ -290,7 +290,7 @@
 
       <div class="vsec">
         <span class="lab">2 · Where is it?</span>
-        <div class="vhint" style="margin:0">Two opposite corners of the site. Right-click the spot in Google Maps and paste, or stand there and capture.</div>
+        <div class="vhint" id="geoStatus" style="margin:0">Right-click the spot in Google Maps and paste, or stand there and capture.</div>
         <div id="pinList"></div>
         <div class="vprob" id="calProb"></div>
       </div>
@@ -1204,19 +1204,12 @@ async function runDetect(){
     if(b.name&&!$('#edName').value){ $('#edName').value=b.name; ed.name=b.name; }
 
     // Size and rotation can be read off the drawing; absolute position can't,
-    // unless an address was printed on it. Take whatever it managed and say
-    // plainly which parts are guesses — a wrong anchor is worse than none.
-    let note='';
-    if(b.geo&&b.geo.usable){
-      ed.geo={...b.geo};
-      note=`<span style="color:var(--ok)">Read from the plan:</span> ${esc(b.geo.from.join('; '))}.`
-         + (b.geo.origin.lat ? ` <b>Check the two pins below</b> — an address only locates the site to within tens of metres, which is wider than a zone.`
-                             : ` Position still needs the two pins below.`);
-    } else {
-      note='Nothing on the plan fixed it to the real world — set the two pins below.';
-    }
-    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`,note);
-    pinsFromGeo(); renderPins();
+    // unless an address was printed on it. Report that in section 2 rather
+    // than with the zone count — it's the answer to "where is it", and burying
+    // it under the floor plan meant nobody saw it.
+    if(b.geo&&b.geo.usable) ed.geo={...b.geo};
+    applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
+    pinsFromGeo(); renderPins(); showGeoStatus(b.geo);
   }catch(e){
     // never leave the user stuck: fall back to the local reader and say why
     runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
@@ -1556,6 +1549,30 @@ function capturePin(i,btn){
 // coordinates to correct instead of empty boxes. Deliberately does NOT call
 // solveGeo — that would stamp calibrated:true on the model's guess. The flag
 // flips only when you edit a pin yourself.
+// What the drawing gave us, and what it therefore still needs. Size and
+// rotation come off a scale bar and a north arrow; position only comes off a
+// printed address. Saying which is which is the difference between "nothing
+// happened" and "it did its half".
+function showGeoStatus(g){
+  const el=$('#geoStatus');
+  if(!g||!g.usable){
+    el.innerHTML='Nothing on the plan located it. Paste both corners from Google Maps, or stand there and capture.';
+    return;
+  }
+  const bits=[`<span class="vok">Read from the plan:</span> ${esc(g.from.join('; '))}.`];
+  if(g.origin&&g.origin.lat){
+    bits.push(`Pins are pre-filled — <b>check them</b>. An address locates the site to within tens of metres, which is wider than a zone.`);
+  } else if(g.spanX){
+    // one coordinate is enough once size and rotation are known
+    bits.push(`Size is known, so <b>one corner is enough</b> — fill in either pin and it will solve.`);
+  }
+  el.innerHTML=bits.join('<br>');
+}
+
+// Project the estimated anchor back out to the two pins, so they show real
+// coordinates to correct instead of empty boxes. Deliberately does NOT call
+// solveGeo — that would stamp calibrated:true on the model's guess. The flag
+// flips only when you edit a pin yourself.
 function pinsFromGeo(){
   const g=ed.geo;
   if(!g||!g.origin||!g.origin.lat) return;
@@ -1569,9 +1586,30 @@ function pinsFromGeo(){
   });
 }
 
+// Two coordinates determine everything. But if the model already read the
+// scale bar, size and rotation are known and ONE coordinate is enough to pin
+// the rest down — which halves the manual work on any plan carrying a scale.
+function solveFromOnePin(){
+  const p=edPins.find(p=>p&&p.lat!=null);
+  const g=ed.geo;
+  if(!p||!g||!g.estimated||!(g.spanX>0)) return false;
+  const b=g.bearing*Math.PI/180;
+  const px=p.x*g.spanX, py=p.y*g.spanY;
+  ed.geo={calibrated:true,
+    origin:{lat:+(p.lat-(px*Math.cos(b)-py*Math.sin(b))/M_DEG).toFixed(7),
+            lon:+(p.lon-(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(p.lat)))).toFixed(7)},
+    spanX:g.spanX,spanY:g.spanY,bearing:g.bearing};
+  $('#calProb').innerHTML=`<span class="vok">Placed from one corner</span> using the size and rotation read off the plan `
+    +`(${g.spanX} × ${g.spanY} m, bearing ${g.bearing}°). Fill in the other pin to solve it from scratch instead.`;
+  return true;
+}
+
 function solveGeo(){
   const [A,B]=edPins;
-  if(!A||!B||A.lat==null||B.lat==null){ $('#calProb').textContent=''; return; }
+  if(!A||!B||A.lat==null||B.lat==null){
+    if(solveFromOnePin()) return;
+    $('#calProb').textContent=''; return;
+  }
   const dE=(B.lon-A.lon)*M_DEG*Math.cos(rd(A.lat)), dN=(B.lat-A.lat)*M_DEG;
   const u=B.x-A.x, v=(B.y-A.y)/ed.aspect;
   const R=Math.hypot(u,v), D=Math.hypot(dE,dN);
