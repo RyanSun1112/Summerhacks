@@ -39,8 +39,11 @@ Environment variables, all optional:
 | `FAKE` | on | `FAKE=0` disables the simulated crowd |
 | `FAKE_N` | `58` | How many simulated attendees |
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
-| `GEMINI_API_KEY` | — | Enables AI plan reading in the venue editor. Free key from [AI Studio](https://aistudio.google.com/apikey) |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | Which model reads the plan |
+| `OPENAI_API_KEY` | — | Enables AI plan reading in the venue editor |
+| `GEMINI_API_KEY` | — | Same, using Gemini instead. Free key from [AI Studio](https://aistudio.google.com/apikey) |
+| `AI_PROVIDER` | auto | `openai` or `gemini`. Only needed if both keys are set |
+| `OPENAI_MODEL` | `gpt-4o` | Vision model that reads the plan |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Vision model that reads the plan |
 | `VENUE` | first found | Which venue to start live |
 
 ```bash
@@ -147,22 +150,32 @@ it picks up room names printed on the drawing, understands that a rectangle labe
 food area, and copes with site maps and photographs that defeat pure image processing. **Local** is
 the built-in geometric reader described below, needs no key, no network, and no quota.
 
-To turn AI on, get a free key at **https://aistudio.google.com/apikey** and start the server with it:
+Either **OpenAI** or **Gemini** works. Set whichever key you have and start the server:
 
-```bash
-GEMINI_API_KEY=your-key-here node server.js
-```
 ```powershell
-$env:GEMINI_API_KEY="your-key-here"; node server.js
+$env:OPENAI_API_KEY="sk-..."; node server.js          # OpenAI
+$env:GEMINI_API_KEY="..."; node server.js             # Gemini
+```
+```bash
+OPENAI_API_KEY=sk-... node server.js
+GEMINI_API_KEY=...    node server.js
 ```
 
-Without a key the AI option is disabled in the dropdown and the local reader is selected — nothing
-breaks, you just get the weaker reader. `GEMINI_MODEL` overrides the model (default
-`gemini-2.0-flash`, which has a free tier).
+Keys: OpenAI at [platform.openai.com/api-keys](https://platform.openai.com/api-keys), Gemini free at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+
+Whichever key is present is used. With both set, `AI_PROVIDER=openai|gemini` decides. Defaults are
+`gpt-4o` and `gemini-2.0-flash`; override with `OPENAI_MODEL` / `GEMINI_MODEL`. The model must be
+vision-capable — a text-only model will fail with a clear error rather than silently misbehaving.
+
+Without a key the AI option disables itself in the dropdown and the local reader is selected. Nothing
+breaks; you just get the weaker reader.
 
 **The key never reaches the browser.** The dashboard is served over a public tunnel, so a key in
-client-side JS would be handed to anyone who opened the page. The browser posts the image to
-`POST /detect`, the server calls Gemini, and only the resulting zones come back.
+client-side JS would be handed to anyone who opened the page — and OpenAI keys are billable. The
+browser posts the image to `POST /detect`, the server calls the model, and only the resulting zones
+come back. OpenAI is called with a `Bearer` header, and both providers are asked for structured JSON
+(`strict: true` on OpenAI) rather than free text that needs parsing out of prose.
 
 The image is downscaled to 1152px before upload — a phone photo of a plan is several megabytes, and
 that's latency and tokens spent on detail the model doesn't need.

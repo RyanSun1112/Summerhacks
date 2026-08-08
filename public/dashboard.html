@@ -1092,13 +1092,15 @@ function detectZones(img,sens){
   return {zones,outline};
 }
 
-let aiInfo={available:false,model:null};
+let aiInfo={available:false,provider:null,model:null};
 fetch('/ai').then(r=>r.json()).then(a=>{
   aiInfo=a;
-  if(!a.available){
+  const opt=$('#detMode').querySelector('option[value="ai"]');
+  if(a.available){ opt.textContent=`AI — ${a.model} reads the plan`; }
+  else{
+    opt.textContent='AI — needs OPENAI_API_KEY or GEMINI_API_KEY';
+    opt.disabled=true;
     $('#detMode').value='local';
-    $('#detMode').querySelector('option[value="ai"]').textContent='AI — needs GEMINI_API_KEY';
-    $('#detMode').querySelector('option[value="ai"]').disabled=true;
     $('#detLocalTune').style.display='block';
   }
 }).catch(()=>{});

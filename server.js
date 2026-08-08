@@ -176,10 +176,22 @@ app.put('/venues/:id/plan', (req, res) => {
 // ------------------------------------------------------------ AI detection
 // The key stays on the server. The dashboard is served over a public tunnel,
 // so a key in client JS would be handed to anyone who opens the page.
-const AI_KEY   = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
+const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+
+// Whichever key is present wins; set AI_PROVIDER explicitly if you have both.
+const AI_PROVIDER = (process.env.AI_PROVIDER || '').toLowerCase()
+  || (OPENAI_KEY ? 'openai' : GEMINI_KEY ? 'gemini' : '');
+const AI_KEY   = AI_PROVIDER === 'openai' ? OPENAI_KEY : GEMINI_KEY;
+const AI_MODEL = AI_PROVIDER === 'openai'
+  ? (process.env.OPENAI_MODEL || 'gpt-4o')
+  : (process.env.GEMINI_MODEL || 'gemini-2.0-flash');
+
 // overridable so the request/parse/repair path can be exercised against a stub
-const AI_BASE  = process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta';
+const OPENAI_BASE = process.env.OPENAI_BASE || 'https://api.openai.com/v1';
+const GEMINI_BASE = process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta';
+
+const KINDS = ['event', 'social', 'food', 'market', 'outdoor', 'transit'];
 
 const AI_PROMPT = `You are reading a venue floor plan or site map. Identify the distinct areas a crowd can occupy: rooms, halls, studios, courtyards, stages, food areas, lobbies, entrances.
 
@@ -205,7 +217,8 @@ Rules:
 "outline" is the venue footprint: 3 to 40 points tracing its edge in order.
 "name" is the venue's name if the plan states one, otherwise an empty string.`;
 
-const AI_SCHEMA = {
+// Gemini wants uppercase type names and ignores additionalProperties
+const GEMINI_SCHEMA = {
   type: 'OBJECT',
   properties: {
     name: { type: 'STRING' },
@@ -220,7 +233,64 @@ const AI_SCHEMA = {
   required: ['zones', 'outline']
 };
 
-const KINDS = ['event', 'social', 'food', 'market', 'outdoor', 'transit'];
+// OpenAI structured outputs are strict: every object needs additionalProperties
+// false and every property listed in required, or the request is rejected.
+const OPENAI_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['name', 'outline', 'zones'],
+  properties: {
+    name: { type: 'string' },
+    outline: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['x', 'y'], properties: { x: { type: 'number' }, y: { type: 'number' } } } },
+    zones: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['label', 'short', 'kind', 'x', 'y', 'w', 'h', 'cap'],
+      properties: {
+        label: { type: 'string' }, short: { type: 'string' },
+        kind: { type: 'string', enum: KINDS },
+        x: { type: 'number' }, y: { type: 'number' },
+        w: { type: 'number' }, h: { type: 'number' }, cap: { type: 'integer' }
+      } } }
+  }
+};
+
+// Each returns the model's raw JSON text, or throws with something readable.
+async function askGemini(mime, b64, signal) {
+  const r = await fetch(`${GEMINI_BASE}/models/${AI_MODEL}:generateContent?key=${AI_KEY}`, {
+    method: 'POST', signal, headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: mime, data: b64 } }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_SCHEMA, temperature: 0.1 }
+    })
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error((body.error && body.error.message) || `HTTP ${r.status}`);
+  const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('the model returned nothing usable');
+  return text;
+}
+
+async function askOpenAI(mime, b64, signal) {
+  const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: 'POST', signal,
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${AI_KEY}` },
+    body: JSON.stringify({
+      model: AI_MODEL, temperature: 0.1,
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: AI_PROMPT },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}`, detail: 'high' } }
+      ] }],
+      response_format: { type: 'json_schema',
+        json_schema: { name: 'venue_layout', strict: true, schema: OPENAI_SCHEMA } }
+    })
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error((body.error && body.error.message) || `HTTP ${r.status}`);
+  const choice = body.choices?.[0];
+  if (choice?.finish_reason === 'length') throw new Error('the model ran out of output tokens');
+  const text = choice?.message?.content;
+  if (!text) throw new Error('the model returned nothing usable');
+  return text;
+}
 
 // A vision model returns plausible boxes, not valid geometry. Clamp them into
 // range, drop the degenerate ones, trim overlaps and pull strays inside the
@@ -271,33 +341,26 @@ function repairGeometry(zones, outline) {
   return out;
 }
 
-app.get('/ai', (_, res) => res.json({ available: !!AI_KEY, model: AI_KEY ? AI_MODEL : null }));
+app.get('/ai', (_, res) => res.json({
+  available: !!AI_KEY, provider: AI_KEY ? AI_PROVIDER : null, model: AI_KEY ? AI_MODEL : null
+}));
 
 app.post('/detect', async (req, res) => {
-  if (!AI_KEY) return res.status(503).json({ error: 'no GEMINI_API_KEY set on the server' });
+  if (!AI_KEY) return res.status(503).json({ error: 'no OPENAI_API_KEY or GEMINI_API_KEY set on the server' });
   const m = String((req.body && req.body.image) || '').match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
   if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
 
-  const url = `${AI_BASE}/models/${AI_MODEL}:generateContent?key=${AI_KEY}`;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 45000);
+  const timer = setTimeout(() => ctrl.abort(), 60000);
   try {
-    const r = await fetch(url, {
-      method: 'POST', signal: ctrl.signal,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: 'image/' + m[1], data: m[2] } }] }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: AI_SCHEMA, temperature: 0.1 }
-      })
-    });
-    const body = await r.json();
-    if (!r.ok) {
-      const msg = (body.error && body.error.message) || `HTTP ${r.status}`;
-      console.warn('[ai] Gemini rejected the request:', msg);
-      return res.status(502).json({ error: msg });
+    const ask = AI_PROVIDER === 'openai' ? askOpenAI : askGemini;
+    let text;
+    try { text = await ask('image/' + m[1], m[2], ctrl.signal); }
+    catch (e) {
+      if (e.name === 'AbortError') throw e;
+      console.warn(`[ai] ${AI_PROVIDER} rejected the request:`, e.message);
+      return res.status(502).json({ error: e.message });
     }
-    const text = (((body.candidates || [])[0] || {}).content || {}).parts?.[0]?.text;
-    if (!text) return res.status(502).json({ error: 'the model returned nothing usable' });
 
     let parsed;
     try { parsed = JSON.parse(text); }
@@ -310,7 +373,8 @@ app.post('/detect', async (req, res) => {
     const zones = repairGeometry(parsed.zones || [], outline);
     if (!zones.length) return res.status(422).json({ error: 'the model found no usable zones in that image' });
 
-    res.json({ source: 'ai', model: AI_MODEL, name: String(parsed.name || '').slice(0, 40),
+    res.json({ source: 'ai', provider: AI_PROVIDER, model: AI_MODEL,
+               name: String(parsed.name || '').slice(0, 40),
                outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones });
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'the model took too long to answer' : e.message;
