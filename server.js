@@ -744,6 +744,20 @@ setActive(process.env.VENUE && venues.has(process.env.VENUE) ? process.env.VENUE
                                                             : [...venues.keys()][0]);
 rebuildCrowd();
 
+// A port clash otherwise surfaces as an unhandled 'error' event and ten lines
+// of stack, which reads like the app is broken rather than "something else is
+// already there" — and the old server keeps answering, so /ai and the dashboard
+// look fine while your new settings never loaded.
+server.on('error', e => {
+  if (e.code !== 'EADDRINUSE') throw e;
+  console.error(`\n  Port ${PORT} is already in use — an older copy is probably still running.`);
+  console.error(`  Anything you check on that port is being answered by THAT server, not this one.\n`);
+  console.error(`  Find it:  netstat -ano | findstr :${PORT}`);
+  console.error(`  Stop it:  taskkill /PID <pid> /F`);
+  console.error(`  Or just:  set PORT=3001 && node server.js\n`);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
