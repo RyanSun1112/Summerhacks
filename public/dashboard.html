@@ -376,7 +376,7 @@ const smooth=new Map();
 /* ---- venue-owner auth (Supabase session shared with /owner.html) ----
    Public map/metrics stay open. Only venue create/update/plan writes
    send the Bearer token. Attendees never touch this. */
-let ownerSb=null, ownerToken=null, ownerAuthReady=null;
+let ownerSb=null, ownerToken=null, ownerAuthReady=null, ownerAuthOn=false;
 function ownerHeaders(extra){
   const h=Object.assign({},extra||{});
   if(ownerToken) h.Authorization='Bearer '+ownerToken;
@@ -385,7 +385,9 @@ function ownerHeaders(extra){
 ownerAuthReady=(async()=>{
   try{
     const cfg=await fetch('/auth/config').then(r=>r.json());
-    if(!cfg.url||!cfg.anonKey){ console.log('[owner-auth] server auth off'); return false; }
+    if(!cfg.url||!cfg.anonKey){ console.log('[owner-auth] server auth off — venue writes are open'); return false; }
+    if(typeof supabase==='undefined'){ console.warn('[owner-auth] supabase lib blocked'); return false; }
+    ownerAuthOn=true;
     ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
     const {data:{session}}=await ownerSb.auth.getSession();
     ownerToken=session?session.access_token:null;
@@ -398,6 +400,9 @@ ownerAuthReady=(async()=>{
 async function requireOwnerSession(action){
   await ownerAuthReady;
   if(ownerToken) return true;
+  // Server auth off => the write routes are open, so don't send anyone to a
+  // sign-in page that has no account system behind it.
+  if(!ownerAuthOn) return true;
   if(confirm((action||'Editing venues')+' needs a venue-owner login.\n\nOpen the owner page now?'))
     location.href='/owner.html';
   return false;

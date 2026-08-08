@@ -58,6 +58,8 @@
   .primary:hover{filter:brightness(1.08)}
   .ghost{background:none;border:1px solid var(--rule);color:var(--muted);flex:1}
   .ghost:hover{color:var(--ink);border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+  button:disabled:hover{filter:none;color:var(--muted);border-color:var(--rule)}
   .msg{margin-top:14px;font-family:var(--mono);font-size:11.5px;line-height:1.4;min-height:1.2em}
   .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
   .hidden{display:none!important}
@@ -99,6 +101,7 @@
       <button class="ghost" id="btnSignup" type="button">Sign up</button>
     </div>
     <div class="msg" id="authMsg"></div>
+    <div class="msg" id="authHint"></div>
   </section>
 
   <!-- Dashboard -->
@@ -119,10 +122,58 @@
 const $ = s => document.querySelector(s);
 let sb = null;
 let accessToken = null;
+let busy = false;
+
+// A paused Supabase project (free tier sleeps) or a wrong URL makes the client
+// hang with no rejection, so the button sits on "Signing in…" forever with an
+// empty console. Every call gets a deadline instead.
+const AUTH_TIMEOUT_MS = 15000;
+function withTimeout(promise, what) {
+  let t;
+  return Promise.race([
+    promise.finally(() => clearTimeout(t)),
+    new Promise((_, rej) => { t = setTimeout(() =>
+      rej(new Error(what + ' timed out after ' + (AUTH_TIMEOUT_MS / 1000) + 's. The Supabase project may be paused — open your project dashboard to wake it.')),
+      AUTH_TIMEOUT_MS); })
+  ]);
+}
 
 function setMsg(el, text, kind) {
   el.textContent = text || '';
   el.className = 'msg' + (kind ? ' ' + kind : '');
+}
+
+// Both auth buttons share this: nothing runs before init() succeeds, nothing
+// runs twice, and every failure lands on screen rather than in a dead promise.
+function guard(what, fn) {
+  return async () => {
+    if (busy) return;
+    if (!sb) {
+      setMsg($('#authMsg'), 'Owner accounts are off on this server — there is nothing to sign in to yet.', 'err');
+      return;
+    }
+    busy = true;
+    $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+    setMsg($('#authMsg'), what + '…');
+    try {
+      await fn();
+    } catch (e) {
+      console.warn('[owner] ' + what, e);
+      let m = e.message || (what + ' failed');
+      if (/failed to fetch|networkerror|load failed/i.test(m))
+        m = 'Could not reach Supabase. Check SUPABASE_URL in .env and that the project is awake.';
+      setMsg($('#authMsg'), m, 'err');
+    } finally {
+      busy = false;
+      $('#btnLogin').disabled = $('#btnSignup').disabled = false;
+    }
+  };
+}
+
+function authOff(reason, hint) {
+  $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+  setMsg($('#authMsg'), reason, 'err');
+  setMsg($('#authHint'), hint || '');
 }
 
 async function authHeaders() {
@@ -132,21 +183,29 @@ async function authHeaders() {
 }
 
 async function init() {
-  const cfgRes = await fetch('/auth/config');
-  const cfg = await cfgRes.json().catch(() => ({}));
-  if (!cfgRes.ok || !cfg.url) {
-    setMsg($('#authMsg'),
-      cfg.error === 'auth not configured'
-        ? 'Server auth is off. Add SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY to .env and restart.'
-        : (cfg.error || 'Could not load auth config.'),
-      'err');
+  if (typeof supabase === 'undefined') {
+    authOff('The Supabase library did not load (CDN blocked or offline).',
+            'Venue editing still works without an account — go to the dashboard.');
     return;
   }
+  const cfgRes = await fetch('/auth/config').catch(() => null);
+  const cfg = cfgRes ? await cfgRes.json().catch(() => ({})) : {};
+  if (!cfgRes || !cfgRes.ok || !cfg.url) {
+    authOff(
+      !cfgRes ? 'Could not reach the server.'
+        : cfg.error === 'auth not configured' || cfgRes.status === 503
+          ? 'Owner accounts are off on this server — no Supabase keys are set, so there is no account to create.'
+          : (cfg.error || 'Could not load auth config.'),
+      'This is optional. Venue create/edit/delete are open to everyone right now, so you can use the dashboard as-is. To turn accounts on, put SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in .env and restart.');
+    return;
+  }
+  setMsg($('#authHint'), '');
   sb = supabase.createClient(cfg.url, cfg.anonKey);
   sb.auth.onAuthStateChange((_event, session) => {
     accessToken = session ? session.access_token : null;
   });
-  const { data: { session } } = await sb.auth.getSession();
+  // getSession refreshes an expired token over the network, so it can stall too.
+  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Restoring session');
   accessToken = session ? session.access_token : null;
   if (session) showDash(session);
 }
@@ -165,7 +224,9 @@ function showAuth() {
 }
 
 async function loadMyVenues() {
-  const res = await fetch('/api/me/venues', { headers: await authHeaders() });
+  const res = await fetch('/api/me/venues', { headers: await authHeaders() })
+    .catch(e => { setMsg($('#dashMsg'), 'Could not reach the server: ' + e.message, 'err'); return null; });
+  if (!res) return;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     setMsg($('#dashMsg'), body.error || 'Failed to load venues', 'err');
@@ -217,36 +278,26 @@ function esc(s) {
   })[c]);
 }
 
-$('#btnLogin').addEventListener('click', async () => {
-  setMsg($('#authMsg'), 'Signing in…');
+$('#btnLogin').addEventListener('click', guard('Signing in', async () => {
   const email = $('#email').value.trim();
   const password = $('#password').value;
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    console.warn('[owner] login fail', error.message);
-    setMsg($('#authMsg'), error.message, 'err');
-    return;
-  }
+  if (!email || !password) throw new Error('Enter an email and password.');
+  const { data, error } = await withTimeout(
+    sb.auth.signInWithPassword({ email, password }), 'Sign in');
+  if (error) throw new Error(error.message);
   console.log('[owner] login ok', data.user && data.user.id);
   accessToken = data.session.access_token;
   setMsg($('#authMsg'), 'Signed in.', 'ok');
   showDash(data.session);
-});
+}));
 
-$('#btnSignup').addEventListener('click', async () => {
-  setMsg($('#authMsg'), 'Creating account…');
+$('#btnSignup').addEventListener('click', guard('Creating account', async () => {
   const email = $('#email').value.trim();
   const password = $('#password').value;
-  if (password.length < 6) {
-    setMsg($('#authMsg'), 'Password must be at least 6 characters.', 'err');
-    return;
-  }
-  const { data, error } = await sb.auth.signUp({ email, password });
-  if (error) {
-    console.warn('[owner] signup fail', error.message);
-    setMsg($('#authMsg'), error.message, 'err');
-    return;
-  }
+  if (!email) throw new Error('Enter an email address.');
+  if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+  const { data, error } = await withTimeout(sb.auth.signUp({ email, password }), 'Sign up');
+  if (error) throw new Error(error.message);
   // With "Confirm email" off, session is present immediately.
   if (data.session) {
     console.log('[owner] signup ok', data.user && data.user.id);
@@ -258,10 +309,11 @@ $('#btnSignup').addEventListener('click', async () => {
       'Account created — check email to confirm, or disable Confirm email in Supabase Auth settings.',
       'ok');
   }
-});
+}));
 
 $('#btnLogout').addEventListener('click', async () => {
-  await sb.auth.signOut();
+  try { await withTimeout(sb.auth.signOut(), 'Sign out'); }
+  catch (e) { console.warn('[owner] signout', e); }   // local state clears regardless
   accessToken = null;
   showAuth();
   setMsg($('#authMsg'), 'Signed out.', 'ok');
@@ -273,7 +325,7 @@ $('#btnNew').addEventListener('click', () => {
 
 init().catch(e => {
   console.error('[owner] init', e);
-  setMsg($('#authMsg'), e.message || 'Init failed', 'err');
+  authOff(e.message || 'Init failed', 'Venue editing still works without an account — go to the dashboard.');
 });
 </script>
 </body>
