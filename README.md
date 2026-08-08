@@ -39,6 +39,9 @@ Environment variables, all optional:
 | `FAKE` | on | `FAKE=0` disables the simulated crowd |
 | `FAKE_N` | `58` | How many simulated attendees |
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
+| `GEMINI_API_KEY` | — | Enables AI plan reading in the venue editor. Free key from [AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Which model reads the plan |
+| `VENUE` | first found | Which venue to start live |
 
 ```bash
 FAKE=0 node server.js            # real check-ins only
@@ -137,7 +140,43 @@ change kind and capacity, **Trace outline** to click out a non-rectangular site,
 move a pin. `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where
 phones land when GPS can't place them.
 
-### How the automatic detection works
+### Letting AI read the plan
+
+There are two readers. **AI** sends the image to Gemini, which reads a plan the way a person does —
+it picks up room names printed on the drawing, understands that a rectangle labelled "Kitchen" is a
+food area, and copes with site maps and photographs that defeat pure image processing. **Local** is
+the built-in geometric reader described below, needs no key, no network, and no quota.
+
+To turn AI on, get a free key at **https://aistudio.google.com/apikey** and start the server with it:
+
+```bash
+GEMINI_API_KEY=your-key-here node server.js
+```
+```powershell
+$env:GEMINI_API_KEY="your-key-here"; node server.js
+```
+
+Without a key the AI option is disabled in the dropdown and the local reader is selected — nothing
+breaks, you just get the weaker reader. `GEMINI_MODEL` overrides the model (default
+`gemini-2.0-flash`, which has a free tier).
+
+**The key never reaches the browser.** The dashboard is served over a public tunnel, so a key in
+client-side JS would be handed to anyone who opened the page. The browser posts the image to
+`POST /detect`, the server calls Gemini, and only the resulting zones come back.
+
+The image is downscaled to 1152px before upload — a phone photo of a plan is several megabytes, and
+that's latency and tokens spent on detail the model doesn't need.
+
+**Model output is repaired, never trusted.** A vision model returns plausible rectangles, not valid
+geometry: boxes overlap, coordinates run past the edge, `kind` comes back as something that isn't in
+the vocabulary, two rooms share a name. Everything is clamped into range, degenerate boxes dropped,
+overlaps trimmed, strays pulled inside the outline, ids de-duplicated and kinds coerced — the same
+guarantees the local reader makes, so whichever reader ran, what reaches `validateVenue` is sound.
+
+If the call fails for any reason — no quota, bad key, timeout, malformed answer — the editor falls
+back to the local reader and tells you what went wrong rather than leaving you stuck.
+
+### How the local detection works
 
 Two strategies run over the image, because plans differ wildly:
 

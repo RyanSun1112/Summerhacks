@@ -173,6 +173,152 @@ app.put('/venues/:id/plan', (req, res) => {
   res.json({ ok: true, bytes: buf.length });
 });
 
+// ------------------------------------------------------------ AI detection
+// The key stays on the server. The dashboard is served over a public tunnel,
+// so a key in client JS would be handed to anyone who opens the page.
+const AI_KEY   = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+// overridable so the request/parse/repair path can be exercised against a stub
+const AI_BASE  = process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta';
+
+const AI_PROMPT = `You are reading a venue floor plan or site map. Identify the distinct areas a crowd can occupy: rooms, halls, studios, courtyards, stages, food areas, lobbies, entrances.
+
+Return normalized coordinates in 0..1, where (0,0) is the TOP-LEFT of the image and (1,1) the bottom-right. For each zone, x,y is the top-left corner of an axis-aligned rectangle and w,h its size.
+
+Rules:
+- Rectangles must NOT overlap each other.
+- Every rectangle must lie inside the venue outline you return.
+- Give the largest rectangle that fits INSIDE the area, not a box drawn around it.
+- Ignore legends, titles, north arrows, scale bars, dimension lines and blocks of text.
+- Return between 2 and 30 zones. If the plan is a single open space, return one zone.
+
+"kind" must be exactly one of: event, social, food, market, outdoor, transit.
+  event   - halls, rooms, stages, studios, anywhere sessions happen
+  social  - lounges, courtyards, seating areas
+  food    - kitchens, bars, cafeterias, food halls
+  market  - retail units, vendor stalls
+  outdoor - lawns, parks, yards
+  transit - entrances, lobbies, corridors, stairs, parking
+
+"cap" is a plausible standing capacity for the area.
+"label" is the name written on the plan if there is one, otherwise something descriptive.
+"outline" is the venue footprint: 3 to 40 points tracing its edge in order.
+"name" is the venue's name if the plan states one, otherwise an empty string.`;
+
+const AI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    name: { type: 'STRING' },
+    outline: { type: 'ARRAY', items: { type: 'OBJECT',
+      properties: { x: { type: 'NUMBER' }, y: { type: 'NUMBER' } }, required: ['x', 'y'] } },
+    zones: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      label: { type: 'STRING' }, short: { type: 'STRING' }, kind: { type: 'STRING' },
+      x: { type: 'NUMBER' }, y: { type: 'NUMBER' }, w: { type: 'NUMBER' }, h: { type: 'NUMBER' },
+      cap: { type: 'INTEGER' }
+    }, required: ['label', 'kind', 'x', 'y', 'w', 'h'] } }
+  },
+  required: ['zones', 'outline']
+};
+
+const KINDS = ['event', 'social', 'food', 'market', 'outdoor', 'transit'];
+
+// A vision model returns plausible boxes, not valid geometry. Clamp them into
+// range, drop the degenerate ones, trim overlaps and pull strays inside the
+// outline — the same guarantees the local detector makes, so whichever path
+// produced the zones, what reaches validateVenue is sound.
+function repairGeometry(zones, outline) {
+  const out = [];
+  const seen = new Set();
+  for (const z of zones) {
+    let x = clamp(+z.x || 0, 0, 1), y = clamp(+z.y || 0, 0, 1);
+    let w = clamp(+z.w || 0, 0, 1), h = clamp(+z.h || 0, 0, 1);
+    if (x + w > 1) w = 1 - x;
+    if (y + h > 1) h = 1 - y;
+    if (w < 0.014 || h < 0.014) continue;
+
+    let bad = false;
+    for (const a of out) {                       // trim along the cheaper axis
+      const ox = Math.min(x + w, a.x + a.w) - Math.max(x, a.x);
+      const oy = Math.min(y + h, a.y + a.h) - Math.max(y, a.y);
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox < oy) { if (x < a.x) w = a.x - x; else { const nx = a.x + a.w; w = x + w - nx; x = nx; } }
+      else         { if (y < a.y) h = a.y - y; else { const ny = a.y + a.h; h = y + h - ny; y = ny; } }
+      if (w < 0.014 || h < 0.014) { bad = true; break; }
+    }
+    if (bad) continue;
+
+    const fits = () => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+      .every(p => pointInPolygon(p[0], p[1], outline));
+    for (let k = 0; k < 8 && !fits(); k++) {
+      const cx = x + w / 2, cy = y + h / 2;
+      w *= 0.9; h *= 0.9; x = cx - w / 2; y = cy - h / 2;
+    }
+    if (!fits() || w < 0.014 || h < 0.014) continue;
+
+    let id = slug(z.label) || 'zone';
+    let n = 2; while (seen.has(id)) id = slug(z.label) + '-' + n++;
+    seen.add(id);
+
+    out.push({
+      id, label: String(z.label || id).slice(0, 30),
+      short: String(z.short || z.label || id).slice(0, 12).toUpperCase(),
+      kind: KINDS.includes(z.kind) ? z.kind : 'event',
+      x: +x.toFixed(4), y: +y.toFixed(4), w: +w.toFixed(4), h: +h.toFixed(4),
+      cap: clamp(parseInt(z.cap, 10) || Math.round(w * h * 1400), 4, 2000)
+    });
+    if (out.length >= 40) break;
+  }
+  return out;
+}
+
+app.get('/ai', (_, res) => res.json({ available: !!AI_KEY, model: AI_KEY ? AI_MODEL : null }));
+
+app.post('/detect', async (req, res) => {
+  if (!AI_KEY) return res.status(503).json({ error: 'no GEMINI_API_KEY set on the server' });
+  const m = String((req.body && req.body.image) || '').match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+
+  const url = `${AI_BASE}/models/${AI_MODEL}:generateContent?key=${AI_KEY}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45000);
+  try {
+    const r = await fetch(url, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: 'image/' + m[1], data: m[2] } }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: AI_SCHEMA, temperature: 0.1 }
+      })
+    });
+    const body = await r.json();
+    if (!r.ok) {
+      const msg = (body.error && body.error.message) || `HTTP ${r.status}`;
+      console.warn('[ai] Gemini rejected the request:', msg);
+      return res.status(502).json({ error: msg });
+    }
+    const text = (((body.candidates || [])[0] || {}).content || {}).parts?.[0]?.text;
+    if (!text) return res.status(502).json({ error: 'the model returned nothing usable' });
+
+    let parsed;
+    try { parsed = JSON.parse(text); }
+    catch { return res.status(502).json({ error: 'the model returned malformed JSON' }); }
+
+    let outline = (parsed.outline || [])
+      .map(p => [clamp(+p.x || 0, 0, 1), clamp(+p.y || 0, 0, 1)]);
+    if (outline.length < 3) outline = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+    const zones = repairGeometry(parsed.zones || [], outline);
+    if (!zones.length) return res.status(422).json({ error: 'the model found no usable zones in that image' });
+
+    res.json({ source: 'ai', model: AI_MODEL, name: String(parsed.name || '').slice(0, 40),
+               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones });
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'the model took too long to answer' : e.message;
+    console.warn('[ai] detect failed:', msg);
+    res.status(502).json({ error: msg });
+  } finally { clearTimeout(timer); }
+});
+
 // --------------------------------------------------------- crowd settings
 app.get('/crowd', (_, res) => res.json(crowdCfg));
 app.post('/crowd', (req, res) => {
