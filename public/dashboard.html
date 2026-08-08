@@ -209,6 +209,7 @@
     <div class="panel" id="venues">
       <div class="lab">Venue</div>
       <div id="venueList"></div>
+      <div id="gpsWarn" style="display:none;font-size:10.5px;line-height:1.45;color:var(--warn);margin-top:8px"></div>
       <button class="vbtn" id="newVenueBtn">+ New venue</button>
     </div>
   </div>
@@ -812,6 +813,16 @@ async function loadVenueList(){
   }).join('');
   $('#venueList').querySelectorAll('.vrow').forEach(r=>
     r.addEventListener('click',()=>previewVenue(r.dataset.id)));
+
+  // An uncalibrated venue silently rejects every GPS fix and pins everyone to
+  // their check-in zone. That looks identical to "nobody is moving", so say it
+  // out loud rather than leaving it to be discovered in the room.
+  const live=venueIndex.venues.find(v=>v.id===venueIndex.active);
+  const warn=$('#gpsWarn');
+  if(live&&!live.calibrated){
+    warn.style.display='block';
+    warn.innerHTML='⚠ GPS is off — this venue isn\'t calibrated, so phones stay in the zone they checked in with. Set it in the Venues tab.';
+  } else warn.style.display='none';
 }
 
 async function previewVenue(id){
@@ -1561,7 +1572,8 @@ function showGeoStatus(g){
   }
   const bits=[`<span class="vok">Read from the plan:</span> ${esc(g.from.join('; '))}.`];
   if(g.origin&&g.origin.lat){
-    bits.push(`Pins are pre-filled — <b>check them</b>. An address locates the site to within tens of metres, which is wider than a zone.`);
+    bits.push(`Pins are pre-filled — <b>check them</b>. An address locates the site to within tens of metres, which is wider than a zone.`
+              +geoCheckLink(g));
   } else if(g.spanX){
     // one coordinate is enough once size and rotation are known
     bits.push(`Size is known, so <b>one corner is enough</b> — fill in either pin and it will solve.`);
@@ -1600,8 +1612,23 @@ function solveFromOnePin(){
             lon:+(p.lon-(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(p.lat)))).toFixed(7)},
     spanX:g.spanX,spanY:g.spanY,bearing:g.bearing};
   $('#calProb').innerHTML=`<span class="vok">Placed from one corner</span> using the size and rotation read off the plan `
-    +`(${g.spanX} × ${g.spanY} m, bearing ${g.bearing}°). Fill in the other pin to solve it from scratch instead.`;
+    +`(${g.spanX} × ${g.spanY} m, bearing ${g.bearing}°). Fill in the other pin to solve it from scratch instead.`
+    +geoCheckLink(ed.geo);
   return true;
+}
+
+// The only honest way to check a calibration without walking the site: project
+// the centre of the map back to a real coordinate and look at it on a map. If
+// the pin lands on the building, the anchor is right. If it lands in a river,
+// the pins were swapped or the bearing is wrong.
+function geoCheckLink(g){
+  if(!g||!g.origin||!g.origin.lat) return '';
+  const b=g.bearing*Math.PI/180, px=0.5*g.spanX, py=0.5*g.spanY;
+  const lat=g.origin.lat+(px*Math.cos(b)-py*Math.sin(b))/M_DEG;
+  const lon=g.origin.lon+(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(g.origin.lat)));
+  return `<br><a href="https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lon.toFixed(6)}"
+     target="_blank" rel="noopener" style="color:var(--accent2)">Check it on Google Maps →</a>
+     <span style="color:var(--muted)">the pin should land on your venue</span>`;
 }
 
 function solveGeo(){
@@ -1623,7 +1650,8 @@ function solveGeo(){
   ed.geo={calibrated:true,origin:{lat:+lat0.toFixed(7),lon:+lon0.toFixed(7)},
           spanX:+spanX.toFixed(1),spanY:+(spanX/ed.aspect).toFixed(1),bearing:+bearing.toFixed(2)};
   $('#calProb').innerHTML=`<span class="vok">Solved: ${ed.geo.spanX} × ${ed.geo.spanY} m, bearing ${ed.geo.bearing}°</span>`
-    +((spanX<15||spanX>2000)?'<br>That site size looks wrong — check the pins.':'');
+    +((spanX<15||spanX>2000)?'<br>That site size looks wrong — check the pins.':'')
+    +geoCheckLink(ed.geo);
 }
 
 /* ---- save ---- */
