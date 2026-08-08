@@ -172,10 +172,28 @@ built.
    step.
 4. **Save**, or **Save & make active** to move the live event onto it.
 
-Everything stays editable afterwards: drag on the canvas to add a zone, click one to rename it or
-change kind and capacity, **Trace outline** to click out a non-rectangular site, **Place ref pin** to
-move a pin. `event` zones get the accent colour and drive the "in sessions" metric; `transit` is where
-phones land when GPS can't place them.
+### Editing what came back
+
+Detection gets you most of the way; the last 10% is yours. Everything it produced is editable:
+
+| Do this | To |
+|---|---|
+| Drag a zone | Move it |
+| Drag its handles | Resize from any edge or corner |
+| Arrow keys | Nudge by a hair — for lining up with a wall |
+| Shift + arrows | Nudge in bigger steps |
+| Alt + arrows | Resize instead of move |
+| Delete / Backspace | Remove the selected zone |
+| Drag empty space | Add a new zone |
+| Click a zone, or a row in the list | Select it, then edit label, kind and capacity |
+
+The selected zone shows eight grab handles, and the cursor changes over them, so resizing isn't a
+secret. Zones turn amber the moment they leave the outline or overlap a neighbour — you see the
+problem while dragging rather than when you hit Save.
+
+**Trace outline** clicks out a non-rectangular site, **Place ref pin** moves a calibration pin.
+`event` zones get the accent colour and drive the "in sessions" metric; `transit` is where phones land
+when GPS can't place them.
 
 ### Letting AI read the plan
 

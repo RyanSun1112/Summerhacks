@@ -318,7 +318,7 @@
         <button class="vtool" id="tClearOutline" style="margin-left:auto">Reset outline</button>
       </div>
       <div class="vcanvas-wrap"><canvas id="vedCanvas"></canvas></div>
-      <div class="vhint" id="vedHint">Drag on the canvas to draw a zone. Click a zone to select it.</div>
+      <div class="vhint" id="vedHint">Drag a zone to move it, or its handles to resize. Arrows nudge, Alt+arrows resize, Delete removes. Drag empty space to add one.</div>
     </div>
 
     <div class="ved-col">
@@ -1217,6 +1217,10 @@ function zoneBad(z,i){
 }
 
 let drag=null;
+// Pointer capture keeps a drag alive if the cursor leaves the canvas, but it
+// throws on a pointerId the browser doesn't consider active — never fatal, and
+// not worth losing the drag over.
+const grab=id=>{ try{ vc.setPointerCapture(id); }catch(e){} };
 function vedDraw(){
   if(!ed) return;
   vx.clearRect(0,0,VW,VH);
@@ -1247,11 +1251,23 @@ function vedDraw(){
     }
   });
 
-  if(drag){
+  if(drag&&drag.kind==='new'){
     vx.setLineDash([4,4]); vx.strokeStyle='#F0EFF7'; vx.lineWidth=1;
     const a=vpx(Math.min(drag.x0,drag.x1),Math.min(drag.y0,drag.y1));
     vx.strokeRect(a[0],a[1],Math.abs(drag.x1-drag.x0)*VW,Math.abs(drag.y1-drag.y0)*VH);
     vx.setLineDash([]);
+  }
+
+  // grab handles on the selection — without these, being able to resize is a
+  // secret you'd only find by accident
+  if(edSel>=0&&ed.zones[edSel]&&edMode==='zone'){
+    const z=ed.zones[edSel], q=vpx(z.x,z.y), w=z.w*VW, h=z.h*VH;
+    const pts=[[0,0],[w/2,0],[w,0],[w,h/2],[w,h],[w/2,h],[0,h],[0,h/2]];
+    pts.forEach(p=>{
+      vx.fillStyle='#F0EFF7'; vx.strokeStyle='#0B0D16'; vx.lineWidth=1;
+      vx.fillRect(q[0]+p[0]-3.5,q[1]+p[1]-3.5,7,7);
+      vx.strokeRect(q[0]+p[0]-3.5,q[1]+p[1]-3.5,7,7);
+    });
   }
 
   edPins.forEach((p,i)=>{ if(!p) return;
@@ -1279,27 +1295,113 @@ vc.addEventListener('pointerdown',e=>{
     edPins[slot]={x:+x.toFixed(4),y:+y.toFixed(4),lat:keep.lat??null,lon:keep.lon??null,acc:null};
     renderPins(); solveGeo(); vedDraw(); return;
   }
-  // clicking an existing zone selects it instead of starting a new one
-  const hit=ed.zones.findIndex(z=>x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h);
-  if(hit>=0){ selectZone(hit); return; }
-  drag={x0:x,y0:y,x1:x,y1:y}; vc.setPointerCapture(e.pointerId);
+  // a grab handle on the selected zone wins over everything — it sits on the
+  // border, which is also inside the zone underneath
+  if(edSel>=0){
+    const h=handleAt(x,y,ed.zones[edSel]);
+    if(h){ drag={kind:'resize',h,o:{...ed.zones[edSel]},x0:x,y0:y}; grab(e.pointerId); return; }
+  }
+  // topmost first, so a small zone drawn over a big one stays reachable
+  let hit=-1;
+  for(let i=ed.zones.length-1;i>=0;i--){
+    const z=ed.zones[i];
+    if(x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h){ hit=i; break; }
+  }
+  if(hit>=0){
+    selectZone(hit);
+    drag={kind:'move',o:{...ed.zones[hit]},x0:x,y0:y};
+    grab(e.pointerId);
+    return;
+  }
+  if(edSel>=0) selectZone(-1);                       // clicking empty space deselects
+  drag={kind:'new',x0:x,y0:y,x1:x,y1:y}; grab(e.pointerId);
 });
-vc.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=vnorm(e); drag.x1=x; drag.y1=y; vedDraw(); });
+
+// Which grab handle, if any, is under the pointer. Named by compass point so
+// 'nw'.includes('n') does the axis test for free.
+function handleAt(x,y,z){
+  if(!z) return null;
+  const hx=9/VW, hy=9/VH;
+  if(x<z.x-hx||x>z.x+z.w+hx||y<z.y-hy||y>z.y+z.h+hy) return null;
+  const L=Math.abs(x-z.x)<hx, R=Math.abs(x-(z.x+z.w))<hx;
+  const T=Math.abs(y-z.y)<hy, B=Math.abs(y-(z.y+z.h))<hy;
+  if(T&&L) return 'nw'; if(T&&R) return 'ne'; if(B&&L) return 'sw'; if(B&&R) return 'se';
+  if(T) return 'n'; if(B) return 's'; if(L) return 'w'; if(R) return 'e';
+  return null;
+}
+const CURSOR={nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',
+              n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize'};
+
+vc.addEventListener('pointermove',e=>{
+  const [x,y]=vnorm(e);
+  if(!drag){
+    // hover feedback, so the handles are discoverable rather than a secret
+    if(edMode!=='zone'){ vc.style.cursor='crosshair'; return; }
+    const h=edSel>=0?handleAt(x,y,ed.zones[edSel]):null;
+    vc.style.cursor = h ? CURSOR[h]
+      : ed.zones.some(z=>x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h) ? 'move' : 'crosshair';
+    return;
+  }
+  if(drag.kind==='new'){ drag.x1=x; drag.y1=y; }
+  else if(drag.kind==='move'){
+    const z=ed.zones[edSel], o=drag.o;
+    z.x=clamp(o.x+(x-drag.x0),0,1-z.w);
+    z.y=clamp(o.y+(y-drag.y0),0,1-z.h);
+  } else {
+    const z=ed.zones[edSel], o=drag.o, h=drag.h;
+    let x0=o.x, y0=o.y, x1=o.x+o.w, y1=o.y+o.h;
+    if(h.includes('w')) x0=o.x+(x-drag.x0);
+    if(h.includes('e')) x1=o.x+o.w+(x-drag.x0);
+    if(h.includes('n')) y0=o.y+(y-drag.y0);
+    if(h.includes('s')) y1=o.y+o.h+(y-drag.y0);
+    z.x=clamp(Math.min(x0,x1),0,1); z.y=clamp(Math.min(y0,y1),0,1);
+    z.w=clamp(Math.abs(x1-x0),0.014,1-z.x); z.h=clamp(Math.abs(y1-y0),0.014,1-z.y);
+  }
+  vedDraw();
+});
+
 vc.addEventListener('pointerup',()=>{
   if(!drag) return;
-  const x=Math.min(drag.x0,drag.x1), y=Math.min(drag.y0,drag.y1);
-  const w=Math.abs(drag.x1-drag.x0), h=Math.abs(drag.y1-drag.y0);
-  drag=null;
+  const d=drag; drag=null;
+  if(d.kind!=='new'){
+    const z=ed.zones[edSel];
+    if(z){ ['x','y','w','h'].forEach(k=>z[k]=+z[k].toFixed(4)); }
+    renderZoneList(); vedDraw(); return;                // moved or resized
+  }
+  const x=Math.min(d.x0,d.x1), y=Math.min(d.y0,d.y1);
+  const w=Math.abs(d.x1-d.x0), h=Math.abs(d.y1-d.y0);
   if(w<0.012||h<0.012){ vedDraw(); return; }        // ignore stray clicks
-  const n=ed.zones.length+1;
+  // numbered past whatever exists, so adding to an AI result doesn't collide
+  let n=ed.zones.length+1;
+  while(ed.zones.some(z=>z.id==='zone'+n)) n++;
   ed.zones.push({id:'zone'+n,label:'Zone '+n,short:'ZONE '+n,kind:'event',
                  x:+x.toFixed(4),y:+y.toFixed(4),w:+w.toFixed(4),h:+h.toFixed(4),cap:40});
   selectZone(ed.zones.length-1); renderZoneList();
 });
 
+// Arrow keys nudge, Alt+arrows resize, Delete removes. Dragging is fine for
+// roughing out, but lining a box up with a wall wants single pixels.
+addEventListener('keydown',e=>{
+  if(view!=='venues'||edSel<0||!ed) return;
+  const t=document.activeElement;
+  if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;   // don't hijack the fields
+  if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault(); $('#zDelete').click(); return; }
+  const step=e.shiftKey?0.02:0.003;
+  let dx=0,dy=0;
+  if(e.key==='ArrowLeft')dx=-step; else if(e.key==='ArrowRight')dx=step;
+  else if(e.key==='ArrowUp')dy=-step; else if(e.key==='ArrowDown')dy=step;
+  else return;
+  e.preventDefault();
+  const z=ed.zones[edSel];
+  if(e.altKey){ z.w=clamp(z.w+dx,0.014,1-z.x); z.h=clamp(z.h+dy,0.014,1-z.y); }
+  else { z.x=clamp(z.x+dx,0,1-z.w); z.y=clamp(z.y+dy,0,1-z.h); }
+  ['x','y','w','h'].forEach(k=>z[k]=+z[k].toFixed(4));
+  renderZoneList(); vedDraw();
+});
+
 /* ---- modes ---- */
 const MODES={tZone:'zone',tOutline:'outline',tPin:'pin'};
-const HINTS={zone:'Drag on the canvas to draw a zone. Click a zone to select it.',
+const HINTS={zone:'Drag a zone to move it, or its handles to resize. Arrows nudge, Alt+arrows resize, Delete removes. Drag empty space to add one.',
   outline:'Click to add outline points, one per corner. Reset clears it back to the full rectangle.',
   pin:'Click where a known point is. Then give it real coordinates on the right.'};
 Object.keys(MODES).forEach(id=>$('#'+id).addEventListener('click',()=>{
