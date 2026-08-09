@@ -43,6 +43,7 @@ def test_mock_pipeline_exports_and_resumes_from_both_caches(tmp_path) -> None:
     exported = json.loads(output_path.read_text(encoding="utf-8"))
     assert len(exported) == 2
     assert all(0 <= item["energy"] <= 1 for item in exported)
+    assert {item["audioFile"] for item in exported} == {"track-1.wav", "track-2.wav"}
 
     second = SongPreprocessingPipeline(**arguments).run()
     assert second.stats.audio_cached == 2

@@ -1556,6 +1556,8 @@ app.post('/api/dj/select', async (req, res) => {
 const djHist = [];                                  // {t, energy, rhythm, clustering, volume, mobility}
 function djMetricsNow() {
   const list = [...attendees.values()].filter(alive);
+  const simulatedAttendees = list.filter(person => person.sim).length;
+  const liveAttendees = list.length - simulatedAttendees;
   const zc = Object.values(zoneCounts());
   const total = zc.reduce((s, z) => s + z.n, 0);
   const K = Math.max(zc.length, 1);
@@ -1582,7 +1584,7 @@ function djMetricsNow() {
     rhythm: clamp(crowd.sync, 0, 1),
     clustering, volume, volumeFrom,
     mobility: clamp(stepsPerMin / 40, 0, 1),
-    stepsPerMin
+    stepsPerMin, liveAttendees, simulatedAttendees
   };
 }
 function computeCrowdState() {
@@ -1600,26 +1602,64 @@ function computeCrowdState() {
     timestamp: now.t
   };
   if (Number.isFinite(music.bpm) && music.bpm > 0) cs.currentBpm = music.bpm;
-  return { crowdState: cs, sources: { volumeFrom: now.volumeFrom, stepsPerMin: +now.stepsPerMin.toFixed(1) } };
+  return {
+    crowdState: cs,
+    sources: {
+      volumeFrom: now.volumeFrom,
+      stepsPerMin: +now.stepsPerMin.toFixed(1),
+      liveAttendees: now.liveAttendees,
+      simulatedAttendees: now.simulatedAttendees
+    }
+  };
 }
 
 // Audio files for the profiled songs live in songs/ (gitignored). A profile
 // plays when a file's name matches its id or title; everything else still
 // ranks — it just can't be auto-played.
-const SONGS_DIR = process.env.SONGS_DIR || path.join(__dirname, 'songs');
 const AUDIO_EXT = /\.(mp3|m4a|wav|flac|ogg)$/i;
-// One directory read per call site, matched against every profile — id,
-// title, and "artist - title" all count, since tags and filenames disagree
-// in the wild.
+function audioFiles(root, relative = '') {
+  let entries = [];
+  try { entries = fs.readdirSync(path.join(root, relative), { withFileTypes: true }); }
+  catch { return []; }
+  const files = [];
+  for (const entry of entries) {
+    const child = relative ? path.join(relative, entry.name) : entry.name;
+    if (entry.isDirectory()) files.push(...audioFiles(root, child));
+    else if (entry.isFile() && AUDIO_EXT.test(entry.name)) files.push(child);
+  }
+  return files;
+}
+const deployedSongsDir = path.join(__dirname, 'data', 'songs');
+const SONGS_DIR = process.env.SONGS_DIR
+  || (audioFiles(deployedSongsDir).length ? deployedSongsDir : path.join(__dirname, 'songs'));
+const audioUrl = relative => '/songs/' + relative.split(path.sep).map(encodeURIComponent).join('/');
+const safeAudioRelative = value => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const normalized = path.posix.normalize(value.trim().replace(/\\/g, '/')).replace(/^\.\//, '');
+  return normalized.startsWith('../') || normalized === '..' || normalized.startsWith('/') ? null : normalized;
+};
+
+// One recursive directory read per call site, matched against every profile.
+// New profiles carry audioFile for exact matching; id/title inference remains
+// only for older databases.
 function audioIndex() {
-  let files = [];
-  try { files = fs.readdirSync(SONGS_DIR).filter(f => AUDIO_EXT.test(f)); } catch {}
-  const slugs = files.map(f => ({ f, s: slug(f.replace(AUDIO_EXT, '')) }));
+  const files = audioFiles(SONGS_DIR);
+  const exactFiles = new Map(files.map(file => [file.replace(/\\/g, '/').toLocaleLowerCase(), file]));
+  // Ignore filenames that normalize to nothing (for example, a name written
+  // entirely with stylized Unicode letters). An empty slug is contained by
+  // every string and previously made every profile falsely look playable.
+  const slugs = files.map(f => ({ f, s: slug(f.replace(AUDIO_EXT, '')) }))
+    .filter(({ s }) => s.length >= 3);
   return song => {
+    const requested = safeAudioRelative(song.audioFile);
+    const exact = requested && exactFiles.get(requested.toLocaleLowerCase());
+    if (exact) return audioUrl(exact);
     const want = [slug(song.id), slug(song.title), slug(`${song.artist} ${song.title}`)]
       .filter(w => w && w.length >= 3);
-    const hit = slugs.find(({ s }) => want.some(w => s === w || s.includes(w) || w.includes(s)));
-    return hit ? '/songs/' + encodeURIComponent(hit.f) : null;
+    const hit = slugs.find(({ s }) => want.some(w =>
+      s === w || (Math.min(s.length, w.length) >= 8 && (s.includes(w) || w.includes(s)))
+    ));
+    return hit ? audioUrl(hit.f) : null;
   };
 }
 app.use('/songs', express.static(SONGS_DIR));
@@ -1627,21 +1667,8 @@ app.use('/songs', express.static(SONGS_DIR));
 // Live tiles + sparklines for the DJ tab. Polled while the tab is open.
 app.get('/api/dj/crowdstate', (_, res) => {
   const { crowdState, sources } = computeCrowdState();
-  const list = [...attendees.values()].filter(alive);
-  const withHr = list.filter(p => p.hr);
   res.json({
     crowdState, sources,
-    live: {
-      count: list.length,
-      avgEnergy: +crowd.energy.toFixed(3),
-      avgHr: withHr.length ? Math.round(withHr.reduce((s, p) => s + p.hr, 0) / withHr.length) : null,
-      hrCount: withHr.length,
-      avgSteps: list.length ? Math.round(list.reduce((s, p) => s + (p.steps || 0), 0) / list.length) : 0,
-      stepsPerMin: sources.stepsPerMin,
-      located: crowd.located,
-      sync: +crowd.sync.toFixed(3),
-      arousal: +crowd.arousal.toFixed(3)
-    },
     history: djHist.slice(-90).map(h => ({ t: h.t, energy: +h.energy.toFixed(3), rhythm: +h.rhythm.toFixed(3),
       clustering: +h.clustering.toFixed(3), volume: +h.volume.toFixed(3), mobility: +h.mobility.toFixed(3) }))
   });
@@ -1654,12 +1681,18 @@ app.post('/api/dj/next', (req, res) => {
   if (!djSongs.length) return res.status(503).json({ error: 'song profile database is unavailable' });
   const input = req.body || {};
   const { crowdState, sources } = computeCrowdState();
+  const match = audioIndex();
+  const playableSongs = djSongs.filter(song => match(song));
+  // This endpoint drives an actual audio deck, so never let unavailable
+  // profiles crowd a playable track out of the deterministic top-candidate
+  // window. When none are playable we still rank the profiles so the host UI
+  // can explain exactly what setup is missing.
+  const selectionPool = playableSongs.length ? playableSongs : djSongs;
   const currentSong = input.currentSongId ? djSongIndex.get(input.currentSongId) || null : null;
   const recentHistory = (Array.isArray(input.recentSongIds) ? input.recentSongIds : [])
     .map(id => djSongIndex.get(id)).filter(Boolean);
-  selectNextSong({ crowdState, songs: djSongs, currentSong, recentHistory, useAI: false })
+  selectNextSong({ crowdState, songs: selectionPool, currentSong, recentHistory, useAI: false })
     .then(decision => {
-      const match = audioIndex();
       const candidates = decision.candidates.map(c => ({
         id: c.song.id, title: c.song.title, artist: c.song.artist, bpm: c.song.bpm,
         energy: c.song.energy, danceability: c.song.danceability, valence: c.song.valence,
@@ -1675,7 +1708,7 @@ app.post('/api/dj/next', (req, res) => {
         selectionMethod: decision.selectionMethod,
         // playable measured across the WHOLE library, not the top candidates —
         // this number is what tells the host whether tonight can actually play
-        library: { count: djSongs.length, playable: djSongs.filter(s => match(s)).length,
+        library: { count: djSongs.length, playable: playableSongs.length,
                    example: DJ_USING_EXAMPLE }
       });
     })
@@ -1938,12 +1971,19 @@ function zoneCounts() {
 function publicState() {
   const people = [...attendees.values()].filter(alive).map(p => ({
     id: p.id, name: p.name, zone: p.zone, anchor: p.anchor, energy: p.energy,
-    hr: p.hr ? Math.round(p.hr) : null, hrBaseline: p.hrBaseline ? Math.round(p.hrBaseline) : null,
     joinedAt: p.joinedAt, seed: p.seed, team: p.team,
     gps: p.gps || null, gpsNote: p.gpsNote || null,
     steps: p.steps || 0, distance: Math.round(p.distance || 0)
   }));
-  return { people, crowd, music, zones: zoneCounts(), history: history.slice(-120) };
+  // Keep the map's headline metrics identical to the values that actually
+  // feed the DJ policy. This prevents the host UI from presenting decorative
+  // crowd labels that the selector never uses.
+  const dj = computeCrowdState();
+  return {
+    people, crowd, music, zones: zoneCounts(), history: history.slice(-120),
+    djCrowdState: dj.crowdState,
+    djSources: dj.sources
+  };
 }
 
 // --------------------------------------------------------------- sockets
@@ -2184,6 +2224,8 @@ server.on('error', e => {
 
 server.listen(PORT, () => {
   const pub = configuredPublicUrl();
+  const startupAudioMatch = audioIndex();
+  const playableSongs = djSongs.filter(song => startupAudioMatch(song)).length;
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Home       http://localhost:${PORT}/`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
@@ -2194,6 +2236,7 @@ server.listen(PORT, () => {
   console.log(`  QR page    http://localhost:${PORT}/qr`);
   console.log(`  Auth       mode=${AUTH_MODE}${AUTH_ENABLED ? ' (venue writes gated)' : ''}`);
   console.log(`  Crowd      FAKE=${FAKE ? 'on' : '0'} (n=${crowdCfg.n})`);
+  console.log(`  Auto-DJ    ${playableSongs}/${djSongs.length} playable from ${path.relative(__dirname, SONGS_DIR) || '.'}`);
   console.log(pub
     ? `\n  QR codes encode ${pub} (${process.env.PUBLIC_URL ? 'PUBLIC_URL' : 'RENDER_EXTERNAL_URL'})\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +

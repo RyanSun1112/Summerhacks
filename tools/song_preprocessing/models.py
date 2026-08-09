@@ -134,6 +134,9 @@ class FinalSongProfile(PipelineModel):
     id: str
     title: str
     artist: str
+    # Path relative to the configured audio library. The live server uses this
+    # exact mapping before attempting any filename inference.
+    audio_file: str | None = None
     album: str | None = None
     year: int | None = None
     genres: list[str] = Field(default_factory=list)

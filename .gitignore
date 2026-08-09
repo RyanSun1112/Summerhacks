@@ -45,6 +45,15 @@ Thumbs.db
 /songs/*
 !/songs/README.md
 
+# Small, redistribution-safe catalogue shipped with the deployed demo.
+# Keep private/commercial event libraries under /songs instead.
+!/data/songs/
+!/data/songs/README.md
+!/data/songs/**/*.mp3
+!/data/songs/**/*.m4a
+!/data/songs/**/*.wav
+!/data/songs/**/*.flac
+
 # Rebuildable preprocessing diagnostics (the final songProfiles.json may be committed)
 /data/tracks.json
 /data/rawAudioFeatures.json
