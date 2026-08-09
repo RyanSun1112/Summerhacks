@@ -39,6 +39,25 @@ const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
 
+// ----------------------------------------------------------- the database
+// One SQLite file for everything that persists: the collaborator's sensor
+// snapshot tables (their schema, untouched) plus the account/ownership tables
+// beside them. Opened first so both the auth layer and the data-collection
+// routes share the connection. Guarded: if the native module is broken, the
+// demo still boots — snapshots disable, auth falls back to a JSON file.
+const SNAPSHOT_DB = process.env.SNAPSHOT_DB || path.join(__dirname, 'backend', 'data.db');
+let snapDb = null;
+try {
+  const Database = require('better-sqlite3');
+  fs.mkdirSync(path.dirname(SNAPSHOT_DB), { recursive: true });
+  snapDb = new Database(SNAPSHOT_DB);
+  snapDb.pragma('journal_mode = WAL');           // concurrent phone uploads
+  console.log(`[db] ${path.relative(__dirname, SNAPSHOT_DB)} (WAL)`);
+} catch (e) {
+  console.warn('[db] better-sqlite3 unavailable —', e.message);
+  console.warn('[db] (npm install better-sqlite3@11 — v12+ needs Node 22)');
+}
+
 // -------------------------------------------------------------- owner auth
 // Venue JSON stays on disk (venues/) in every mode. Three modes:
 //   supabase — SUPABASE_* set in .env: accounts live in Supabase, ownership in
@@ -61,60 +80,143 @@ const supabaseAdmin = AUTH_MODE === 'supabase'
   : null;
 
 // Local accounts. Passwords are scrypt-hashed with a per-user salt; sessions
-// are random tokens. Persisted to disk because `node --watch` restarts on
-// every file edit, and being signed out each time would make the editor
-// unusable during development.
+// are random tokens. Stored in the SAME SQLite database as the sensor
+// snapshots (backend/data.db) so persistence lives in one place — the
+// collaborator's tables are untouched, these sit beside them. When the
+// native module is unavailable, a JSON file keeps auth working. Persisted at
+// all because `node --watch` restarts on every file edit, and being signed
+// out each time would make the editor unusable.
 const OWNERS_PATH = process.env.OWNERS_PATH || path.join(__dirname, 'data', 'owners.json');
-let ownersDb = { users: [], sessions: {}, owners: {} };
-if (AUTH_MODE === 'local') {
-  try { ownersDb = { ...ownersDb, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; }
-  catch { /* first boot */ }
+let authStore = null;
+
+function jsonAuthStore() {
+  let db = { users: [], sessions: {}, owners: {} };
+  try { db = { ...db, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; } catch { /* first boot */ }
+  const save = () => {
+    fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
+    fs.writeFileSync(OWNERS_PATH, JSON.stringify(db, null, 2));
+  };
+  return {
+    kind: 'json (' + path.relative(__dirname, OWNERS_PATH) + ')',
+    userByEmail: e => db.users.find(u => u.email === e) || null,
+    addUser: u => { db.users.push(u); save(); },
+    addSession: (t, id) => { db.sessions[t] = { userId: id, createdAt: Date.now() }; save(); },
+    delSession: t => { if (db.sessions[t]) { delete db.sessions[t]; save(); } },
+    sessionUser: t => {
+      const s = t && db.sessions[t];
+      const u = s && db.users.find(u => u.id === s.userId);
+      return u ? { id: u.id, email: u.email } : null;
+    },
+    ownerOf: v => db.owners[v] || null,
+    setOwner: (v, id) => {
+      if (db.owners[v] && db.owners[v] !== id) throw new Error('already owned');
+      db.owners[v] = id; save();
+    },
+    clearOwner: v => { if (db.owners[v]) { delete db.owners[v]; save(); } },
+    allOwners: () => ({ ...db.owners }),
+    ownedBy: id => Object.entries(db.owners).filter(([, o]) => o === id).map(([v]) => v),
+    raw: db
+  };
 }
-function saveOwnersDb() {
-  fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
-  fs.writeFileSync(OWNERS_PATH, JSON.stringify(ownersDb, null, 2));
+
+function sqliteAuthStore() {
+  snapDb.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+      salt TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS venue_owners (
+      venue_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, created_at TEXT NOT NULL);
+  `);
+  const q = {
+    userByEmail: snapDb.prepare('SELECT * FROM users WHERE email = ?'),
+    addUser: snapDb.prepare('INSERT INTO users (id, email, salt, hash, created_at) VALUES (?, ?, ?, ?, ?)'),
+    addSession: snapDb.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)'),
+    delSession: snapDb.prepare('DELETE FROM sessions WHERE token = ?'),
+    sessionUser: snapDb.prepare(`SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`),
+    ownerOf: snapDb.prepare('SELECT owner_id FROM venue_owners WHERE venue_id = ?'),
+    setOwner: snapDb.prepare('INSERT INTO venue_owners (venue_id, owner_id, created_at) VALUES (?, ?, ?)'),
+    clearOwner: snapDb.prepare('DELETE FROM venue_owners WHERE venue_id = ?'),
+    allOwners: snapDb.prepare('SELECT venue_id, owner_id FROM venue_owners'),
+    ownedBy: snapDb.prepare('SELECT venue_id FROM venue_owners WHERE owner_id = ?'),
+    countUsers: snapDb.prepare('SELECT COUNT(*) AS n FROM users')
+  };
+  // One-time migration: accounts that lived in the JSON file move into the
+  // database, sessions included, so nobody gets signed out by the change.
+  if (q.countUsers.get().n === 0 && fs.existsSync(OWNERS_PATH)) {
+    try {
+      const old = JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8'));
+      snapDb.transaction(() => {
+        (old.users || []).forEach(u =>
+          q.addUser.run(u.id, u.email, u.salt, u.hash, new Date(u.createdAt || Date.now()).toISOString()));
+        Object.entries(old.sessions || {}).forEach(([t, s]) =>
+          q.addSession.run(t, s.userId, new Date(s.createdAt || Date.now()).toISOString()));
+        Object.entries(old.owners || {}).forEach(([v, o]) =>
+          q.setOwner.run(v, o, new Date().toISOString()));
+      })();
+      const n = (old.users || []).length;
+      if (n) console.log(`[auth] migrated ${n} account(s) + ownership from ${path.relative(__dirname, OWNERS_PATH)} into the database`);
+    } catch (e) { console.warn('[auth] migration from owners.json failed:', e.message); }
+  }
+  const now = () => new Date().toISOString();
+  return {
+    kind: 'sqlite (' + path.relative(__dirname, SNAPSHOT_DB) + ')',
+    userByEmail: e => q.userByEmail.get(e) || null,
+    addUser: u => q.addUser.run(u.id, u.email, u.salt, u.hash, now()),
+    addSession: (t, id) => q.addSession.run(t, id, now()),
+    delSession: t => q.delSession.run(t),
+    sessionUser: t => (t && q.sessionUser.get(t)) || null,
+    ownerOf: v => { const r = q.ownerOf.get(v); return r ? r.owner_id : null; },
+    setOwner: (v, id) => {
+      const cur = q.ownerOf.get(v);
+      if (cur && cur.owner_id !== id) throw new Error('already owned');
+      if (!cur) q.setOwner.run(v, id, now());
+    },
+    clearOwner: v => q.clearOwner.run(v),
+    allOwners: () => Object.fromEntries(q.allOwners.all().map(r => [r.venue_id, r.owner_id])),
+    ownedBy: id => q.ownedBy.all(id).map(r => r.venue_id)
+  };
 }
+
+if (AUTH_MODE === 'local') authStore = snapDb ? sqliteAuthStore() : jsonAuthStore();
+
 const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
 function localSignup(email, password) {
   email = String(email || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('that does not look like an email address');
   if (String(password || '').length < 6) throw new Error('password must be at least 6 characters');
-  if (ownersDb.users.some(u => u.email === email)) throw new Error('an account with that email already exists — log in instead');
+  if (authStore.userByEmail(email)) throw new Error('an account with that email already exists — log in instead');
   const salt = crypto.randomBytes(16).toString('hex');
   const user = { id: 'u_' + crypto.randomBytes(8).toString('hex'), email, salt,
                  hash: hashPw(password, salt), createdAt: Date.now() };
-  ownersDb.users.push(user);
+  authStore.addUser(user);
   const token = crypto.randomBytes(32).toString('hex');
-  ownersDb.sessions[token] = { userId: user.id, createdAt: Date.now() };
-  saveOwnersDb();
+  authStore.addSession(token, user.id);
   console.log('[auth] local signup:', email);
   return { token, userId: user.id, email };
 }
 function localLogin(email, password) {
   email = String(email || '').trim().toLowerCase();
-  const u = ownersDb.users.find(u => u.email === email);
+  const u = authStore.userByEmail(email);
   // hash against a dummy salt when the user is unknown, so a wrong email and a
   // wrong password take the same time to reject
   const h = Buffer.from(hashPw(password, u ? u.salt : 'no-such-user'), 'hex');
   const ok = u && crypto.timingSafeEqual(h, Buffer.from(u.hash, 'hex'));
   if (!ok) throw new Error('wrong email or password');
   const token = crypto.randomBytes(32).toString('hex');
-  ownersDb.sessions[token] = { userId: u.id, createdAt: Date.now() };
-  saveOwnersDb();
+  authStore.addSession(token, u.id);
   console.log('[auth] local login:', email);
   return { token, userId: u.id, email };
 }
 function localUserByToken(token) {
-  const s = token && ownersDb.sessions[token];
-  if (!s) return null;
-  const u = ownersDb.users.find(u => u.id === s.userId);
-  return u ? { id: u.id, email: u.email } : null;
+  return authStore ? authStore.sessionUser(token) : null;
 }
 
 if (AUTH_MODE === 'off') {
   console.warn('[auth] OFF — venue create/update/delete are open to anyone (AUTH_MODE=off)');
 } else if (AUTH_MODE === 'local') {
-  console.log(`[auth] local accounts in ${path.relative(__dirname, OWNERS_PATH)} — sign up from the dashboard.`);
+  console.log(`[auth] local accounts in ${authStore.kind} — sign up from the dashboard.`);
   console.log('[auth] (set SUPABASE_* in .env for hosted accounts, or AUTH_MODE=off to open venue writes)');
 } else {
   console.log('[auth] Supabase auth enabled for venue-owner routes');
@@ -287,7 +389,7 @@ app.post('/auth/login', localOnly, (req, res) => {
 app.post('/auth/logout', localOnly, (req, res) => {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (token && ownersDb.sessions[token]) { delete ownersDb.sessions[token]; saveOwnersDb(); }
+  if (token) authStore.delSession(token);
   res.json({ ok: true });
 });
 // Lets a page validate a stored token on load instead of discovering it's dead
@@ -335,7 +437,7 @@ async function requireAuth(req, res, next) {
 // Returns the owner_id for a venue, or null if unclaimed.
 async function getVenueOwner(venueId) {
   if (!AUTH_ENABLED) return null;
-  if (AUTH_MODE === 'local') return ownersDb.owners[venueId] || null;
+  if (AUTH_MODE === 'local') return authStore.ownerOf(venueId);
   const { data, error } = await supabaseAdmin
     .from('venue_owners').select('owner_id').eq('venue_id', venueId).maybeSingle();
   if (error) {
@@ -348,10 +450,7 @@ async function getVenueOwner(venueId) {
 // Create ownership row. Fails if another owner already holds the venue.
 async function claimVenue(venueId, ownerId) {
   if (AUTH_MODE === 'local') {
-    if (ownersDb.owners[venueId] && ownersDb.owners[venueId] !== ownerId)
-      throw new Error('already owned');
-    ownersDb.owners[venueId] = ownerId;
-    saveOwnersDb();
+    authStore.setOwner(venueId, ownerId);      // throws 'already owned'
     console.log('[auth] claimed venue', venueId, 'for', ownerId);
     return;
   }
@@ -389,10 +488,7 @@ async function assertCanWriteVenue(venueId, userId) {
 
 async function deleteOwnership(venueId) {
   if (!AUTH_ENABLED) return;
-  if (AUTH_MODE === 'local') {
-    if (ownersDb.owners[venueId]) { delete ownersDb.owners[venueId]; saveOwnersDb(); }
-    return;
-  }
+  if (AUTH_MODE === 'local') { authStore.clearOwner(venueId); return; }
   const { error } = await supabaseAdmin.from('venue_owners').delete().eq('venue_id', venueId);
   if (error) console.log('[auth] ownership delete error:', error.message);
   else console.log('[auth] cleared ownership for', venueId);
@@ -413,9 +509,8 @@ app.get('/api/me/venues', requireAuth, async (req, res) => {
     const owners = await getAllOwners();
     const unclaimed = [...venues.values()].filter(v => !owners[v.id]).map(venueSummary);
     if (AUTH_MODE === 'local') {
-      const list = Object.entries(ownersDb.owners)
-        .filter(([, owner]) => owner === req.user.id)
-        .map(([id]) => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
+      const list = authStore.ownedBy(req.user.id)
+        .map(id => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
       return res.json({ venues: list, unclaimed, user: req.user });
     }
     const { data, error } = await supabaseAdmin
@@ -470,7 +565,7 @@ async function maybeAuth(req) {
 // Every venue's owner in one read, for filtering lists.
 async function getAllOwners() {
   if (!AUTH_ENABLED) return {};
-  if (AUTH_MODE === 'local') return { ...ownersDb.owners };
+  if (AUTH_MODE === 'local') return authStore.allOwners();
   const { data, error } = await supabaseAdmin.from('venue_owners').select('venue_id, owner_id');
   if (error) { console.log('[auth] owners read error:', error.message); return {}; }
   return Object.fromEntries((data || []).map(r => [r.venue_id, r.owner_id]));
@@ -927,14 +1022,8 @@ app.post('/detect', async (req, res) => {
 // Live crowd state stays in-memory and dies with the process — that rule is
 // untouched. This store is the deliberate exception: recorded research data,
 // which is worthless if it dies with the process.
-const SNAPSHOT_DB = process.env.SNAPSHOT_DB || path.join(__dirname, 'backend', 'data.db');
-let snapDb = null;
 let snapStmts = null;
-try {
-  const Database = require('better-sqlite3');
-  fs.mkdirSync(path.dirname(SNAPSHOT_DB), { recursive: true });
-  snapDb = new Database(SNAPSHOT_DB);
-  snapDb.pragma('journal_mode = WAL');           // concurrent phone uploads
+if (snapDb) try {
   // schema statements copied from backend/db.py — must stay byte-compatible
   snapDb.exec(`
     CREATE TABLE IF NOT EXISTS snapshots (
@@ -989,18 +1078,18 @@ try {
       FROM snapshots s JOIN snapshot_readings r ON r.snapshot_id = s.snapshot_id
       ORDER BY datetime(s.captured_at) ASC, s.snapshot_id ASC, r.reading_index ASC`)
   };
-  console.log(`[data] snapshot store at ${path.relative(__dirname, SNAPSHOT_DB)}`);
+  console.log(`[data] snapshot store ready`);
 } catch (e) {
-  // a broken native module must never take the demo down with it
+  // a broken schema must never take the demo down with it
   console.warn('[data] snapshot store DISABLED —', e.message);
-  console.warn('[data] (npm install better-sqlite3@11 — v12+ needs Node 22)');
+  snapStmts = null;
 }
 
 const noStore = res => res.status(503).json({ error: 'snapshot store unavailable on this server' });
 const optFloat = v => (v === null || v === undefined || v === '' ? null : +v);
 
 app.post('/api/snapshots', (req, res) => {
-  if (!snapDb) return noStore(res);
+  if (!snapStmts) return noStore(res);
   const data = req.body || {};
   const sessionId = String(data.session_id || 'unknown').slice(0, 64);
   const snapshotId = String(data.snapshot_id || `${sessionId}-${new Date().toISOString()}`).slice(0, 128);
@@ -1028,14 +1117,14 @@ app.post('/api/snapshots', (req, res) => {
 });
 
 app.get('/api/snapshots', (req, res) => {
-  if (!snapDb) return noStore(res);
+  if (!snapStmts) return noStore(res);
   const limit = clamp(parseInt(req.query.limit, 10) || 500, 1, 10000);
   res.json({ snapshots: snapStmts.list.all(limit) });
 });
 
 // registered before /api/snapshots/:id so the extension isn't read as an id
 app.get('/api/snapshots.csv', (req, res) => {
-  if (!snapDb) return noStore(res);
+  if (!snapStmts) return noStore(res);
   const cols = ['session_id', 'snapshot_id', 'captured_at', 'duration_ms', 'lat', 'lng', 'gps_accuracy',
                 'reading_index', 'offset_ms', 'accel_x', 'accel_y', 'accel_z', 'alpha', 'beta', 'gamma', 'audio_level'];
   const esc = v => (v === null || v === undefined) ? ''
@@ -1048,7 +1137,7 @@ app.get('/api/snapshots.csv', (req, res) => {
 });
 
 app.get('/api/snapshots/:id', (req, res) => {
-  if (!snapDb) return noStore(res);
+  if (!snapStmts) return noStore(res);
   const snapshot = snapStmts.one.get(req.params.id);
   if (!snapshot) return res.status(404).json({ error: 'snapshot not found' });
   res.json({ snapshot, readings: snapStmts.readings.all(req.params.id) });
@@ -1056,7 +1145,7 @@ app.get('/api/snapshots/:id', (req, res) => {
 
 // dashboard Data tab tiles
 app.get('/api/data/summary', (_, res) => {
-  if (!snapDb) return res.json({ available: false });
+  if (!snapStmts) return res.json({ available: false });
   const s = snapStmts.summary.get();
   let bytes = 0;
   try { bytes = fs.statSync(SNAPSHOT_DB).size; } catch {}

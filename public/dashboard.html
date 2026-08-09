@@ -230,6 +230,7 @@
     <div class="panel" id="venues">
       <div class="lab">Venue</div>
       <div id="venueList"></div>
+      <div id="liveNote" style="display:none;font-size:10px;line-height:1.5;color:var(--muted);margin-top:7px">LIVE is the running event — everyone sees it. Venues you create or claim appear here as yours.</div>
       <div id="gpsWarn" style="display:none;font-size:10.5px;line-height:1.45;color:var(--warn);margin-top:8px"></div>
       <button class="vbtn" id="qrBtn">Check-in QR</button>
       <button class="vbtn" id="newVenueBtn">+ New venue</button>
@@ -1134,6 +1135,13 @@ async function loadVenueList(){
   }).join('');
   $('#venueList').querySelectorAll('.vrow').forEach(r=>
     r.addEventListener('click',()=>previewVenue(r.dataset.id)));
+
+  // A LIVE venue you don't own still appears — it's the running event, shown
+  // to everyone. Without this line, it reads as "someone else's venue leaked
+  // into my list".
+  const liveRow=venueIndex.venues.find(v=>v.id===venueIndex.active);
+  $('#liveNote').style.display =
+    (ownerAuthOn()&&ownerToken&&liveRow&&!liveRow.mine) ? 'block' : 'none';
 
   // An uncalibrated venue silently rejects every GPS fix and pins everyone to
   // their check-in zone. That looks identical to "nobody is moving", so say it

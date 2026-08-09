@@ -43,9 +43,9 @@ create/update/delete. With accounts on, opening `/dashboard.html` signed out sen
 front-door UX, not a security boundary — the live state APIs stay open for phones. The server picks
 one of three modes at boot (the log says which):
 
-- **local** — the default, zero setup. Accounts live on the Pulse server itself in
-  `data/owners.json` (passwords scrypt-hashed, never stored). Sign up takes ten seconds and works
-  offline.
+- **local** — the default, zero setup. Accounts live on the Pulse server itself, in the same SQLite
+  database as the collected sensor data (`backend/data.db` — passwords scrypt-hashed, never stored).
+  Sign up takes ten seconds and works offline.
 - **supabase** — set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in `.env`
   (create a project, run `supabase/schema.sql`, and turn **off** Confirm email under Auth →
   Providers → Email). Accounts live in Supabase, ownership in its `venue_owners` table.
