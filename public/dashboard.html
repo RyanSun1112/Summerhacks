@@ -537,8 +537,8 @@
     <h2 style="font-size:17px;margin:6px 0 4px">Sign in</h2>
     <div class="vhint" id="acctWhy" style="margin:0 0 10px"></div>
     <div id="acctForm" style="display:flex;flex-direction:column;gap:9px">
-      <div class="vfield"><label>Email</label><input class="vin" id="acctEmail" type="email" autocomplete="username" placeholder="you@example.com"></div>
-      <div class="vfield"><label>Password</label><input class="vin" id="acctPass" type="password" autocomplete="current-password" placeholder="6+ characters"></div>
+      <div class="vfield"><label>Email</label><input class="vin" id="acctEmail" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@example.com"></div>
+      <div class="vfield"><label>Password</label><input class="vin" id="acctPass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="6+ characters"></div>
       <div class="vrowin">
         <button class="vbtn go" id="acctLogin" type="button">Log in</button>
         <button class="vbtn" id="acctSignup" type="button">Sign up</button>
@@ -681,7 +681,7 @@ function closeAcct(ok){
 }
 async function acctAuth(kind){
   if(acctBusy) return;
-  const email=$('#acctEmail').value.trim(), password=$('#acctPass').value;
+  const email=$('#acctEmail').value.trim(), password=$('#acctPass').value.trim();
   if(!email){ setAcctMsg('Enter an email address.','err'); return; }
   if(password.length<6){ setAcctMsg('Password must be at least 6 characters.','err'); return; }
   acctBusy=true; $('#acctLogin').disabled=$('#acctSignup').disabled=true;
