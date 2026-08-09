@@ -1,0 +1,11 @@
+[
+  {
+    "id": "spotify-or-local-track-id",
+    "title": "Song Name",
+    "artist": "Artist Name",
+    "album": "Album Name",
+    "year": 2024,
+    "genres": ["house", "dance"],
+    "audioFile": "Artist Name - Song Name.mp3"
+  }
+]

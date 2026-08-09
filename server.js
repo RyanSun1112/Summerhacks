@@ -1116,7 +1116,9 @@ app.post('/api/dj/select', async (req, res) => {
       currentSong,
       recentHistory,
       useAI,
-      aiSelector
+      aiSelector,
+      selectionMode: input.selectionMode,
+      guidanceStrength: input.guidanceStrength
     });
     if (decision.aiError) decision.aiError = 'AI unavailable or failed; deterministic fallback used';
     return res.json(decision);

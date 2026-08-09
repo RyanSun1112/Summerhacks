@@ -41,9 +41,12 @@ Thumbs.db
 *.wav
 *.flac
 /audio/
-/songs/
+# Local event library. Keep its instructions, never its audio or other contents.
+/songs/*
+!/songs/README.md
 
 # Rebuildable preprocessing diagnostics (the final songProfiles.json may be committed)
+/data/tracks.json
 /data/rawAudioFeatures.json
 /data/rawLLMAnnotations.json
 /data/songPreprocessingReport.json

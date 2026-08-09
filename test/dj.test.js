@@ -88,6 +88,45 @@ test('peak saturation maintains or releases instead of escalating forever', () =
   assert(repeated.energy < 1);
 });
 
+test('match mode mirrors present crowd energy without pushing BPM', () => {
+  const state = getMockScenario('dancingGrowing');
+  const target = determineSongTarget(state, song('current', { bpm: 124 }), [], {
+    selection: { mode: 'match' }
+  });
+  assert.equal(target.selectionMode, 'match');
+  assert.equal(target.guidanceStrength, 0);
+  assert.equal(target.policyCase, 'match-room');
+  assert.equal(target.energy, state.energy);
+  assert.equal(target.bpmTarget, 124);
+});
+
+test('blend mode interpolates between matching and guided targets', () => {
+  const state = getMockScenario('dancingGrowing');
+  const current = song('current', { bpm: 124 });
+  const match = determineSongTarget(state, current, [], { selection: { mode: 'match' } });
+  const guide = determineSongTarget(state, current, [], { selection: { mode: 'guide' } });
+  const blend = determineSongTarget(state, current, [], {
+    selection: { mode: 'blend', guidanceStrength: 0.25 }
+  });
+  assert.equal(blend.selectionMode, 'blend');
+  assert.equal(blend.guidanceStrength, 0.25);
+  assert.equal(blend.energy, Math.round((match.energy * 0.75 + guide.energy * 0.25) * 10000) / 10000);
+  assert.equal(blend.bpmTarget, 125);
+  assert.match(blend.policyCase, /^blend-/);
+});
+
+test('selection mode and guidance strength validation reject invalid controls', () => {
+  const state = getMockScenario('socializing');
+  assert.throws(
+    () => determineSongTarget(state, null, [], { selection: { mode: 'invented' } }),
+    /selectionMode/
+  );
+  assert.throws(
+    () => determineSongTarget(state, null, [], { selection: { mode: 'blend', guidanceStrength: 1.2 } }),
+    /between 0 and 1/
+  );
+});
+
 test('ranker puts the closest song first and provides reasons', () => {
   const ranked = rankSongs(balancedTarget, [
     song('far', { energy: 0.2, danceability: 0.3, socialness: 0.9, bpm: 95 }),
@@ -206,6 +245,24 @@ test('missing AI selector or API key uses deterministic fallback', async () => {
   assert.equal(result.selectionMethod, 'deterministic-fallback');
   assert.match(result.aiError, /unavailable/);
   assert.equal(result.selectedSong.id, result.candidates[0].song.id);
+});
+
+test('engine exposes match and blend strategy controls', async () => {
+  const songs = [song('a'), song('b', { energy: 0.45, socialness: 0.8 })];
+  const matched = await selectNextSong({
+    crowdState: getMockScenario('socializing'),
+    songs,
+    selectionMode: 'match'
+  });
+  const blended = await selectNextSong({
+    crowdState: getMockScenario('socializing'),
+    songs,
+    selectionMode: 'blend',
+    guidanceStrength: 0.3
+  });
+  assert.equal(matched.target.selectionMode, 'match');
+  assert.equal(blended.target.selectionMode, 'blend');
+  assert.equal(blended.target.guidanceStrength, 0.3);
 });
 
 test('AI provider failure falls back without stopping selection', async () => {
