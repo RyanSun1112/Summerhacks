@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080A18">
+<title>Pulse — Venue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99; --ok:#3ECF8E; --warn:#F0A93B; --hype:#F05A3C;
+    --rule:rgba(240,239,247,.10); --glass:rgba(12,15,34,.88);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px}
+  body{min-height:100dvh;display:flex;flex-direction:column}
+  .lab{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  header{
+    flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;
+    padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top));
+    border-bottom:1px solid var(--rule);background:rgba(8,10,24,.94);z-index:5;
+  }
+  .back{
+    display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 12px;
+    border:1px solid var(--rule);border-radius:6px;color:var(--ink);text-decoration:none;
+    font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .back:active{border-color:var(--accent)}
+  .mark{min-width:0;flex:1}
+  .mark b{display:block;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mark span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hc{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .hc b{color:var(--ink);font-weight:500}
+  main{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px calc(18px + env(safe-area-inset-bottom))}
+  .status{padding:28px 8px;text-align:center;color:var(--muted);font-size:14px}
+  .status.err{color:#FFB4A8}
+  .badge{
+    display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    padding:4px 8px;border-radius:3px;margin-bottom:8px;
+  }
+  .badge.hype{color:#080A18;background:var(--hype)}
+  .badge.calm{color:#080A18;background:#5B9CFF}
+  .badge.mixed{color:#080A18;background:var(--warn)}
+
+  /* Floor plan */
+  .plan-stage{
+    flex:1;min-height:min(70dvh,640px);width:100%;overflow:auto;-webkit-overflow-scrolling:touch;
+    touch-action:pan-x pan-y pinch-zoom;border:1px solid var(--rule);border-radius:10px;background:#0a0c18;
+    overscroll-behavior:contain;position:relative;
+  }
+  .plan-hint{
+    position:sticky;top:0;z-index:4;padding:8px 10px;font-size:12px;color:var(--muted);text-align:center;
+    background:rgba(10,12,28,.9);border-bottom:1px solid var(--rule);
+  }
+  .plan-wrap{position:relative;width:100%;min-width:100%;background:#0a0c18;margin:0 auto}
+  .plan-wrap img.plan{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:fill;opacity:.92;pointer-events:none;
+  }
+  .plan-dot{
+    position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;padding:0;border:2px solid #fff;
+    border-radius:50%;overflow:hidden;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.55);
+    background:#111;z-index:2;transition:transform .15s,box-shadow .15s;
+  }
+  .plan-dot img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+  .plan-dot:active,.plan-dot.on{transform:scale(1.08);z-index:5;box-shadow:0 0 0 3px var(--accent),0 8px 20px rgba(0,0,0,.55)}
+  .plan-dot.on{width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:10px}
+
+  .expand{
+    flex:none;margin-top:12px;padding:14px;border:1px solid var(--rule);border-radius:10px;
+    background:var(--glass);display:none;
+  }
+  .expand.on{display:block}
+  .expand img{
+    width:100%;max-height:min(42dvh,320px);object-fit:cover;border-radius:8px;display:block;
+    background:#111;margin-bottom:10px;
+  }
+  .expand .vn{font-size:17px;font-weight:600;margin:4px 0}
+  .expand .meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:10px}
+  .expand .metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .expand .m{font-family:var(--mono);font-size:13px}
+  .expand .m span{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+  .expand-close{
+    width:100%;margin-top:12px;min-height:44px;border:1px solid var(--rule);border-radius:6px;
+    background:none;color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  }
+  .expand-close:active{border-color:var(--accent)}
+
+  /* Gallery fallback */
+  .gallery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .gcard{
+    background:rgba(240,239,247,.04);border:1px solid var(--rule);border-radius:8px;overflow:hidden;
+    cursor:pointer;text-align:left;color:inherit;padding:0;font:inherit;min-height:44px;width:100%;
+  }
+  .gcard:active,.gcard.on{border-color:var(--accent)}
+  .gcard img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#111}
+  .gcard .meta{padding:10px}
+  .gcard .when{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .gcard .stats{font-family:var(--mono);font-size:12px;margin-top:4px}
+
+  @media (min-width:560px){
+    .gallery-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+    main{padding:16px 20px 24px;max-width:960px;margin:0 auto;width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="/city.html">← City map</a>
+  <div class="mark">
+    <b id="venueName">Venue</b>
+    <span id="venueSub">Loading…</span>
+  </div>
+  <div class="hc"><b id="count">0</b> captures</div>
+</header>
+<main id="main">
+  <div class="status" id="status">Loading venue…</div>
+</main>
+
+<script>
+const VIBE = { hype:'#F05A3C', calm:'#5B9CFF', mixed:'#F0A93B' };
+const $ = s => document.querySelector(s);
+const venueId = (new URLSearchParams(location.search).get('id') || '').trim();
+
+let venue = null;
+let hasPlan = false;
+let captures = [];
+let selectedId = null;
+let pollMs = 5000;
+let pollTimer = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[ch]);
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month:'short', day:'numeric', hour:'numeric', minute:'2-digit'
+    });
+  } catch { return iso; }
+}
+
+function hash01(str, salt) {
+  let h = 2166136261 ^ (salt || 0);
+  const s = String(str || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+function pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    const hit = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+function capturePlanPos(c, v, occupied) {
+  const taken = occupied || [];
+  const minDist2 = 0.045 * 0.045;
+  const clear = (x, y) => {
+    for (const o of taken) {
+      const dx = x - o.x, dy = y - o.y;
+      if (dx * dx + dy * dy < minDist2) return false;
+    }
+    return true;
+  };
+  const pick = (candidates) => {
+    for (const p of candidates) if (clear(p.x, p.y)) return p;
+    return candidates[0] || { x: 0.5, y: 0.5 };
+  };
+
+  const zones = (v && v.zones) || [];
+  const z = zones.find(zz => zz.id === c.zone_id);
+  if (z && z.w > 0 && z.h > 0) {
+    const candidates = [];
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const u = 0.12 + hash01(c.id, 1 + attempt * 3) * 0.76;
+      const vv = 0.12 + hash01(c.id, 2 + attempt * 3) * 0.76;
+      candidates.push({ x: z.x + u * z.w, y: z.y + vv * z.h });
+    }
+    return pick(candidates);
+  }
+
+  const outline = (v && v.outline) || [];
+  if (outline.length >= 3) {
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    outline.forEach(p => {
+      minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]);
+      maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]);
+    });
+    const candidates = [];
+    for (let attempt = 0; attempt < 48; attempt++) {
+      const x = minX + hash01(c.id, 10 + attempt) * (maxX - minX || 1);
+      const y = minY + hash01(c.id, 40 + attempt) * (maxY - minY || 1);
+      if (pointInPoly(x, y, outline)) candidates.push({ x, y });
+    }
+    if (!candidates.length) candidates.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+    return pick(candidates);
+  }
+
+  const candidates = [];
+  for (let attempt = 0; attempt < 24; attempt++) {
+    candidates.push({
+      x: 0.15 + hash01(c.id, 7 + attempt) * 0.7,
+      y: 0.15 + hash01(c.id, 8 + attempt) * 0.7
+    });
+  }
+  return pick(candidates);
+}
+
+function expandHtml(c) {
+  if (!c) return '';
+  const vibe = c.vibe_label || 'mixed';
+  const zone = c.zone_id ? ` · zone ${esc(c.zone_id)}` : '';
+  return `
+    <img src="${esc(c.photo_url)}" alt="" onerror="this.style.display='none'">
+    <span class="badge ${esc(vibe)}">${esc(vibe)}</span>
+    <div class="vn">${esc(c.venue_name || venue?.name || venueId)}</div>
+    <div class="meta">${esc(fmtTime(c.created_at))}${c.captured_by ? ' · ' + esc(c.captured_by) : ''}${zone}</div>
+    <div class="metrics">
+      <div class="m"><span>Energy</span>${(+c.energy||0).toFixed(2)}</div>
+      <div class="m"><span>Sync</span>${(+c.sync||0).toFixed(2)}</div>
+      <div class="m"><span>Arousal</span>${(+c.arousal||0).toFixed(2)}</div>
+    </div>
+    <button type="button" class="expand-close" id="expandClose">Collapse</button>`;
+}
+
+function selectCapture(id) {
+  selectedId = selectedId === id ? null : id;
+  const c = captures.find(x => x.id === selectedId) || null;
+  document.querySelectorAll('.plan-dot,.gcard').forEach(el => {
+    el.classList.toggle('on', el.dataset.id === selectedId);
+  });
+  const box = $('#expand');
+  if (!box) return;
+  if (!c) {
+    box.classList.remove('on');
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = expandHtml(c);
+  box.classList.add('on');
+  const close = $('#expandClose');
+  if (close) close.addEventListener('click', () => selectCapture(null));
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function bindPlanZoom(stage, wrap) {
+  let scale = 1, startDist = 0, startScale = 1;
+  const apply = () => {
+    const w = Math.max(stage.clientWidth, 1);
+    wrap.style.width = (w * scale) + 'px';
+    wrap.style.minWidth = (w * scale) + 'px';
+  };
+  const dist = (t) => Math.hypot(
+    t[0].clientX - t[1].clientX,
+    t[0].clientY - t[1].clientY
+  );
+  stage.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      startDist = dist(e.touches);
+      startScale = scale;
+    }
+  }, { passive: true });
+  stage.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2 || !startDist) return;
+    e.preventDefault();
+    scale = Math.max(1, Math.min(3.2, startScale * (dist(e.touches) / startDist)));
+    apply();
+  }, { passive: false });
+  stage.addEventListener('dblclick', e => {
+    e.preventDefault();
+    scale = scale > 1.05 ? 1 : 2;
+    apply();
+  });
+  apply();
+}
+
+function renderPlan() {
+  const aspect = (venue && venue.aspect > 0) ? venue.aspect : 1.6;
+  const main = $('#main');
+  main.innerHTML = `
+    <div class="plan-stage" id="planStage">
+      <div class="plan-hint">Pinch to zoom · tap a photo for details</div>
+      <div class="plan-wrap" id="planWrap" style="aspect-ratio:${aspect} / 1">
+        <img class="plan" id="planImg" alt="Floor plan" src="/venues/${encodeURIComponent(venueId)}/plan">
+      </div>
+    </div>
+    <div class="expand" id="expand"></div>`;
+
+  const stage = $('#planStage');
+  const wrap = $('#planWrap');
+  const img = $('#planImg');
+  bindPlanZoom(stage, wrap);
+
+  const place = () => {
+    wrap.querySelectorAll('.plan-dot').forEach(el => el.remove());
+    const ordered = [...captures].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const occupied = [];
+    ordered.forEach(c => {
+      const p = capturePlanPos(c, venue, occupied);
+      occupied.push(p);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'plan-dot' + (c.id === selectedId ? ' on' : '');
+      btn.dataset.id = c.id;
+      btn.style.left = (p.x * 100) + '%';
+      btn.style.top = (p.y * 100) + '%';
+      btn.title = (c.vibe_label || 'mixed') + ' · ' + fmtTime(c.created_at);
+      btn.innerHTML = `<img src="${esc(c.photo_url)}" alt="">`;
+      btn.addEventListener('click', () => selectCapture(c.id));
+      wrap.appendChild(btn);
+    });
+    if (selectedId) {
+      const still = captures.some(c => c.id === selectedId);
+      if (still) {
+        const box = $('#expand');
+        const c = captures.find(x => x.id === selectedId);
+        box.innerHTML = expandHtml(c);
+        box.classList.add('on');
+        $('#expandClose')?.addEventListener('click', () => selectCapture(null));
+      } else {
+        selectedId = null;
+      }
+    }
+  };
+
+  img.onload = place;
+  img.onerror = () => {
+    hasPlan = false;
+    renderGallery();
+  };
+  if (img.complete) {
+    if (img.naturalWidth) place();
+    else img.onerror();
+  }
+}
+
+function renderGallery() {
+  const main = $('#main');
+  if (!captures.length) {
+    main.innerHTML = '<div class="status">No captures at this venue yet.</div><div class="expand" id="expand"></div>';
+    return;
+  }
+  main.innerHTML = `
+    <div class="gallery-grid" id="grid"></div>
+    <div class="expand" id="expand"></div>`;
+  const grid = $('#grid');
+  grid.innerHTML = captures.map(c => {
+    const vibe = c.vibe_label || 'mixed';
+    return `<button type="button" class="gcard${c.id === selectedId ? ' on' : ''}" data-id="${esc(c.id)}">
+      <img src="${esc(c.photo_url)}" alt="" loading="lazy" onerror="this.style.opacity=.2">
+      <div class="meta">
+        <span class="badge ${esc(vibe)}">${esc(vibe)}</span>
+        <div class="when">${esc(fmtTime(c.created_at))}${c.captured_by ? ' · ' + esc(c.captured_by) : ''}</div>
+        <div class="stats">E ${(+c.energy||0).toFixed(2)} · S ${(+c.sync||0).toFixed(2)} · A ${(+c.arousal||0).toFixed(2)}</div>
+      </div>
+    </button>`;
+  }).join('');
+  grid.querySelectorAll('.gcard').forEach(btn => {
+    btn.addEventListener('click', () => selectCapture(btn.dataset.id));
+  });
+  if (selectedId && captures.some(c => c.id === selectedId)) {
+    const c = captures.find(x => x.id === selectedId);
+    const box = $('#expand');
+    box.innerHTML = expandHtml(c);
+    box.classList.add('on');
+    $('#expandClose')?.addEventListener('click', () => selectCapture(null));
+  } else {
+    selectedId = null;
+  }
+}
+
+function render() {
+  $('#count').textContent = captures.length;
+  $('#venueSub').textContent = captures.length
+    ? captures.length + ' capture' + (captures.length === 1 ? '' : 's')
+    : 'No captures yet';
+  if (hasPlan) renderPlan();
+  else renderGallery();
+}
+
+function sameCaptureSet(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false;
+  }
+  return true;
+}
+
+async function loadCaptures({ quiet } = {}) {
+  try {
+    const res = await fetch('/api/captures?venue=' + encodeURIComponent(venueId));
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not load captures');
+    const next = body.captures || [];
+    next.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    const unchanged = sameCaptureSet(captures, next);
+    captures = next;
+    pollMs = 5000;
+    if (!quiet || !unchanged || !$('#planStage') && !$('#grid')) render();
+    else $('#count').textContent = captures.length;
+  } catch (e) {
+    pollMs = Math.min(20000, pollMs + 2500);
+    if (!captures.length) {
+      $('#main').innerHTML = `<div class="status err">${esc(e.message || 'Failed to load captures')}</div>`;
+    }
+  } finally {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => loadCaptures({ quiet: true }), pollMs);
+  }
+}
+
+async function boot() {
+  if (!venueId) {
+    $('#venueName').textContent = 'Missing venue';
+    $('#venueSub').textContent = 'Add ?id=… to the URL';
+    $('#main').innerHTML = '<div class="status err">No venue id in the URL.</div>';
+    return;
+  }
+
+  try {
+    const [venueRes, listRes] = await Promise.all([
+      fetch('/venues/' + encodeURIComponent(venueId)),
+      fetch('/venues')
+    ]);
+    if (!venueRes.ok) throw new Error('Venue not found');
+    venue = await venueRes.json();
+    const listBody = listRes.ok ? await listRes.json() : { venues: [] };
+    const meta = (listBody.venues || []).find(v => v.id === venueId);
+    hasPlan = !!(meta && meta.hasPlan);
+
+    $('#venueName').textContent = venue.name || venueId;
+    document.title = 'Pulse — ' + (venue.name || venueId);
+    await loadCaptures();
+  } catch (e) {
+    $('#venueName').textContent = venueId;
+    $('#venueSub').textContent = 'Failed to load';
+    $('#main').innerHTML = `<div class="status err">${esc(e.message || 'Error')}</div>`;
+  }
+}
+
+const socket = io();
+socket.on('capture', c => {
+  if (!c || c.venue_id !== venueId) return;
+  if (captures.some(x => x.id === c.id)) return;
+  captures.unshift(c);
+  render();
+});
+
+boot();
+</script>
+</body>
+</html>

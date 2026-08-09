@@ -20,73 +20,110 @@
   body{
     background:var(--ground);color:var(--ink);font-family:var(--sans);
     min-height:100dvh;transition:background-color 1.6s linear;
+    font-size:15px;line-height:1.45;
   }
   body::before{
     content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     background:radial-gradient(ellipse 90% 50% at 50% 30%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%);
     transition:background 1.6s linear;
   }
-  .wrap{position:relative;z-index:1;padding:24px 20px calc(20px + env(safe-area-inset-bottom))}
-  .lab{font-size:9.5px;font-weight:600;letter-spacing:.20em;text-transform:uppercase;color:var(--muted)}
+  .wrap{position:relative;z-index:1;padding:20px 16px 0;max-width:480px;margin:0 auto;
+    min-height:100dvh;display:flex;flex-direction:column}
+  .lab{font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
 
-  header{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:22px;flex:none}
   .beacon{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:bl 2.2s ease-in-out infinite}
   @keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
-  .wm{font-size:13px;font-weight:700;letter-spacing:.24em;text-transform:uppercase}
-  .zt{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .wm{font-size:14px;font-weight:700;letter-spacing:.24em;text-transform:uppercase}
+  .zt{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--accent)}
 
-  h1{font-size:27px;font-weight:700;line-height:1.15;letter-spacing:-.015em}
-  p.sub{color:var(--muted);font-size:14px;line-height:1.55;margin-top:12px}
+  h1{font-size:clamp(24px,7vw,28px);font-weight:700;line-height:1.15;letter-spacing:-.015em}
+  p.sub{color:var(--muted);font-size:15px;line-height:1.55;margin-top:12px}
+
+  .screen{display:none;flex:1;flex-direction:column;min-height:0}
+  .screen.on{display:flex}
+  .screen-main{flex:1;min-height:0}
+
+  /* Thumb-reachable primary actions sit in a sticky dock */
+  .dock{
+    flex:none;position:sticky;bottom:0;z-index:3;
+    margin:18px -16px 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,transparent,rgba(8,10,24,.92) 28%,rgba(8,10,24,.98));
+  }
+  .dock .primary:first-child,.dock input:first-child{margin-top:0}
 
   input{
-    width:100%;margin-top:24px;padding:15px 16px;font-family:var(--sans);font-size:16px;
-    background:rgba(240,239,247,.05);border:1px solid var(--rule);border-radius:6px;color:var(--ink);
+    width:100%;margin-top:12px;padding:15px 16px;font-family:var(--sans);font-size:16px;
+    background:rgba(240,239,247,.05);border:1px solid var(--rule);border-radius:8px;color:var(--ink);
+    min-height:48px;
   }
   input:focus{outline:none;border-color:var(--accent)}
   input::placeholder{color:var(--muted)}
   button.primary{
-    width:100%;margin-top:12px;padding:16px;border:0;border-radius:6px;cursor:pointer;
-    font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    width:100%;margin-top:10px;min-height:48px;padding:14px 16px;border:0;border-radius:8px;cursor:pointer;
+    font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     background:var(--accent);color:#080A18;
   }
   button.primary:disabled{opacity:.35}
-  button.ghost{
-    width:100%;margin-top:10px;padding:14px;border-radius:6px;cursor:pointer;
-    font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-    background:none;border:1px solid var(--rule);color:var(--muted);
+  button.primary:active{filter:brightness(1.08)}
+  button.ghost,a.ghost{
+    display:block;width:100%;margin-top:10px;min-height:44px;padding:12px 14px;border-radius:8px;cursor:pointer;
+    font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    background:none;border:1px solid var(--rule);color:var(--muted);text-align:center;text-decoration:none;
+    box-sizing:border-box;line-height:1.3;
   }
+  button.ghost:active,a.ghost:active{color:var(--ink);border-color:var(--accent)}
   button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .consent{margin-top:22px;font-size:11.5px;line-height:1.6;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px}
-  .err{color:#FF8A6B;font-size:12px;margin-top:12px;line-height:1.5}
-  .hint{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
-
-  .screen{display:none}
-  .screen.on{display:block}
+  .consent{margin-top:22px;font-size:14px;line-height:1.6;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px}
+  .err{color:#FF8A6B;font-size:14px;margin-top:12px;line-height:1.5}
+  .hint{font-size:14px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
 
   /* live */
   .card{background:var(--glass);border:1px solid var(--rule);border-radius:10px;backdrop-filter:blur(16px)}
   #mapCard{padding:12px;margin-bottom:14px;overflow:hidden}
-  #mini{width:100%;display:block}
-  .maphead{display:flex;align-items:baseline;margin-bottom:9px}
-  .maphead .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink)}
+  #mini{width:100%;display:block;max-height:42vw}
+  .maphead{display:flex;align-items:baseline;margin-bottom:9px;gap:8px}
+  .maphead .n{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
   .stat{padding:13px 14px}
-  .stat b{display:block;font-family:var(--mono);font-size:21px;font-weight:400;margin-top:5px}
-  .stat .d{font-size:10px;color:var(--muted);margin-top:3px}
+  .stat b{display:block;font-family:var(--mono);font-size:20px;font-weight:400;margin-top:5px}
+  .stat .d{font-size:12px;color:var(--muted);margin-top:3px}
 
-  /* radio, pinned bottom */
-  #radio{
-    position:sticky;bottom:0;margin:0 -20px -20px;padding:13px 20px calc(15px + env(safe-area-inset-bottom));
+  .capture-wrap{margin:16px 0 0}
+  .capture-wrap .primary{margin-top:0}
+  .capture-msg{font-size:14px;line-height:1.5;margin-top:10px;min-height:1.2em;text-align:center}
+  .capture-msg a{color:var(--accent);font-weight:600}
+  .capture-msg.ok{color:#3ECF8E}
+  .capture-msg.err{color:#FF8A6B}
+  .capture-gate{
+    margin-top:0;padding:14px 16px;border:1px dashed var(--rule);border-radius:8px;
+    font-size:14px;line-height:1.5;color:var(--muted);text-align:center;min-height:44px;
+  }
+  .capture-gate a{color:var(--accent);font-weight:600}
+  #captureFile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0)}
+
+  /* radio + capture share one bottom dock on the live screen */
+  #liveDock{
+    flex:none;position:sticky;bottom:0;z-index:3;
+    margin:12px -16px 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
     background:var(--glass);backdrop-filter:blur(20px);border-top:1px solid var(--rule);
   }
-  #radio::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
-  #spectrum{width:100%;height:32px;display:block;margin-bottom:10px}
+  #liveDock::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  #spectrum{width:100%;height:28px;display:block;margin:10px 0 8px}
   .rrow{display:flex;align-items:center;gap:12px}
   .rmeta{min-width:0;flex:1}
-  .rt{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ra{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rstate{font-family:var(--mono);font-size:9.5px;color:var(--accent);letter-spacing:.08em;flex:none}
+  .rt{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ra{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rstate{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;flex:none}
+
+  .hidden{display:none!important}
+
+  @media (max-width:360px){
+    .grid{gap:8px}
+    .stat{padding:11px 12px}
+    .stat b{font-size:18px}
+  }
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -100,59 +137,79 @@
 </header>
 
 <section class="screen on" id="s-join">
-  <h1>You're part of the music.</h1>
-  <p class="sub">How this room moves shapes what plays. Add your name and you're in.</p>
-  <input id="name" placeholder="Your name" autocomplete="given-name" maxlength="24">
-  <button class="primary" id="go">Check in</button>
-  <div class="consent">
-    While you're here your phone shares how much it's moving, your location inside the venue, your step
-    count, and your heart rate if you connect a monitor. Location is used to place you on the venue map
-    and is only recorded while this page is open. Nothing is kept after the event ends, and your name
-    only appears on the host's screen.
+  <div class="screen-main">
+    <h1>You're part of the music.</h1>
+    <p class="sub">How this room moves shapes what plays. Add your name and you're in.</p>
+    <div class="consent">
+      While you're here your phone shares how much it's moving, your location inside the venue, your step
+      count, and your heart rate if you connect a monitor. Location is used to place you on the venue map
+      and is only recorded while this page is open. Nothing is kept after the event ends, and your name
+      only appears on the host's screen.
+    </div>
+  </div>
+  <div class="dock">
+    <input id="name" placeholder="Your name" autocomplete="given-name" maxlength="24" enterkeyhint="go">
+    <button class="primary" id="go" type="button">Check in</button>
   </div>
 </section>
 
 <section class="screen" id="s-sensors">
-  <h1>Turn on movement.</h1>
-  <p class="sub">Your phone's motion sensor and location are what the venue runs on. One tap starts both.</p>
-  <button class="primary" id="motionBtn">Start movement &amp; location</button>
-  <button class="ghost" id="hrBtn">Connect heart monitor</button>
-  <div class="err" id="err"></div>
-  <div class="hint">No monitor? Skip it — movement alone works.</div>
-  <button class="ghost" id="skipSensors" style="margin-top:20px">Continue</button>
+  <div class="screen-main">
+    <h1>Turn on movement.</h1>
+    <p class="sub">Your phone's motion sensor and location are what the venue runs on. One tap starts both.</p>
+    <div class="err" id="err"></div>
+    <div class="hint">No monitor? Skip it — movement alone works.</div>
+  </div>
+  <div class="dock">
+    <button class="primary" id="motionBtn" type="button">Start movement &amp; location</button>
+    <button class="ghost" id="hrBtn" type="button">Connect heart monitor</button>
+    <button class="ghost" id="skipSensors" type="button">Continue</button>
+  </div>
 </section>
 
 <section class="screen" id="s-live">
-  <div class="card" id="mapCard">
-    <div class="maphead"><span class="lab">STACKT Market</span><span class="n" id="mapCount">0 here</span></div>
-    <canvas id="mini"></canvas>
+  <div class="screen-main">
+    <div class="card" id="mapCard">
+      <div class="maphead"><span class="lab">STACKT Market</span><span class="n" id="mapCount">0 here</span></div>
+      <canvas id="mini"></canvas>
+    </div>
+
+    <div class="grid">
+      <div class="card stat"><span class="lab">Your movement</span><b id="myEnergy">0.00</b><div class="d" id="myRank">—</div></div>
+      <div class="card stat"><span class="lab">Your heart</span><b id="myHr">—</b><div class="d" id="myHrD">no sensor</div></div>
+      <div class="card stat"><span class="lab">Room energy</span><b id="roomEnergy">0.00</b><div class="d" id="roomTrend">—</div></div>
+      <div class="card stat"><span class="lab">Room sync</span><b id="roomSync">0.00</b><div class="d">moving together</div></div>
+      <div class="card stat"><span class="lab">Your steps</span><b id="mySteps">0</b><div class="d" id="myDist">0 m</div></div>
+      <div class="card stat"><span class="lab">Location</span><b id="myFix" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b><div class="d" id="myFixD">not started</div></div>
+    </div>
+
+    <div class="card stat" style="margin-bottom:14px">
+      <span class="lab">Your zone</span>
+      <b id="zoneName" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b>
+      <div class="d" id="zoneCount">—</div>
+    </div>
+
+    <div class="hint">Your zone updates on its own as you move around the venue.</div>
+    <a class="ghost" id="viewVenueMap" href="/city.html" style="margin-bottom:8px">View this venue on the city map</a>
   </div>
 
-  <div class="grid">
-    <div class="card stat"><span class="lab">Your movement</span><b id="myEnergy">0.00</b><div class="d" id="myRank">—</div></div>
-    <div class="card stat"><span class="lab">Your heart</span><b id="myHr">—</b><div class="d" id="myHrD">no sensor</div></div>
-    <div class="card stat"><span class="lab">Room energy</span><b id="roomEnergy">0.00</b><div class="d" id="roomTrend">—</div></div>
-    <div class="card stat"><span class="lab">Room sync</span><b id="roomSync">0.00</b><div class="d">moving together</div></div>
-    <div class="card stat"><span class="lab">Your steps</span><b id="mySteps">0</b><div class="d" id="myDist">0 m</div></div>
-    <div class="card stat"><span class="lab">Location</span><b id="myFix" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b><div class="d" id="myFixD">not started</div></div>
-  </div>
-
-  <div class="card stat" style="margin-bottom:14px">
-    <span class="lab">Your zone</span>
-    <b id="zoneName" style="font-family:var(--sans);font-size:16px;font-weight:600">—</b>
-    <div class="d" id="zoneCount">—</div>
-  </div>
-
-  <div class="hint">Your zone updates on its own as you move around the venue.</div>
-
-  <div id="radio">
-    <canvas id="spectrum"></canvas>
-    <div class="rrow">
-      <div class="rmeta">
-        <div class="rt" id="rTitle">Nothing playing</div>
-        <div class="ra" id="rArtist">Waiting for the host</div>
+  <div id="liveDock">
+    <div class="capture-wrap">
+      <button class="primary hidden" id="captureBtn" type="button">Capture this moment</button>
+      <div class="capture-gate" id="captureGate">Scan the QR at this venue to capture a moment</div>
+      <input id="captureFile" type="file" accept="image/*" capture="environment">
+      <div class="capture-msg" id="captureMsg"></div>
+      <div class="hint hidden" id="captureHint" style="margin-top:8px">Saves a photo + this room's live energy to the city map. That one stays online.</div>
+    </div>
+    <div id="radio">
+      <canvas id="spectrum"></canvas>
+      <div class="rrow">
+        <div class="rmeta">
+          <div class="rt" id="rTitle">Nothing playing</div>
+          <div class="ra" id="rArtist">Waiting for the host</div>
+        </div>
+        <span class="rstate" id="rState">IDLE</span>
       </div>
-      <span class="rstate" id="rState">IDLE</span>
     </div>
   </div>
 </section>
@@ -170,7 +227,40 @@ const savedName=localStorage.getItem('pulse:name');
 if(savedName) $('#name').value=savedName;
 
 let venue=null, state=null, myEnergy=0, myHr=null, myHrBase=null, motionOn=false;
+let checkedInVenueId=localStorage.getItem('pulse:venueId')||null;
+let checkedIn=false;
 const show=id=>document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+
+function onJoined(res){
+  if(!res||!res.ok) return;
+  checkedIn=true;
+  checkedInVenueId=res.venueId||(venue&&venue.id)||null;
+  if(checkedInVenueId) localStorage.setItem('pulse:venueId',checkedInVenueId);
+  if(res.zoneLabel) $('#zoneTag').textContent=res.zoneLabel.toUpperCase();
+  refreshCaptureGate();
+}
+function refreshCaptureGate(){
+  const here=venue&&venue.id;
+  const ok=checkedIn&&here&&checkedInVenueId&&checkedInVenueId===here;
+  $('#captureBtn').classList.toggle('hidden',!ok);
+  $('#captureHint').classList.toggle('hidden',!ok);
+  $('#captureGate').classList.toggle('hidden',!!ok);
+  if(!ok){
+    $('#captureGate').textContent=here
+      ? 'Scan the QR at this venue to capture a moment'
+      : 'Check in at a venue to capture a moment';
+  }
+  // Viewing stays open — link works with or without check-in.
+  const link=$('#viewVenueMap');
+  if(here){
+    link.href='/venue.html?id='+encodeURIComponent(here);
+    link.textContent='View captures from '+(venue.name||'this venue');
+    link.classList.remove('hidden');
+  }else{
+    link.href='/city.html';
+    link.textContent='View the city map';
+  }
+}
 
 /* palette mirrors the host, driven by the same spectrum */
 const ACCENT =[[59,79,224],[123,63,212],[201,48,143],[240,85,60],[255,167,36]];
@@ -200,17 +290,17 @@ $('#go').addEventListener('click',()=>{
   const name=$('#name').value.trim()||'Guest';
   localStorage.setItem('pulse:name',name);
   socket.emit('join',{id:myId,name,zone},res=>{
-    if(res&&res.ok){ $('#zoneTag').textContent=res.zoneLabel.toUpperCase(); show('s-sensors'); }
+    if(res&&res.ok){ onJoined(res); show('s-sensors'); }
   });
 });
 $('#name').addEventListener('keydown',e=>{if(e.key==='Enter')$('#go').click()});
 $('#skipSensors').addEventListener('click',()=>show('s-live'));
 
 socket.on('connect',()=>{
-  if(!savedName) return;
+  if(!savedName){ refreshCaptureGate(); return; }
   socket.emit('join',{id:myId,name:savedName,zone},res=>{
-    if(!res||!res.ok) return;
-    $('#zoneTag').textContent=res.zoneLabel.toUpperCase();
+    if(!res||!res.ok){ refreshCaptureGate(); return; }
+    onJoined(res);
     show(motionOn?'s-live':'s-sensors');
   });
 });
@@ -391,9 +481,113 @@ function drawSpectrum(a,a2){
   }
 }
 
+/* ---------------- vibe capture (requires check-in at THIS venue) ---------------- */
+function setCaptureMsg(text, kind){
+  const el=$('#captureMsg');
+  el.className='capture-msg'+(kind?' '+kind:'');
+  el.innerHTML=text||'';
+}
+function canCaptureHere(){
+  return !!(checkedIn&&venue&&venue.id&&checkedInVenueId&&checkedInVenueId===venue.id);
+}
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=()=>reject(new Error('could not read photo'));
+    r.readAsDataURL(file);
+  });
+}
+// Downscale + force JPEG so iPhone HEIC / huge camera files still upload.
+function fileToCapturePayload(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const max=1600;
+        let w=img.naturalWidth||img.width;
+        let h=img.naturalHeight||img.height;
+        if(!w||!h){ URL.revokeObjectURL(url); reject(new Error('could not read photo')); return; }
+        if(w>max||h>max){
+          const s=max/Math.max(w,h);
+          w=Math.round(w*s); h=Math.round(h*s);
+        }
+        const c=document.createElement('canvas');
+        c.width=w; c.height=h;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        const data=c.toDataURL('image/jpeg',0.85);
+        if(!data||data.length<800) reject(new Error('could not encode photo'));
+        else resolve(data);
+      }catch(e){ URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror=()=>{
+      URL.revokeObjectURL(url);
+      // Fall back to raw bytes (PNG/JPEG/WebP only — HEIC won't make it).
+      fileToDataUrl(file).then(resolve,reject);
+    };
+    img.src=url;
+  });
+}
+$('#captureBtn').addEventListener('click',()=>{
+  if(!canCaptureHere()){
+    setCaptureMsg('Scan the QR at this venue to capture a moment','err');
+    refreshCaptureGate();
+    return;
+  }
+  $('#captureFile').click();
+});
+$('#captureFile').addEventListener('change',async()=>{
+  const file=$('#captureFile').files&&$('#captureFile').files[0];
+  $('#captureFile').value='';
+  if(!file) return;
+  if(!canCaptureHere()){
+    setCaptureMsg('Scan the QR at this venue to capture a moment','err');
+    refreshCaptureGate();
+    return;
+  }
+  if(file.size>5*1024*1024){ setCaptureMsg('Photo is too large (max 5MB).','err'); return; }
+  setCaptureMsg('Capturing…');
+  $('#captureBtn').disabled=true;
+  try{
+    let payload=String(await fileToCapturePayload(file)).replace(/^data:image\/jpg;/,'data:image/jpeg;');
+    if(!/^data:image\/(png|jpeg|webp);base64,/.test(payload)){
+      setCaptureMsg('Use a PNG, JPEG, or WebP photo (not HEIC).','err'); return;
+    }
+    const name=($('#name').value.trim()||localStorage.getItem('pulse:name')||'').slice(0,24);
+    const res=await fetch('/api/venues/'+encodeURIComponent(venue.id)+'/capture',{
+      method:'POST',
+      headers:{'content-type':'application/json','x-device-id':myId},
+      body:JSON.stringify({image:payload,captured_by:name||undefined,device_id:myId})
+    });
+    const body=await res.json().catch(()=>({}));
+    if(!res.ok){ setCaptureMsg(body.error||'Capture failed','err'); return; }
+    const vibe=(body.capture&&body.capture.vibe_label)||'mixed';
+    const mapHref='/venue.html?id='+encodeURIComponent(venue.id);
+    setCaptureMsg(`Captured (${vibe})! <a href="${mapHref}">See it on the venue map</a>`,'ok');
+  }catch(e){
+    setCaptureMsg(e.message||'Capture failed','err');
+  }finally{
+    $('#captureBtn').disabled=false;
+  }
+});
+refreshCaptureGate();
+
 /* ---------------- state ---------------- */
 let myZone=zone;
-socket.on('venue',v=>{ venue=v; fitMini(); });
+socket.on('venue',v=>{
+  venue=v; fitMini();
+  const label=document.querySelector('#mapCard .lab');
+  if(label&&v&&v.name) label.textContent=v.name;
+  // Host switched the live venue — check-in follows the active event.
+  if(checkedIn&&v&&v.id){
+    checkedInVenueId=v.id;
+    localStorage.setItem('pulse:venueId',v.id);
+  }
+  refreshCaptureGate();
+});
 socket.on('state',s=>{
   state=s;
   if(!venue) return;

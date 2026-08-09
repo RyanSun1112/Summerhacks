@@ -56,9 +56,9 @@ const supabaseAdmin = AUTH_ENABLED
 
 if (!AUTH_ENABLED) {
   console.warn('[auth] DISABLED — set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env');
-  console.warn('[auth] Venue create/update/delete stay open until auth is configured.');
+  console.warn('[auth] Venue writes stay open; vibe captures (Supabase Storage + captures table) are unavailable.');
 } else {
-  console.log('[auth] Supabase auth enabled for venue-owner routes');
+  console.log('[auth] Supabase enabled — venue-owner routes + vibe captures');
 }
 
 // ----------------------------------------------------------------- venues
@@ -67,7 +67,9 @@ if (!AUTH_ENABLED) {
 // the editor has something to clone and the tracked file stays pristine.
 const VENUES_DIR = path.join(__dirname, 'venues');
 const BUILTIN    = path.join(__dirname, 'venue.json');
-const PLAN_MAX   = 8 * 1024 * 1024;             // floor plan upload ceiling
+const PLAN_MAX    = 8 * 1024 * 1024;            // floor plan upload ceiling
+const CAPTURE_MAX = 5 * 1024 * 1024;            // vibe-capture photo ceiling
+const CAPTURES_BUCKET = 'captures';
 
 const venues = new Map();                        // id -> venue
 let venue = null, zoneById = {}, GEO = null, activeId = null;
@@ -107,6 +109,8 @@ function setActive(id) {
   // anyone checked in is pinned to a zone id that may not exist here
   const home = defaultZone();
   for (const p of attendees.values()) {
+    // Live event moved — their check-in now belongs to the new active venue.
+    if (!p.sim) p.venueId = id;
     if (zoneById[p.zone]) continue;
     p.zone = home; p.anchor = anchorInZone(home); p.zoneCand = null; p.zoneVotes = 0;
   }
@@ -196,7 +200,9 @@ const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
 // rejected the upload before the large one was ever reached.
 const smallJson = express.json({ limit: '64kb' });
 const bigJson   = express.json({ limit: PLAN_MAX });
-const needsBigBody = req => req.path === '/detect' || /^\/venues\/[^/]+\/plan$/.test(req.path);
+const needsBigBody = req => req.path === '/detect'
+  || /^\/venues\/[^/]+\/plan$/.test(req.path)
+  || /^\/api\/venues\/[^/]+\/capture$/.test(req.path);
 app.use((req, res, next) => (needsBigBody(req) ? bigJson : smallJson)(req, res, next));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
@@ -206,6 +212,13 @@ app.get('/venue', (_, res) => res.json(venue));
 app.get('/auth/config', (_, res) => {
   if (!AUTH_ENABLED) return res.status(503).json({ error: 'auth not configured', enabled: false });
   res.json({ enabled: true, url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+});
+
+// Mapbox public token for city.html (safe to expose — restrict by URL in Mapbox).
+app.get('/map/config', (_, res) => {
+  const token = process.env.MAPBOX_ACCESS_TOKEN || process.env.MAPBOX_TOKEN || '';
+  if (!token) return res.status(503).json({ error: 'MAPBOX_ACCESS_TOKEN not set', token: '' });
+  res.json({ token });
 });
 
 // Verify Supabase JWT from Authorization: Bearer <access_token>.
@@ -324,11 +337,15 @@ app.get('/api/me/venues', requireAuth, async (req, res) => {
 // Reads stay public (dashboard + join). Writes require owner auth when enabled.
 app.get('/venues', (_, res) => res.json({
   active: activeId,
-  venues: [...venues.values()].map(v => ({
-    id: v.id, name: v.name, subtitle: v.subtitle || '',
-    zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-    hasPlan: fs.existsSync(planPath(v.id))
-  }))
+  venues: [...venues.values()].map(v => {
+    const { lat, lon } = venueLatLon(v);
+    return {
+      id: v.id, name: v.name, subtitle: v.subtitle || '',
+      zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+      hasPlan: fs.existsSync(planPath(v.id)),
+      lat, lon                                 // fixed city-map pin position
+    };
+  })
 }));
 
 app.get('/venues/:id', (req, res) => {
@@ -652,6 +669,273 @@ app.post('/crowd', (req, res) => {
 // curl this if the dashboard looks wrong — it's the exact payload being broadcast
 app.get('/state.json', (_, res) => res.json(publicState()));
 
+// ---------------------------------------------------------- vibe captures
+// Permanent photo + live crowd reading. Public write (same trust as join/
+// motion sockets); persists in Supabase so it survives process death.
+// Tuned against the default FAKE crowd (liveliness ≈0.7): energy usually
+// sits ~0.35–0.75 and sync climbs once a few people move together. Thresholds
+// stay explainable — judges can hear the rule in one sentence.
+function vibeLabel(energy, sync) {
+  const e = +energy || 0, s = +sync || 0;
+  // Room is both lively AND moving as one body → hype
+  if (e > 0.55 && s > 0.45) return 'hype';
+  // Quiet floor, regardless of sync → calm
+  if (e < 0.28) return 'calm';
+  return 'mixed';
+}
+
+// City-map pin: approximate venue centre from geo.origin + half the site span.
+// Fine at city scale; per-zone GPS precision is a different problem.
+function venueLatLon(v) {
+  const g = v && v.geo, o = g && g.origin;
+  if (!o || typeof o.lat !== 'number' || typeof o.lon !== 'number') return { lat: null, lon: null };
+  const halfY = ((g.spanY || 50) / 2) / 111320;
+  const halfX = ((g.spanX || 100) / 2) / (111320 * Math.max(0.2, Math.cos(o.lat * Math.PI / 180)));
+  return { lat: +(o.lat - halfY).toFixed(6), lon: +(o.lon + halfX).toFixed(6) };
+}
+
+// Light double-tap guard: one capture per venue+device every 30s.
+const captureCooldown = new Map();               // key -> expiresAt
+const CAPTURE_COOLDOWN_MS = 30_000;
+function captureAllowed(venueId, deviceId) {
+  const key = `${venueId}:${deviceId || 'anon'}`;
+  const now = Date.now();
+  const until = captureCooldown.get(key) || 0;
+  if (until > now) return false;
+  captureCooldown.set(key, now + CAPTURE_COOLDOWN_MS);
+  if (captureCooldown.size > 2000) {
+    for (const [k, t] of captureCooldown) if (t <= now) captureCooldown.delete(k);
+  }
+  return true;
+}
+
+async function uploadCapturePhoto(buf, ext, contentType) {
+  const name = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const { error } = await supabaseAdmin.storage.from(CAPTURES_BUCKET).upload(name, buf, {
+    contentType, upsert: false, cacheControl: '86400'
+  });
+  if (error) throw new Error(error.message || 'storage upload failed');
+  const { data } = supabaseAdmin.storage.from(CAPTURES_BUCKET).getPublicUrl(name);
+  if (!data || !data.publicUrl) throw new Error('no public URL from storage');
+  return data.publicUrl;
+}
+
+// Extract object key from a Supabase public/signed URL, or accept a bare key.
+function captureStorageKey(photoUrl) {
+  const s = String(photoUrl || '');
+  const m = s.match(/\/storage\/v1\/object\/(?:public|sign)\/captures\/([^?]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  if (/^[0-9]+-[a-f0-9]+\.(png|jpe?g|webp)$/i.test(s)) return s;
+  return null;
+}
+
+// Browser img tags hit Supabase directly and intermittently 403 (CF / private
+// bucket / missing SELECT policy). Always serve photos same-origin instead.
+function withProxiedPhoto(row) {
+  if (!row || !row.id) return row;
+  return Object.assign({}, row, { photo_url: `/api/captures/${row.id}/photo` });
+}
+
+// Must be a live, non-sim check-in for THIS venue. device_id is the pulse
+// session id from join.html — same trust model as motion/geo sockets.
+function assertCaptureCheckIn(venueId, deviceId) {
+  if (!deviceId) {
+    return { ok: false, status: 401, error: 'check in at this venue first — scan the QR and tap Check in' };
+  }
+  const p = attendees.get(deviceId);
+  if (!p || p.sim) {
+    return { ok: false, status: 401, error: 'check in at this venue first — scan the QR and tap Check in' };
+  }
+  if (!alive(p)) {
+    return { ok: false, status: 401, error: 'your check-in expired — reopen the join page and check in again' };
+  }
+  if (p.venueId !== venueId) {
+    console.log('[capture] deny: device', deviceId, 'checked into', p.venueId, 'not', venueId);
+    return { ok: false, status: 403, error: 'you are checked into a different venue — scan this venue\'s QR to capture here' };
+  }
+  return { ok: true, person: p };
+}
+
+// Photo + frozen live metrics. Metrics always come from server-side `crowd`
+// (recomputed here) — never trust client-supplied energy/sync/arousal.
+app.post('/api/venues/:id/capture', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env' });
+  }
+  const id = req.params.id;
+  const v = venues.get(id);
+  if (!v) return res.status(404).json({ error: 'no such venue' });
+
+  const deviceId = String((req.body && req.body.device_id) || req.get('x-device-id') || '').slice(0, 64);
+  const gate = assertCaptureCheckIn(id, deviceId);
+  if (!gate.ok) {
+    console.log('[capture] deny check-in:', gate.error, 'venue=', id, 'device=', deviceId || '(none)');
+    return res.status(gate.status).json({ error: gate.error });
+  }
+
+  if (!captureAllowed(id, deviceId)) {
+    console.log('[capture] rate-limited', id, deviceId);
+    return res.status(429).json({ error: 'slow down — one capture per venue every 30s' });
+  }
+
+  const dataUrl = String((req.body && req.body.image) || '');
+  const m = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); }
+  catch { return res.status(400).json({ error: 'invalid base64 image' }); }
+  if (!buf.length) return res.status(400).json({ error: 'empty image' });
+  if (buf.length < 512) return res.status(400).json({ error: 'photo looks empty — try again with the camera' });
+  if (buf.length > CAPTURE_MAX) return res.status(413).json({ error: 'photo is too large (max 5MB)' });
+
+  computeCrowd();
+  const energy = +crowd.energy || 0;
+  const sync = +crowd.sync || 0;
+  const arousal = +crowd.arousal || 0;
+  const label = vibeLabel(energy, sync);
+  const { lat, lon } = venueLatLon(v);
+  const capturedBy = (req.body && req.body.captured_by != null)
+    ? String(req.body.captured_by).trim().slice(0, 24) || null
+    : null;
+
+  try {
+    // Create the public bucket on first use if schema.sql hasn't been run yet
+    // for Storage (table still must exist — that part needs the SQL editor).
+    const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+    if (!buckets || !buckets.some(b => b.id === CAPTURES_BUCKET || b.name === CAPTURES_BUCKET)) {
+      const { error: bErr } = await supabaseAdmin.storage.createBucket(CAPTURES_BUCKET, {
+        public: true, fileSizeLimit: CAPTURE_MAX,
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp']
+      });
+      if (bErr && !/already exists/i.test(bErr.message || '')) {
+        console.log('[capture] create bucket fail:', bErr.message);
+        return res.status(500).json({
+          error: bErr.message + ' — run supabase/schema.sql (creates captures table + storage bucket)'
+        });
+      }
+      console.log('[capture] created storage bucket', CAPTURES_BUCKET);
+    }
+
+    const photoUrl = await uploadCapturePhoto(buf, m[1] === 'jpeg' ? 'jpg' : m[1], `image/${m[1]}`);
+    // Zone at capture time — floor-plan thumbnails scatter inside this zone.
+    const zoneId = (gate.person && zoneById[gate.person.zone])
+      ? gate.person.zone
+      : null;
+    const row = {
+      venue_id: id,
+      venue_name: v.name || id,
+      lat, lon,
+      photo_url: photoUrl,
+      energy, sync, arousal,
+      vibe_label: label,
+      captured_by: capturedBy,
+      zone_id: zoneId
+    };
+    const { data, error } = await supabaseAdmin.from('captures').insert(row).select().single();
+    if (error) {
+      console.log('[capture] insert fail:', error.message);
+      const hint = /could not find the table|schema cache/i.test(error.message || '')
+        ? ' — run supabase/schema.sql in the Supabase SQL editor'
+        : '';
+      return res.status(500).json({ error: error.message + hint });
+    }
+    const proxied = withProxiedPhoto(data);
+    console.log('[capture] ok', data.id, id, label,
+      `e=${energy.toFixed(2)} s=${sync.toFixed(2)} a=${arousal.toFixed(2)} bytes=${buf.length}`);
+    io.emit('capture', proxied);                  // city.html updates live
+    res.json({ ok: true, capture: proxied });
+  } catch (e) {
+    console.log('[capture] fail:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Same-origin photo bytes. Service role can read even when the public URL 403s.
+app.get('/api/captures/:id/photo', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).send('captures unavailable');
+  }
+  const id = String(req.params.id || '').slice(0, 64);
+  try {
+    const { data: row, error } = await supabaseAdmin
+      .from('captures')
+      .select('photo_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      console.log('[capture] photo meta fail:', error.message);
+      return res.status(500).send('lookup failed');
+    }
+    if (!row || !row.photo_url) return res.status(404).send('not found');
+    const key = captureStorageKey(row.photo_url);
+    if (!key) return res.status(404).send('bad photo url');
+    const { data: blob, error: dErr } = await supabaseAdmin.storage
+      .from(CAPTURES_BUCKET)
+      .download(key);
+    if (dErr || !blob) {
+      console.log('[capture] photo download fail:', dErr && dErr.message);
+      return res.status(404).send('missing file');
+    }
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const ext = (key.split('.').pop() || '').toLowerCase();
+    const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+      : ext === 'webp' ? 'image/webp'
+      : 'image/png';
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.type(type);
+    res.send(buf);
+  } catch (e) {
+    console.log('[capture] photo exception:', e.message);
+    res.status(500).send('error');
+  }
+});
+
+// Public artifact — last 200 captures across every venue, newest first.
+// Optional ?venue=<id> scopes to one venue (still open — viewing needs no check-in).
+// Brief retries: undici "fetch failed" to Supabase is usually a transient DNS/IPv6 blip.
+async function listCaptures(limit, venueFilter) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let q = supabaseAdmin
+      .from('captures')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (venueFilter) q = q.eq('venue_id', venueFilter);
+    const { data, error } = await q;
+    if (!error) return { data, error: null };
+    lastErr = error;
+    const transient = /fetch failed|network|ECONN|ETIMEDOUT|ENOTFOUND/i.test(error.message || '');
+    if (!transient || attempt === 2) break;
+    await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+  }
+  return { data: null, error: lastErr };
+}
+
+app.get('/api/captures', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env', captures: [] });
+  }
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  const venueFilter = String(req.query.venue || '').trim().slice(0, 40);
+  try {
+    const { data, error } = await listCaptures(limit, venueFilter);
+    if (error) {
+      const cause = error.cause && (error.cause.code || error.cause.message);
+      console.log('[capture] list fail:', error.message, cause ? '(' + cause + ')' : '');
+      return res.status(500).json({ error: error.message, captures: [] });
+    }
+    res.json({
+      captures: (data || []).map(withProxiedPhoto),
+      venue: venueFilter || null
+    });
+  } catch (e) {
+    const cause = e.cause && (e.cause.code || e.cause.message);
+    console.log('[capture] list exception:', e.message, cause ? '(' + cause + ')' : '');
+    res.status(500).json({ error: e.message, captures: [] });
+  }
+});
+
 // Mock/future CrowdState -> deterministic target/ranking -> optional server-side
 // OpenAI final judge. This endpoint never receives audio and never exposes a key.
 app.get('/api/dj/scenarios', (_, res) => res.json({
@@ -735,20 +1019,22 @@ app.get('/qr', async (req, res) => {
   const problem = originProblem(url);
   const z = zone && zoneById[zone];
   res.type('html').send(`<!doctype html><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Pulse — check-in poster</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
- body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#0A0C14;
-      font-family:'Space Grotesk',system-ui,sans-serif;padding:32px}
- .card{max-width:620px;width:100%;text-align:center}
- h1{font-size:40px;margin:0 0 6px;letter-spacing:-.02em}
- .sub{font-size:17px;color:#5A6070;margin:0 0 26px}
- .qr{width:min(78vw,380px);height:auto;display:block;margin:0 auto}
- .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:20px;word-break:break-all}
- .warn{margin-top:22px;padding:15px 17px;border-radius:11px;text-align:left;
-       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55}
- .ok{margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2E9E6B}
+ body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#fff;color:#0A0C14;
+      font-family:'Space Grotesk',system-ui,sans-serif;
+      padding:max(20px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+ .card{max-width:min(620px,100%);width:100%;text-align:center}
+ h1{font-size:clamp(26px,8vw,40px);margin:0 0 6px;letter-spacing:-.02em;line-height:1.15;word-break:break-word}
+ .sub{font-size:clamp(15px,4vw,17px);color:#5A6070;margin:0 0 22px;line-height:1.4}
+ .qr{width:min(78vw,380px);max-width:100%;height:auto;display:block;margin:0 auto}
+ .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:18px;word-break:break-all;line-height:1.45;padding:0 4px}
+ .warn{margin-top:20px;padding:14px 15px;border-radius:11px;text-align:left;
+       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55;
+       overflow-wrap:anywhere}
+ .ok{margin-top:20px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#2E9E6B}
  @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
 </style>
 <div class="card">
@@ -909,9 +1195,13 @@ io.on('connection', socket => {
     if (name) person.name = name.slice(0, 24);
     if (!existing || person.zone !== z) person.anchor = anchorInZone(z);
     person.zone = z; person.lastSeen = Date.now();
+    person.venueId = activeId;                   // capture gated to this venue
     attendees.set(pid, person);
     socket.data.pid = pid;
-    if (ack) ack({ ok: true, id: pid, zone: z, zoneLabel: zoneById[z].label });
+    if (ack) ack({
+      ok: true, id: pid, zone: z, zoneLabel: zoneById[z].label,
+      venueId: activeId, venueName: venue && venue.name
+    });
   });
 
   socket.on('motion', ({ energy }) => {
@@ -1093,9 +1383,10 @@ server.listen(PORT, () => {
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
   console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
+  console.log(`  City map   http://localhost:${PORT}/city.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
   console.log(`  QR page    http://localhost:${PORT}/qr`);
-  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
+  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes + captures)' : 'off (set SUPABASE_* in .env)'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
