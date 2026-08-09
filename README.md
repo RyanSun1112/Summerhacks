@@ -581,7 +581,11 @@ device rate and sends a single summarised float every 500ms; sending raw 30Hz fr
 melt the server. GPS is throttled to one fix a second, and step count comes from peak detection on the
 accelerometer stream that's already being sampled.
 
-Heart rate is optional and uses the standard BLE GATT Heart Rate Service (`0x180D`), so any strap advertising "Bluetooth heart rate" works. Chrome on Android and desktop only — **iOS has no Web Bluetooth at all**, so design the demo assuming most phones contribute movement only.
+The phone also shows a live **sound level** in approximate dB, derived from the same mic RMS the
+snapshot store records (level only, never audio; phones aren't calibrated SPL meters, hence
+"approx"). Heart-rate pairing was dropped from the phone UI — iOS has no Web Bluetooth, so it could
+never work for most of the room — but the server's HR pipeline and the dashboard's pulse rings
+remain, fed by the simulator.
 
 ## localhost vs the tunnel
 

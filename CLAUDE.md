@@ -10,7 +10,7 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 
 **Sensors require HTTPS.** `DeviceMotionEvent` and Web Bluetooth are hard-blocked on plain HTTP. Phones check in fine and then report `0.00` movement forever with no error in any console. This is the #1 failure mode. Dev via `cloudflared tunnel --url http://localhost:3000` and pass `PUBLIC_URL` so QR codes encode the tunnel host, not localhost.
 
-**iOS has no Web Bluetooth.** Heart rate works only on Chrome/Android and desktop. Movement energy must remain the primary signal and every metric must degrade gracefully when `hr` is null. Never make HR load-bearing.
+**iOS has no Web Bluetooth.** Heart rate works only on Chrome/Android and desktop. Movement energy must remain the primary signal and every metric must degrade gracefully when `hr` is null. Never make HR load-bearing. **The phone UI no longer offers HR pairing at all** (decided 2026-08-08: replaced by a sound-level tile off the mic RMS already collected). The `hr` socket path, baselines and the ring visual all remain — fed by the simulator — so reinstating a real HR source is one button, not a rebuild.
 
 **iOS motion needs a user gesture.** `DeviceMotionEvent.requestPermission()` must be called inside a real tap handler. Don't move it into page load.
 
@@ -20,7 +20,7 @@ Hackathon project, <24h build. Bias toward demo reliability over correctness or 
 
 - All venue geometry is normalized 0–1. Never hardcode coordinates in the clients.
 - **Venues are plural now.** They live as JSON in `venues/`, seeded from `venue.json` on first boot; `venue.json` is the committed built-in and is never written to. The active one is swapped at runtime by `setActive()`, so `venue`, `zoneById` and `GEO` are mutable — don't turn them back into boot-time `const`s.
-- Only `outline`, `zones`, `aspect` and `name` are guaranteed. `containers`, `route`, `streets` and `entrances` exist on STACKT but not on anything built in the editor — guard every one of them before iterating, or the map throws on a new venue.
+- Only `outline`, `zones`, `aspect` and `name` are guaranteed. `containers`, `route`, `streets` and `entrances` exist on STACKT but not on anything built in the editor — guard every one of them before iterating, or the map throws on a new venue. This bit join.html for real: an unguarded `venue.containers.forEach` killed the phone's whole draw loop on editor-built venues, showing outline-only maps in the room. Nothing on a phone may assume STACKT fields, and no client page may hardcode the venue name — it comes from the `venue` socket event.
 - Nothing may assume a zone id exists. `entrance1` is STACKT-specific; use `defaultZone()`, which prefers a `transit` zone and falls back to the first.
 - **AI keys stay server-side.** The dashboard is served over a public tunnel, so anything in client JS is public — and OpenAI keys are billable. The browser posts the image to `POST /detect` and the server calls the model. Never move a key into a page.
 - OpenAI and Gemini are both supported behind one interface (`askOpenAI` / `askGemini`, both returning raw JSON text). Adding a provider means adding one function and a schema, not touching `/detect`. Note the schema dialects differ: Gemini wants uppercase type names, OpenAI strict mode requires `additionalProperties:false` and every property in `required`.
