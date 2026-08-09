@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from typing import Protocol, Sequence
 
@@ -50,6 +51,10 @@ evidence-grounded. Return exactly one result for every supplied songId."""
 
 
 SongInput = tuple[TrackMetadata, AudioFeatures]
+
+
+class LLMBudgetExceeded(RuntimeError):
+    """Raised before a request that would exceed the configured local ceiling."""
 
 
 class SongAnnotator(Protocol):
@@ -99,23 +104,62 @@ class OpenAISongAnnotator:
 
             client = OpenAI()
         self.client = client
+        self._budget_lock = threading.Lock()
+        self._reserved_cost_usd = 0.0
+
+    @property
+    def reserved_cost_usd(self) -> float:
+        """Conservative request reservations, not the provider's final invoice."""
+
+        with self._budget_lock:
+            return self._reserved_cost_usd
+
+    def _max_output_tokens(self, song_count: int) -> int:
+        requested = self.config.output_token_overhead + (
+            self.config.output_tokens_per_song * song_count
+        )
+        return min(self.config.max_output_tokens_per_request, requested)
+
+    def _request_cost_upper_bound(self, input_text: str, max_output_tokens: int) -> float:
+        # UTF-8 byte count is intentionally much more conservative than the usual
+        # ~4-characters-per-token estimate. The additional overhead covers SDK
+        # framing and the Structured Outputs schema that is not in input_text.
+        estimated_input_tokens = (
+            len(input_text.encode("utf-8")) + self.config.input_token_safety_overhead
+        )
+        return (
+            estimated_input_tokens * self.config.input_cost_per_million_usd
+            + max_output_tokens * self.config.output_cost_per_million_usd
+        ) / 1_000_000
+
+    def _reserve_request(self, estimated_cost_usd: float) -> None:
+        with self._budget_lock:
+            projected = self._reserved_cost_usd + estimated_cost_usd
+            if projected > self.config.max_estimated_run_cost_usd + 1e-12:
+                raise LLMBudgetExceeded(
+                    "local LLM cost guard stopped the request: conservative estimated "
+                    f"spend would exceed ${self.config.max_estimated_run_cost_usd:.2f}; "
+                    "rerun cached work or intentionally raise --max-llm-cost-usd"
+                )
+            self._reserved_cost_usd = projected
 
     def annotate_batch(self, songs: Sequence[SongInput]) -> list[SongAnnotation]:
         if not songs:
             return []
         expected_ids = [metadata.id for metadata, _ in songs]
         user_payload = [annotation_payload(metadata, audio) for metadata, audio in songs]
+        user_content = "Rate these songs using the absolute rubric:\n" + json.dumps(
+            user_payload, ensure_ascii=False, separators=(",", ":")
+        )
+        max_output_tokens = self._max_output_tokens(len(songs))
         request: dict[str, object] = {
             "model": self.config.model,
             "input": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": "Rate these songs using the absolute rubric:\n"
-                    + json.dumps(user_payload, ensure_ascii=False, separators=(",", ":")),
-                },
+                {"role": "user", "content": user_content},
             ],
             "text_format": SongAnnotationBatch,
+            "max_output_tokens": max_output_tokens,
         }
         if self.config.reasoning_effort:
             request["reasoning"] = {"effort": self.config.reasoning_effort}
@@ -123,6 +167,12 @@ class OpenAISongAnnotator:
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
             try:
+                self._reserve_request(
+                    self._request_cost_upper_bound(
+                        SYSTEM_PROMPT + "\n" + user_content,
+                        max_output_tokens,
+                    )
+                )
                 response = self.client.responses.parse(**request)  # type: ignore[attr-defined]
                 parsed = response.output_parsed
                 if parsed is None:
@@ -133,6 +183,8 @@ class OpenAISongAnnotator:
                     else SongAnnotationBatch.model_validate(parsed)
                 )
                 return validate_annotation_batch(batch, expected_ids)
+            except LLMBudgetExceeded:
+                raise
             except Exception as error:
                 last_error = error
                 if attempt + 1 < self.config.max_retries:

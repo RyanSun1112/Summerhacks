@@ -22,6 +22,11 @@ function parseArgs(argv) {
     else if (argument === '--profiles' && value) { options.profiles = value; index++; }
     else if (argument === '--current' && value) { options.current = value; index++; }
     else if (argument === '--recent' && value) { options.recent = value.split(',').filter(Boolean); index++; }
+    else if (argument === '--mode' && value) { options.selectionMode = value; index++; }
+    else if (argument === '--guidance-strength' && value) {
+      options.guidanceStrength = Number(value);
+      index++;
+    }
     else if (argument === '--ai') options.useAI = true;
     else if (argument === '--json') options.json = true;
     else if (argument === '--list-scenarios') options.listScenarios = true;
@@ -39,6 +44,8 @@ Options:
   --profiles PATH       Song-profile JSON (default: data/songProfiles.json)
   --current SONG_ID     Current song (default: first catalog song)
   --recent ID1,ID2      Recent IDs, most recent first
+  --mode MODE           match, guide, or blend (default: guide)
+  --guidance-strength N DJ influence from 0 to 1 when mode is blend (default: 0.5)
   --ai                  Ask the optional server-side OpenAI final selector
   --json                Print the complete decision as JSON
   --list-scenarios      List available mock scenarios
@@ -67,6 +74,7 @@ function printDecision(result, profilePath) {
   metric('Volume:', result.crowdState.volume);
 
   console.log('\nDJ INTENTION');
+  console.log(`Mode: ${result.target.selectionMode} (${Math.round(result.target.guidanceStrength * 100)}% guidance)`);
   console.log(result.target.intention);
   console.log(`Policy case: ${result.target.policyCase}`);
 
@@ -103,6 +111,13 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) { console.log(usage()); return; }
   if (options.listScenarios) { console.log(Object.keys(MOCK_SCENARIOS).join('\n')); return; }
+  if (options.selectionMode && !['match', 'guide', 'blend'].includes(options.selectionMode)) {
+    throw new Error('--mode must be match, guide, or blend');
+  }
+  if (options.guidanceStrength != null &&
+      (!Number.isFinite(options.guidanceStrength) || options.guidanceStrength < 0 || options.guidanceStrength > 1)) {
+    throw new Error('--guidance-strength must be a number between 0 and 1');
+  }
 
   const profilePath = resolveProfilePath(options.profiles);
   const songs = loadSongProfiles(profilePath);
@@ -130,7 +145,9 @@ async function main() {
     currentSong,
     recentHistory,
     useAI: options.useAI,
-    aiSelector
+    aiSelector,
+    selectionMode: options.selectionMode,
+    guidanceStrength: options.guidanceStrength
   });
   if (options.json) console.log(JSON.stringify(result, null, 2));
   else printDecision(result, profilePath);

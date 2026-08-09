@@ -91,6 +91,10 @@ profile database; it does not run librosa or call an LLM for song features. See
 [the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
 caching, audio-only testing, and full-library commands.
 
+The default event library is `songs/`: copy local MP3/WAV/FLAC/M4A files there and
+run `python preprocess_songs.py`. Its audio contents are Git-ignored and analyzed in
+place. A metadata template is available at `data/tracks.example.json`.
+
 ## Adaptive song selection
 
 The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
@@ -104,11 +108,15 @@ score.
 npm run select-song -- --scenario dancingGrowing
 npm run select-song -- --scenario socializing
 npm run select-song -- --scenario losingDanceFloor --json
+npm run select-song -- --scenario dancingGrowing --mode match
+npm run select-song -- --scenario dancingGrowing --mode blend --guidance-strength 0.35
 npm run select-song -- --list-scenarios
 ```
 
 Add `--ai` to request the optional final judge. Without `data/songProfiles.json`, the
 CLI and API clearly fall back to fictional `data/songProfiles.example.json` records.
+Selection defaults to `guide`; use `match` to mirror the current room or `blend` with
+a `0`–`1` guidance strength to interpolate between matching and intervention.
 The server also exposes `GET /api/dj/scenarios` and `POST /api/dj/select`; neither
 route changes the currently playing track. See [the DJ selection guide](docs/dj-selection.md).
 
