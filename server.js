@@ -63,8 +63,11 @@ try {
 //   supabase — accounts in Supabase Auth, ownership in venue_owners.
 //              Set AUTH_MODE=supabase explicitly on deploy (and all three
 //              SUPABASE_* keys). Never put the service role in client JS.
-//   local    — intended zero-setup accounts; currently incomplete in HEAD —
-//              do not select this for a judged demo.
+//   local    — zero-setup accounts in the same SQLite db as the sensor
+//              snapshots (JSON-file fallback). The dev default. This
+//              implementation was lost once in a merge and every venue
+//              request then crashed the server — if you touch this section,
+//              boot in local mode and hit /venues before you push.
 //   off      — AUTH_MODE=off: venue writes stay open, no accounts anywhere.
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
@@ -98,12 +101,146 @@ const supabaseAdmin = AUTH_MODE === 'supabase'
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
+// Local accounts. Passwords are scrypt-hashed with a per-user salt; sessions
+// are random tokens. Stored in the SAME SQLite database as the sensor
+// snapshots (backend/data.db) so persistence lives in one place — the
+// collaborator's tables are untouched, these sit beside them. When the
+// native module is unavailable, a JSON file keeps auth working. Persisted at
+// all because `node --watch` restarts on every file edit, and being signed
+// out each time would make the editor unusable.
+const OWNERS_PATH = process.env.OWNERS_PATH || path.join(__dirname, 'data', 'owners.json');
+let authStore = null;
+
+function jsonAuthStore() {
+  let db = { users: [], sessions: {}, owners: {} };
+  try { db = { ...db, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; } catch { /* first boot */ }
+  const save = () => {
+    fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
+    fs.writeFileSync(OWNERS_PATH, JSON.stringify(db, null, 2));
+  };
+  return {
+    kind: 'json (' + path.relative(__dirname, OWNERS_PATH) + ')',
+    userByEmail: e => db.users.find(u => u.email === e) || null,
+    addUser: u => { db.users.push(u); save(); },
+    addSession: (t, id) => { db.sessions[t] = { userId: id, createdAt: Date.now() }; save(); },
+    delSession: t => { if (db.sessions[t]) { delete db.sessions[t]; save(); } },
+    sessionUser: t => {
+      const s = t && db.sessions[t];
+      const u = s && db.users.find(u => u.id === s.userId);
+      return u ? { id: u.id, email: u.email } : null;
+    },
+    ownerOf: v => db.owners[v] || null,
+    setOwner: (v, id) => {
+      if (db.owners[v] && db.owners[v] !== id) throw new Error('already owned');
+      db.owners[v] = id; save();
+    },
+    clearOwner: v => { if (db.owners[v]) { delete db.owners[v]; save(); } },
+    allOwners: () => ({ ...db.owners }),
+    ownedBy: id => Object.entries(db.owners).filter(([, o]) => o === id).map(([v]) => v),
+    raw: db
+  };
+}
+
+function sqliteAuthStore() {
+  snapDb.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+      salt TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS venue_owners (
+      venue_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, created_at TEXT NOT NULL);
+  `);
+  const q = {
+    userByEmail: snapDb.prepare('SELECT * FROM users WHERE email = ?'),
+    addUser: snapDb.prepare('INSERT INTO users (id, email, salt, hash, created_at) VALUES (?, ?, ?, ?, ?)'),
+    addSession: snapDb.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)'),
+    delSession: snapDb.prepare('DELETE FROM sessions WHERE token = ?'),
+    sessionUser: snapDb.prepare(`SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`),
+    ownerOf: snapDb.prepare('SELECT owner_id FROM venue_owners WHERE venue_id = ?'),
+    setOwner: snapDb.prepare('INSERT INTO venue_owners (venue_id, owner_id, created_at) VALUES (?, ?, ?)'),
+    clearOwner: snapDb.prepare('DELETE FROM venue_owners WHERE venue_id = ?'),
+    allOwners: snapDb.prepare('SELECT venue_id, owner_id FROM venue_owners'),
+    ownedBy: snapDb.prepare('SELECT venue_id FROM venue_owners WHERE owner_id = ?'),
+    countUsers: snapDb.prepare('SELECT COUNT(*) AS n FROM users')
+  };
+  // One-time migration: accounts that lived in the JSON file move into the
+  // database, sessions included, so nobody gets signed out by the change.
+  if (q.countUsers.get().n === 0 && fs.existsSync(OWNERS_PATH)) {
+    try {
+      const old = JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8'));
+      snapDb.transaction(() => {
+        (old.users || []).forEach(u =>
+          q.addUser.run(u.id, u.email, u.salt, u.hash, new Date(u.createdAt || Date.now()).toISOString()));
+        Object.entries(old.sessions || {}).forEach(([t, s]) =>
+          q.addSession.run(t, s.userId, new Date(s.createdAt || Date.now()).toISOString()));
+        Object.entries(old.owners || {}).forEach(([v, o]) =>
+          q.setOwner.run(v, o, new Date().toISOString()));
+      })();
+      const n = (old.users || []).length;
+      if (n) console.log(`[auth] migrated ${n} account(s) + ownership from ${path.relative(__dirname, OWNERS_PATH)} into the database`);
+    } catch (e) { console.warn('[auth] migration from owners.json failed:', e.message); }
+  }
+  const now = () => new Date().toISOString();
+  return {
+    kind: 'sqlite (' + path.relative(__dirname, SNAPSHOT_DB) + ')',
+    userByEmail: e => q.userByEmail.get(e) || null,
+    addUser: u => q.addUser.run(u.id, u.email, u.salt, u.hash, now()),
+    addSession: (t, id) => q.addSession.run(t, id, now()),
+    delSession: t => q.delSession.run(t),
+    sessionUser: t => (t && q.sessionUser.get(t)) || null,
+    ownerOf: v => { const r = q.ownerOf.get(v); return r ? r.owner_id : null; },
+    setOwner: (v, id) => {
+      const cur = q.ownerOf.get(v);
+      if (cur && cur.owner_id !== id) throw new Error('already owned');
+      if (!cur) q.setOwner.run(v, id, now());
+    },
+    clearOwner: v => q.clearOwner.run(v),
+    allOwners: () => Object.fromEntries(q.allOwners.all().map(r => [r.venue_id, r.owner_id])),
+    ownedBy: id => q.ownedBy.all(id).map(r => r.venue_id)
+  };
+}
+
+if (AUTH_MODE === 'local') authStore = snapDb ? sqliteAuthStore() : jsonAuthStore();
+
+const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
+function localSignup(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('that does not look like an email address');
+  if (String(password || '').length < 6) throw new Error('password must be at least 6 characters');
+  if (authStore.userByEmail(email)) throw new Error('an account with that email already exists — log in instead');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const user = { id: 'u_' + crypto.randomBytes(8).toString('hex'), email, salt,
+                 hash: hashPw(password, salt), createdAt: Date.now() };
+  authStore.addUser(user);
+  const token = crypto.randomBytes(32).toString('hex');
+  authStore.addSession(token, user.id);
+  console.log('[auth] local signup:', email);
+  return { token, userId: user.id, email };
+}
+function localLogin(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  const u = authStore.userByEmail(email);
+  // hash against a dummy salt when the user is unknown, so a wrong email and a
+  // wrong password take the same time to reject
+  const h = Buffer.from(hashPw(password, u ? u.salt : 'no-such-user'), 'hex');
+  const ok = u && crypto.timingSafeEqual(h, Buffer.from(u.hash, 'hex'));
+  if (!ok) throw new Error('wrong email or password');
+  const token = crypto.randomBytes(32).toString('hex');
+  authStore.addSession(token, u.id);
+  console.log('[auth] local login:', email);
+  return { token, userId: u.id, email };
+}
+function localUserByToken(token) {
+  return authStore ? authStore.sessionUser(token) : null;
+}
+
 if (AUTH_MODE === 'off') {
   console.warn('[auth] mode=off — venue create/update/delete stay open.');
 } else if (AUTH_MODE === 'supabase') {
   console.log('[auth] mode=supabase — venue-owner routes + vibe captures');
 } else {
-  console.warn('[auth] mode=local — local account store is incomplete in this build; prefer AUTH_MODE=supabase for deploy.');
+  console.log(`[auth] mode=local — accounts in ${authStore.kind}; sign up from the dashboard. (Set SUPABASE_* + AUTH_MODE=supabase for deploy.)`);
 }
 
 // ----------------------------------------------------------------- venues
@@ -285,6 +422,17 @@ app.post('/auth/logout', localOnly, (req, res) => {
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (token) authStore.delSession(token);
   res.json({ ok: true });
+});
+// Lets a page validate a stored token on load instead of discovering it's
+// dead on the first save. BOTH clients restore their session through this —
+// when it 404s they treat the session as invalid, wipe localStorage and
+// bounce to the sign-in page, which looks exactly like "login is broken".
+// It was lost in a merge once; that was the whole symptom.
+app.get('/auth/me', localOnly, (req, res) => {
+  const header = req.headers.authorization || '';
+  const user = localUserByToken(header.startsWith('Bearer ') ? header.slice(7).trim() : '');
+  if (!user) return res.status(401).json({ error: 'invalid session' });
+  res.json({ user });
 });
 
 // Verify Supabase JWT from Authorization: Bearer <access_token>.

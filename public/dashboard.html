@@ -849,7 +849,7 @@ deck.addEventListener('play',()=>{ initAudio(); actx.resume(); music.playing=tru
 deck.addEventListener('pause',()=>{ music.playing=false; setIcon(false); pushMusic(); });
 deck.addEventListener('loadedmetadata',()=>{ music.duration=deck.duration; pushMusic(); });
 deck.volume=0.8;
-$('#vol').addEventListener('input',e=>deck.volume=+e.target.value);
+$('#vol').addEventListener('input',e=>{ djFadeCancel(); deck.volume=+e.target.value; });   // the human always outranks a fade
 function setIcon(p){
   $('#playIcon').innerHTML = p?'<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>';
   $('#play').setAttribute('aria-label',p?'Pause':'Play');
@@ -1147,7 +1147,25 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
    sensors) → the collaborator's engine ranks the library → the pick queues →
    plays when this song ends. Deterministic on purpose: a dead API can cost a
    suggestion, never the playlist. */
-const dj={on:false,current:null,next:null,captured:false,recent:[],decision:null,live:null};
+const dj={on:false,current:null,next:null,captured:false,recent:[],decision:null,live:null,fadingOut:false};
+
+/* Fades instead of hard cuts: the outgoing song eases to silence over its
+   last ~3 seconds, the incoming one rises from silence to the volume slider.
+   One element, sequential fades — a true overlapping crossfade needs a second
+   deck wired into the analyser graph and is deliberately not built. */
+const DJ_FADE_IN_MS=2500;
+let djFadeTimer=null;
+const djVolTarget=()=>+$('#vol').value;
+function djFadeCancel(){ if(djFadeTimer){ clearInterval(djFadeTimer); djFadeTimer=null; } }
+function djFadeTo(target,ms){
+  djFadeCancel();
+  const from=deck.volume, t0=performance.now();
+  djFadeTimer=setInterval(()=>{
+    const k=Math.min(1,(performance.now()-t0)/ms);
+    deck.volume=from+(target-from)*k;
+    if(k>=1) djFadeCancel();
+  },50);
+}
 
 function djStatus(t,k){ const el=$('#djStatus'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }
 
@@ -1165,6 +1183,8 @@ const djPlayable=b=>b.selected&&b.selected.audioUrl?b.selected:(b.candidates||[]
 
 function djPlay(song){
   dj.current=song; dj.captured=false; dj.next=null;
+  dj.fadingOut=false; djFadeCancel();
+  deck.volume=0;                                   // fade in from silence
   dj.recent.push(song.id); if(dj.recent.length>12) dj.recent.shift();
   music.title=song.title; music.artist=song.artist; music.bpm=song.bpm; pushMusic();
   $('#rTitle').textContent=song.title;
@@ -1174,7 +1194,14 @@ function djPlay(song){
   deck.src=song.audioUrl;
   $('#play').disabled=false;
   deck.play().then(()=>djStatus('Auto-DJ on — the moment is captured at mid-song.','ok'))
-    .catch(e=>djStatus('The browser blocked autoplay — press play once: '+e.message,'err'));
+    .catch(e=>{
+      djFadeCancel(); deck.volume=djVolTarget();   // never leave the deck muted
+      djStatus('The browser blocked autoplay — press play once: '+e.message,'err');
+    });
+  // fade starts immediately rather than inside play()'s .then — a buffering
+  // promise that resolves late (or never, in headless) must not hold the
+  // volume at zero
+  djFadeTo(djVolTarget(),DJ_FADE_IN_MS);
 }
 
 async function djStart(){
@@ -1195,7 +1222,8 @@ async function djStart(){
   }catch(e){ djStatus(e.message,'err'); }
 }
 function djStop(silent){
-  dj.on=false;
+  dj.on=false; dj.fadingOut=false;
+  djFadeCancel(); deck.volume=djVolTarget();       // hand the deck back at slider volume
   $('#djToggle').textContent='Start Auto-DJ';
   $('#djBtn').textContent='Auto-DJ';
   if(!silent){ deck.pause(); djStatus('Auto-DJ off — deck is yours.',''); }
@@ -1209,6 +1237,13 @@ function djTick(pos,dur){
   if(dur){
     $('#djMeterFill').style.width=(pos/dur*100)+'%';
     $('#djMeterT').textContent=fmt(pos)+' / '+fmt(dur);
+  }
+  // ease the tail into silence, sized to whatever actually remains. Only for
+  // songs long enough to have a tail — under ~10s the fade would fight the
+  // fade-in and the deck would live at zero.
+  if(dj.on&&dur>10&&!dj.fadingOut&&dur-pos<=3.2){
+    dj.fadingOut=true;
+    djFadeTo(0,Math.max(400,(dur-pos)*1000-250));
   }
   if(!dj.on||!dur||dj.captured||pos<dur/2) return;
   dj.captured=true;

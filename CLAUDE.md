@@ -114,8 +114,13 @@ Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 
 ±12m. The short axis is the hard limit — the site is 2.884× wider than tall, so most zones are only a
 few metres deep in `y`, below GPS resolution regardless of fix quality.
 
+Auto-DJ transitions fade rather than hard-cut: the tail eases to silence over its last ~3s (skipped
+for songs under 10s, which would fade-fight), the next track rises from silence to the volume slider
+over 2.5s. The fade-in starts immediately at `djPlay`, not inside `play().then` — a buffering promise
+that resolves late must not hold the deck at zero — and the volume slider always cancels any fade.
+
 Deliberately not built yet:
-- Crossfading / beat-matched transitions between auto-DJ songs (hard cut on `ended`)
+- True overlapping crossfade / beat-matching (needs a second deck in the analyser graph)
 - Persistence for live state (snapshot research data does persist, in SQLite)
 - BLE trilateration and accelerometer dead reckoning — both evaluated and rejected as hackathon-infeasible.
 
