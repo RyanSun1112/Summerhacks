@@ -2,6 +2,8 @@ node_modules/
 venv/
 __pycache__/
 *.db
+*.db-wal
+*.db-shm
 
 # Python preprocessing environment and generated caches
 .venv/
@@ -22,6 +24,10 @@ venues/*-plan.png
 # local overrides
 .env
 .env.local
+
+# local venue-owner accounts: scrypt password hashes and live session tokens.
+# Machine-specific by definition and secret by content — never commit.
+/data/owners.json
 
 # editor / OS noise
 .DS_Store

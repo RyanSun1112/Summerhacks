@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
+const { createClient } = require('@supabase/supabase-js');
 const {
   MOCK_SCENARIOS,
   getMockScenario,
@@ -38,11 +39,92 @@ const PORT = process.env.PORT || 3000;
 const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
 
+// -------------------------------------------------------------- owner auth
+// Venue JSON stays on disk (venues/) in every mode. Three modes:
+//   supabase — SUPABASE_* set in .env: accounts live in Supabase, ownership in
+//              its venue_owners table. Service role never leaves this process.
+//   local    — the default: accounts + ownership live in data/owners.json on
+//              this machine, so sign-up works with zero external setup.
+//   off      — AUTH_MODE=off: venue writes stay open, no accounts anywhere.
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const AUTH_MODE = (process.env.AUTH_MODE || '').toLowerCase() === 'off' ? 'off'
+  : (SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY) ? 'supabase' : 'local';
+const AUTH_ENABLED = AUTH_MODE !== 'off';
+
+const supabaseAuth = AUTH_MODE === 'supabase'
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+const supabaseAdmin = AUTH_MODE === 'supabase'
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+
+// Local accounts. Passwords are scrypt-hashed with a per-user salt; sessions
+// are random tokens. Persisted to disk because `node --watch` restarts on
+// every file edit, and being signed out each time would make the editor
+// unusable during development.
+const OWNERS_PATH = process.env.OWNERS_PATH || path.join(__dirname, 'data', 'owners.json');
+let ownersDb = { users: [], sessions: {}, owners: {} };
+if (AUTH_MODE === 'local') {
+  try { ownersDb = { ...ownersDb, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; }
+  catch { /* first boot */ }
+}
+function saveOwnersDb() {
+  fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
+  fs.writeFileSync(OWNERS_PATH, JSON.stringify(ownersDb, null, 2));
+}
+const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
+function localSignup(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('that does not look like an email address');
+  if (String(password || '').length < 6) throw new Error('password must be at least 6 characters');
+  if (ownersDb.users.some(u => u.email === email)) throw new Error('an account with that email already exists — log in instead');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const user = { id: 'u_' + crypto.randomBytes(8).toString('hex'), email, salt,
+                 hash: hashPw(password, salt), createdAt: Date.now() };
+  ownersDb.users.push(user);
+  const token = crypto.randomBytes(32).toString('hex');
+  ownersDb.sessions[token] = { userId: user.id, createdAt: Date.now() };
+  saveOwnersDb();
+  console.log('[auth] local signup:', email);
+  return { token, userId: user.id, email };
+}
+function localLogin(email, password) {
+  email = String(email || '').trim().toLowerCase();
+  const u = ownersDb.users.find(u => u.email === email);
+  // hash against a dummy salt when the user is unknown, so a wrong email and a
+  // wrong password take the same time to reject
+  const h = Buffer.from(hashPw(password, u ? u.salt : 'no-such-user'), 'hex');
+  const ok = u && crypto.timingSafeEqual(h, Buffer.from(u.hash, 'hex'));
+  if (!ok) throw new Error('wrong email or password');
+  const token = crypto.randomBytes(32).toString('hex');
+  ownersDb.sessions[token] = { userId: u.id, createdAt: Date.now() };
+  saveOwnersDb();
+  console.log('[auth] local login:', email);
+  return { token, userId: u.id, email };
+}
+function localUserByToken(token) {
+  const s = token && ownersDb.sessions[token];
+  if (!s) return null;
+  const u = ownersDb.users.find(u => u.id === s.userId);
+  return u ? { id: u.id, email: u.email } : null;
+}
+
+if (AUTH_MODE === 'off') {
+  console.warn('[auth] OFF — venue create/update/delete are open to anyone (AUTH_MODE=off)');
+} else if (AUTH_MODE === 'local') {
+  console.log(`[auth] local accounts in ${path.relative(__dirname, OWNERS_PATH)} — sign up from the dashboard.`);
+  console.log('[auth] (set SUPABASE_* in .env for hosted accounts, or AUTH_MODE=off to open venue writes)');
+} else {
+  console.log('[auth] Supabase auth enabled for venue-owner routes');
+}
+
 // ----------------------------------------------------------------- venues
 // Venues are JSON files in venues/. venue.json stays the committed built-in
 // map and is never written to — it seeds venues/stackt.json on first boot, so
 // the editor has something to clone and the tracked file stays pristine.
-const VENUES_DIR = path.join(__dirname, 'venues');
+const VENUES_DIR = process.env.VENUES_DIR || path.join(__dirname, 'venues');  // overridable so tests use a scratch dir
 const BUILTIN    = path.join(__dirname, 'venue.json');
 const PLAN_MAX   = 8 * 1024 * 1024;             // floor plan upload ceiling
 
@@ -160,6 +242,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// Floor plans are editor-only: you trace zones over them, the live map still
+// renders vector geometry. Stored beside the venue rather than inlined, so the
+// JSON that gets broadcast every switch stays small.
+const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
+
 // Two body limits, not one. 64kb protects every ordinary endpoint, but floor
 // plans and the image sent for AI reading are megabytes of data URL, and a
 // single global limit can't serve both: the small one silently 413s uploads,
@@ -174,26 +261,276 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
+// What the clients need to run auth. Anon key only, never the service role.
+app.get('/auth/config', (_, res) => {
+  if (AUTH_MODE === 'supabase')
+    return res.json({ enabled: true, mode: 'supabase', url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+  if (AUTH_MODE === 'local')
+    return res.json({ enabled: true, mode: 'local' });
+  res.json({ enabled: false, mode: 'off' });
+});
+
+// Local-mode account endpoints. In supabase mode the client talks to Supabase
+// directly, so these 404 rather than pretend.
+function localOnly(req, res, next) {
+  if (AUTH_MODE !== 'local') return res.status(404).json({ error: 'not in local auth mode' });
+  next();
+}
+app.post('/auth/signup', localOnly, (req, res) => {
+  try { res.json({ ok: true, ...localSignup(req.body && req.body.email, req.body && req.body.password) }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/auth/login', localOnly, (req, res) => {
+  try { res.json({ ok: true, ...localLogin(req.body && req.body.email, req.body && req.body.password) }); }
+  catch (e) { res.status(401).json({ error: e.message }); }
+});
+app.post('/auth/logout', localOnly, (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (token && ownersDb.sessions[token]) { delete ownersDb.sessions[token]; saveOwnersDb(); }
+  res.json({ ok: true });
+});
+// Lets a page validate a stored token on load instead of discovering it's dead
+// on the first save.
+app.get('/auth/me', localOnly, (req, res) => {
+  const header = req.headers.authorization || '';
+  const user = localUserByToken(header.startsWith('Bearer ') ? header.slice(7).trim() : '');
+  if (!user) return res.status(401).json({ error: 'invalid session' });
+  res.json({ user });
+});
+
+// Verify Authorization: Bearer <token> — a Supabase JWT or a local session.
+async function requireAuth(req, res, next) {
+  if (!AUTH_ENABLED) return next();               // AUTH_MODE=off
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) {
+    console.log('[auth] fail: missing Authorization on', req.method, req.path);
+    return res.status(401).json({ error: 'login required' });
+  }
+  if (AUTH_MODE === 'local') {
+    const user = localUserByToken(token);
+    if (!user) {
+      console.log('[auth] fail: invalid local session on', req.method, req.path);
+      return res.status(401).json({ error: 'invalid session' });
+    }
+    req.user = user;
+    return next();
+  }
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !data.user) {
+      console.log('[auth] fail: invalid session —', error && error.message || 'no user');
+      return res.status(401).json({ error: 'invalid session' });
+    }
+    req.user = data.user;
+    console.log('[auth] ok:', data.user.id, data.user.email || '(no email)', '→', req.method, req.path);
+    next();
+  } catch (e) {
+    console.log('[auth] fail: exception —', e.message);
+    return res.status(401).json({ error: 'invalid session' });
+  }
+}
+
+// Returns the owner_id for a venue, or null if unclaimed.
+async function getVenueOwner(venueId) {
+  if (!AUTH_ENABLED) return null;
+  if (AUTH_MODE === 'local') return ownersDb.owners[venueId] || null;
+  const { data, error } = await supabaseAdmin
+    .from('venue_owners').select('owner_id').eq('venue_id', venueId).maybeSingle();
+  if (error) {
+    console.log('[auth] venue_owners read error:', error.message);
+    throw error;
+  }
+  return data ? data.owner_id : null;
+}
+
+// Create ownership row. Fails if another owner already holds the venue.
+async function claimVenue(venueId, ownerId) {
+  if (AUTH_MODE === 'local') {
+    if (ownersDb.owners[venueId] && ownersDb.owners[venueId] !== ownerId)
+      throw new Error('already owned');
+    ownersDb.owners[venueId] = ownerId;
+    saveOwnersDb();
+    console.log('[auth] claimed venue', venueId, 'for', ownerId);
+    return;
+  }
+  const { error } = await supabaseAdmin
+    .from('venue_owners').insert({ venue_id: venueId, owner_id: ownerId });
+  if (error) {
+    console.log('[auth] claim failed for', venueId, '—', error.message);
+    throw error;
+  }
+  console.log('[auth] claimed venue', venueId, 'for', ownerId);
+}
+
+// True if user owns the venue, or may claim it (no owner yet). False if other owner.
+async function assertCanWriteVenue(venueId, userId) {
+  if (!AUTH_ENABLED) return true;
+  const owner = await getVenueOwner(venueId);
+  if (!owner) {
+    try {
+      await claimVenue(venueId, userId);
+      return true;
+    } catch (e) {
+      // Lost a race — re-check
+      const again = await getVenueOwner(venueId);
+      if (again === userId) return true;
+      console.log('[auth] deny: user', userId, 'cannot claim', venueId, '(owner', again, ')');
+      return false;
+    }
+  }
+  if (owner !== userId) {
+    console.log('[auth] deny: user', userId, 'does not own', venueId, '(owner is', owner, ')');
+    return false;
+  }
+  return true;
+}
+
+async function deleteOwnership(venueId) {
+  if (!AUTH_ENABLED) return;
+  if (AUTH_MODE === 'local') {
+    if (ownersDb.owners[venueId]) { delete ownersDb.owners[venueId]; saveOwnersDb(); }
+    return;
+  }
+  const { error } = await supabaseAdmin.from('venue_owners').delete().eq('venue_id', venueId);
+  if (error) console.log('[auth] ownership delete error:', error.message);
+  else console.log('[auth] cleared ownership for', venueId);
+}
+
+const venueSummary = v => ({
+  id: v.id, name: v.name, subtitle: v.subtitle || '',
+  zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+  hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
+});
+
+// Venues owned by the logged-in account, plus the unclaimed pool — the owner
+// page shows both, and claiming is how a seed venue gets an owner at all now
+// that unclaimed venues stay out of the dashboard rail.
+app.get('/api/me/venues', requireAuth, async (req, res) => {
+  if (!AUTH_ENABLED) return res.json({ venues: [...venues.values()].map(venueSummary), unclaimed: [] });
+  try {
+    const owners = await getAllOwners();
+    const unclaimed = [...venues.values()].filter(v => !owners[v.id]).map(venueSummary);
+    if (AUTH_MODE === 'local') {
+      const list = Object.entries(ownersDb.owners)
+        .filter(([, owner]) => owner === req.user.id)
+        .map(([id]) => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
+      return res.json({ venues: list, unclaimed, user: req.user });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('venue_owners').select('venue_id, created_at').eq('owner_id', req.user.id);
+    if (error) {
+      console.log('[auth] /api/me/venues error:', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+    const list = (data || []).map(row => {
+      const v = venues.get(row.venue_id);
+      if (!v) return { id: row.venue_id, name: row.venue_id, missing: true, created_at: row.created_at };
+      return { ...venueSummary(v), created_at: row.created_at };
+    });
+    res.json({ venues: list, unclaimed, user: { id: req.user.id, email: req.user.email } });
+  } catch (e) {
+    console.log('[auth] /api/me/venues exception:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Take ownership of a venue nobody owns. Saving over it always claimed it;
+// this claims without having to re-save, and 409s if someone got there first.
+app.post('/venues/:id/claim', requireAuth, async (req, res) => {
+  if (!AUTH_ENABLED || !req.user) return res.status(400).json({ error: 'accounts are off on this server' });
+  const id = req.params.id;
+  if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
+  try {
+    const owner = await getVenueOwner(id);
+    if (owner === req.user.id) return res.json({ ok: true, alreadyYours: true });
+    if (owner) return res.status(409).json({ error: 'already owned by another account' });
+    await claimVenue(id, req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(409).json({ error: 'already owned by another account' });
+  }
+});
+
+// Optional auth: resolves the user when a valid Bearer token rides along,
+// and never rejects — for routes that shape their answer to who's asking.
+async function maybeAuth(req) {
+  if (!AUTH_ENABLED) return null;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) return null;
+  if (AUTH_MODE === 'local') return localUserByToken(token);
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    return (!error && data.user) ? data.user : null;
+  } catch { return null; }
+}
+
+// Every venue's owner in one read, for filtering lists.
+async function getAllOwners() {
+  if (!AUTH_ENABLED) return {};
+  if (AUTH_MODE === 'local') return { ...ownersDb.owners };
+  const { data, error } = await supabaseAdmin.from('venue_owners').select('venue_id, owner_id');
+  if (error) { console.log('[auth] owners read error:', error.message); return {}; }
+  return Object.fromEntries((data || []).map(r => [r.venue_id, r.owner_id]));
+}
+
 // ------------------------------------------------------------ venue CRUD
-app.get('/venues', (_, res) => res.json({
-  active: activeId,
-  venues: [...venues.values()].map(v => ({
-    id: v.id, name: v.name, subtitle: v.subtitle || '',
-    zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-    hasPlan: fs.existsSync(planPath(v.id))
-  }))
-}));
+// The venue LIST is scoped to the asker when auth is on: the live venue is
+// public (it's on the projector); a signed-in account additionally sees ITS
+// OWN venues and nothing else — not other accounts', not unclaimed ones.
+// Unclaimed venues are managed from the owner page (claim endpoint below),
+// so they never clutter the rail. This is tidiness, not security —
+// GET /venues/:id stays public because the map needs geometry, and writes
+// are what ownership actually protects.
+app.get('/venues', async (req, res) => {
+  const user = await maybeAuth(req);
+  const owners = await getAllOwners();
+  const visible = [...venues.values()].filter(v => {
+    if (!AUTH_ENABLED) return true;
+    if (v.id === activeId) return true;
+    return user && owners[v.id] === user.id;
+  });
+  res.json({
+    active: activeId,
+    signedIn: !!user,
+    venues: visible.map(v => ({
+      id: v.id, name: v.name, subtitle: v.subtitle || '',
+      zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+      hasPlan: fs.existsSync(planPath(v.id)),
+      mine: !!(user && owners[v.id] === user.id),
+      unclaimed: AUTH_ENABLED ? !owners[v.id] : false
+    }))
+  });
+});
 
 app.get('/venues/:id', (req, res) => {
   const v = venues.get(req.params.id);
   return v ? res.json(v) : res.status(404).json({ error: 'no such venue' });
 });
 
-app.post('/venues', (req, res) => {
+app.post('/venues', requireAuth, async (req, res) => {
   const errs = validateVenue(req.body);
   if (errs.length) return res.status(400).json({ error: 'invalid venue', problems: errs });
-  try { res.json({ ok: true, id: saveVenue(req.body) }); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  const nextId = slug((req.body && (req.body.id || req.body.name)) || '');
+  if (!nextId) return res.status(400).json({ error: 'could not derive an id from the name' });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const ok = await assertCanWriteVenue(nextId, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    const id = saveVenue(req.body);
+    // New slug after rename: ensure ownership lands on the saved id too.
+    if (AUTH_ENABLED && req.user && id !== nextId) {
+      const ok = await assertCanWriteVenue(id, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    console.log('[venues] saved', id, AUTH_ENABLED && req.user ? `by ${req.user.id}` : '(auth off)');
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.post('/venues/:id/activate', (req, res) => {
@@ -205,20 +542,33 @@ app.post('/venues/:id/activate', (req, res) => {
   res.json({ ok: true, active: activeId });
 });
 
-app.delete('/venues/:id', (req, res) => {
+app.delete('/venues/:id', requireAuth, async (req, res) => {
   const id = req.params.id;
   if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
   if (id === activeId) return res.status(409).json({ error: 'that venue is live — activate another first' });
-  fs.unlinkSync(path.join(VENUES_DIR, id + '.json'));
-  if (fs.existsSync(planPath(id))) fs.unlinkSync(planPath(id));
-  venues.delete(id);
-  res.json({ ok: true });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const owner = await getVenueOwner(id);
+      if (!owner) {
+        console.log('[auth] deny delete: unowned venue', id);
+        return res.status(403).json({ error: 'venue has no owner' });
+      }
+      if (owner !== req.user.id) {
+        console.log('[auth] deny delete: user', req.user.id, 'does not own', id);
+        return res.status(403).json({ error: 'you do not own this venue' });
+      }
+    }
+    fs.unlinkSync(path.join(VENUES_DIR, id + '.json'));
+    if (fs.existsSync(planPath(id))) fs.unlinkSync(planPath(id));
+    venues.delete(id);
+    await deleteOwnership(id);
+    console.log('[venues] deleted', id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.log('[venues] delete error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
-
-// Floor plans are editor-only: you trace zones over them, the live map still
-// renders vector geometry. Stored beside the venue rather than inlined, so the
-// JSON that gets broadcast every switch stays small.
-const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
 
 app.get('/venues/:id/plan', (req, res) => {
   const p = planPath(req.params.id);
@@ -226,14 +576,25 @@ app.get('/venues/:id/plan', (req, res) => {
                           : res.status(404).end();
 });
 
-app.put('/venues/:id/plan', (req, res) => {
-  const data = String((req.body && req.body.image) || '');
-  const m = data.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
-  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
-  const buf = Buffer.from(m[2], 'base64');
-  if (buf.length > PLAN_MAX) return res.status(413).json({ error: 'floor plan is too large' });
-  fs.writeFileSync(planPath(req.params.id), buf);
-  res.json({ ok: true, bytes: buf.length });
+app.put('/venues/:id/plan', requireAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
+  try {
+    if (AUTH_ENABLED && req.user) {
+      const ok = await assertCanWriteVenue(id, req.user.id);
+      if (!ok) return res.status(403).json({ error: 'you do not own this venue' });
+    }
+    const data = String((req.body && req.body.image) || '');
+    const m = data.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+    if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+    const buf = Buffer.from(m[2], 'base64');
+    if (buf.length > PLAN_MAX) return res.status(413).json({ error: 'floor plan is too large' });
+    fs.writeFileSync(planPath(id), buf);
+    res.json({ ok: true, bytes: buf.length });
+  } catch (e) {
+    console.log('[venues] plan upload error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ------------------------------------------------------------ AI detection
@@ -283,13 +644,19 @@ Rules:
 "cap" is a plausible standing capacity for the area.
 "label" is the name written on the plan if there is one, otherwise something descriptive.
 "outline" is the venue footprint: 3 to 40 points tracing its edge in order.
-"name" is the venue's name if the plan states one, otherwise an empty string.`;
+"name" is the venue's name if the plan states one, otherwise an empty string.
+
+Also report anything on the drawing that fixes it to the real world. Report ONLY what you can actually see — a wrong value here is worse than no value, so use the "unknown" value if you are not sure:
+- "widthMetres": how wide the WHOLE IMAGE is in metres. Read it off a scale bar or a printed dimension and extrapolate to the full image width. 0 if there is no scale.
+- "northDegrees": the compass bearing that straight UP in the image points to, in degrees, 0 = up is north, 90 = up is east. Read it off a north arrow or compass rose. -1 if there is no north indicator.
+- "address": any street address or place name printed on the drawing, exactly as written. Empty string if none.`;
 
 // Gemini wants uppercase type names and ignores additionalProperties
 const GEMINI_SCHEMA = {
   type: 'OBJECT',
   properties: {
     name: { type: 'STRING' },
+    widthMetres: { type: 'NUMBER' }, northDegrees: { type: 'NUMBER' }, address: { type: 'STRING' },
     outline: { type: 'ARRAY', items: { type: 'OBJECT',
       properties: { x: { type: 'NUMBER' }, y: { type: 'NUMBER' } }, required: ['x', 'y'] } },
     zones: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
@@ -305,9 +672,12 @@ const GEMINI_SCHEMA = {
 // false and every property listed in required, or the request is rejected.
 const OPENAI_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['name', 'outline', 'zones'],
+  required: ['name', 'widthMetres', 'northDegrees', 'address', 'outline', 'zones'],
   properties: {
     name: { type: 'string' },
+    widthMetres: { type: 'number' },
+    northDegrees: { type: 'number' },
+    address: { type: 'string' },
     outline: { type: 'array', items: { type: 'object', additionalProperties: false,
       required: ['x', 'y'], properties: { x: { type: 'number' }, y: { type: 'number' } } } },
     zones: { type: 'array', items: { type: 'object', additionalProperties: false,
@@ -409,6 +779,99 @@ function repairGeometry(zones, outline) {
   return out;
 }
 
+// A drawing can pin down size and rotation — a scale bar and a north arrow are
+// exactly that information — but nothing on it says where on Earth it sits
+// unless an address is printed. So this fills in what's derivable, geocodes the
+// address if there is one, and marks the result estimated. It never claims
+// calibrated: a geocode lands within tens of metres, and zones here are ~10m,
+// so this is a starting point for the two pins, not a replacement for them.
+async function geocodeOnce(q) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='
+                          + encodeURIComponent(q),
+      { signal: ctrl.signal, headers: { 'user-agent': 'Pulse venue dashboard (hackathon project)' } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j[0]) return null;
+    return { lat: +j[0].lat, lon: +j[0].lon, display: String(j[0].display_name || '').slice(0, 120) };
+  } catch { return null; }
+  finally { clearTimeout(t); }
+}
+
+// Nominatim matches names literally: "STACKT Market, Toronto" finds nothing
+// while "STACKT, Toronto" is a direct hit, because OSM names the place just
+// "Stackt". So on a miss, retry with the name part progressively shortened.
+// Sequential with a delay per Nominatim's one-request-per-second policy.
+async function geocode(address) {
+  if (!address || address.length < 6) return null;
+  const parts = String(address).split(',').map(s => s.trim()).filter(Boolean);
+  const tries = [parts.join(', ')];
+  const words = (parts[0] || '').split(/\s+/);
+  for (let n = words.length - 1; n >= 1 && tries.length < 3; n--) {
+    const cand = [words.slice(0, n).join(' '), ...parts.slice(1)].join(', ');
+    if (!tries.includes(cand)) tries.push(cand);
+  }
+  for (let i = 0; i < tries.length; i++) {
+    if (i) await new Promise(r => setTimeout(r, 1100));
+    const hit = await geocodeOnce(tries[i]);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+async function estimateGeo(parsed, aspect) {
+  const width = +parsed.widthMetres || 0;
+  const north = parsed.northDegrees;
+  const address = String(parsed.address || '').trim();
+
+  const got = [];
+  const geo = { calibrated: false, estimated: true,
+                origin: { lat: 0, lon: 0 }, spanX: 100, spanY: 100 / aspect, bearing: 90 };
+
+  // a scale bar read as 3m or 9km is a misread, not a small or large venue
+  if (width >= 8 && width <= 4000) {
+    geo.spanX = +width.toFixed(1);
+    geo.spanY = +(width / aspect).toFixed(1);
+    got.push(`size from a scale bar (${geo.spanX} × ${geo.spanY} m)`);
+  }
+  // map +x is image-right, which is 90 degrees clockwise of image-up
+  if (typeof north === 'number' && north >= 0 && north <= 360) {
+    geo.bearing = +(((north + 90) % 360)).toFixed(2);
+    got.push(`rotation from a north arrow (up = ${north}°)`);
+  }
+
+  const place = await geocode(address);
+  if (place) {
+    // geocoding returns the venue centre; origin is the map's top-left corner
+    const b = geo.bearing * Math.PI / 180;
+    const px = 0.5 * geo.spanX, py = 0.5 * geo.spanY;
+    const dEast = px * Math.sin(b) + py * Math.cos(b);
+    const dNorth = px * Math.cos(b) - py * Math.sin(b);
+    geo.origin = {
+      lat: +(place.lat - dNorth / M_PER_DEG).toFixed(7),
+      lon: +(place.lon - dEast / (M_PER_DEG * Math.cos(place.lat * Math.PI / 180))).toFixed(7)
+    };
+    got.push(`position from the address "${address}"`);
+    geo.placed = place.display;
+  }
+
+  geo.from = got;
+  geo.usable = got.length > 0;
+  return geo;
+}
+
+// Address -> coordinates for the editor's "centre the venue here" flow.
+// Proxied so the client needs no key and no CORS luck; Nominatim is free.
+app.get('/geocode', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.status(400).json({ error: 'give an address to look up' });
+  const place = await geocode(q);
+  if (!place) return res.status(404).json({ error: `could not find "${q.slice(0, 60)}" — try adding the city, or paste coordinates instead` });
+  res.json(place);
+});
+
 app.get('/ai', (_, res) => res.json({
   available: !!AI_KEY, provider: AI_KEY ? AI_PROVIDER : null, model: AI_KEY ? AI_MODEL : null
 }));
@@ -441,15 +904,170 @@ app.post('/detect', async (req, res) => {
     const zones = repairGeometry(parsed.zones || [], outline);
     if (!zones.length) return res.status(422).json({ error: 'the model found no usable zones in that image' });
 
+    const geo = await estimateGeo(parsed, +req.body.aspect || 1.6);
+
     res.json({ source: 'ai', provider: AI_PROVIDER, model: AI_MODEL,
                name: String(parsed.name || '').slice(0, 40),
-               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones });
+               outline: outline.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]), zones, geo });
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'the model took too long to answer' : e.message;
     console.warn('[ai] detect failed:', msg);
     res.status(502).json({ error: msg });
   } finally { clearTimeout(timer); }
 });
+
+// --------------------------------------------------------- data collection
+// The sensor-snapshot store, ported from backend/app.py so the whole thing
+// runs in ONE server over ONE tunnel. Same routes, same schema, same database
+// file — the Flask app and anything written against it keep working on the
+// identical data. Phones upload a 5-second capture of raw readings (accel
+// x/y/z, orientation α/β/γ, mic audio level at ~10 Hz) plus one GPS fix;
+// nothing is scored server-side, raw values only.
+//
+// Live crowd state stays in-memory and dies with the process — that rule is
+// untouched. This store is the deliberate exception: recorded research data,
+// which is worthless if it dies with the process.
+const SNAPSHOT_DB = process.env.SNAPSHOT_DB || path.join(__dirname, 'backend', 'data.db');
+let snapDb = null;
+let snapStmts = null;
+try {
+  const Database = require('better-sqlite3');
+  fs.mkdirSync(path.dirname(SNAPSHOT_DB), { recursive: true });
+  snapDb = new Database(SNAPSHOT_DB);
+  snapDb.pragma('journal_mode = WAL');           // concurrent phone uploads
+  // schema statements copied from backend/db.py — must stay byte-compatible
+  snapDb.exec(`
+    CREATE TABLE IF NOT EXISTS snapshots (
+        snapshot_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL DEFAULT 5000,
+        lat REAL,
+        lng REAL,
+        gps_accuracy REAL
+    );
+    CREATE TABLE IF NOT EXISTS snapshot_readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id TEXT NOT NULL,
+        reading_index INTEGER NOT NULL,
+        offset_ms INTEGER NOT NULL,
+        accel_x REAL NOT NULL,
+        accel_y REAL NOT NULL,
+        accel_z REAL NOT NULL,
+        alpha REAL NOT NULL,
+        beta REAL NOT NULL,
+        gamma REAL NOT NULL,
+        audio_level REAL NOT NULL,
+        FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_readings_snapshot ON snapshot_readings(snapshot_id);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_session ON snapshots(session_id);
+  `);
+  snapStmts = {
+    insertSnap: snapDb.prepare(`INSERT INTO snapshots
+      (snapshot_id, session_id, captured_at, duration_ms, lat, lng, gps_accuracy)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`),
+    insertReading: snapDb.prepare(`INSERT INTO snapshot_readings
+      (snapshot_id, reading_index, offset_ms, accel_x, accel_y, accel_z, alpha, beta, gamma, audio_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    list: snapDb.prepare(`SELECT s.*, COALESCE(r.reading_count, 0) AS reading_count
+      FROM snapshots s
+      LEFT JOIN (SELECT snapshot_id, COUNT(*) AS reading_count FROM snapshot_readings GROUP BY snapshot_id) r
+        ON r.snapshot_id = s.snapshot_id
+      ORDER BY datetime(s.captured_at) DESC, s.snapshot_id DESC LIMIT ?`),
+    one: snapDb.prepare('SELECT * FROM snapshots WHERE snapshot_id = ?'),
+    readings: snapDb.prepare('SELECT * FROM snapshot_readings WHERE snapshot_id = ? ORDER BY reading_index ASC, id ASC'),
+    summary: snapDb.prepare(`SELECT
+      (SELECT COUNT(*) FROM snapshots) AS snapshots,
+      (SELECT COUNT(*) FROM snapshot_readings) AS readings,
+      (SELECT COUNT(DISTINCT session_id) FROM snapshots) AS sessions,
+      (SELECT MAX(captured_at) FROM snapshots) AS newest,
+      (SELECT MIN(captured_at) FROM snapshots) AS oldest`),
+    exportRows: snapDb.prepare(`SELECT s.session_id, s.snapshot_id, s.captured_at, s.duration_ms,
+        s.lat, s.lng, s.gps_accuracy,
+        r.reading_index, r.offset_ms, r.accel_x, r.accel_y, r.accel_z, r.alpha, r.beta, r.gamma, r.audio_level
+      FROM snapshots s JOIN snapshot_readings r ON r.snapshot_id = s.snapshot_id
+      ORDER BY datetime(s.captured_at) ASC, s.snapshot_id ASC, r.reading_index ASC`)
+  };
+  console.log(`[data] snapshot store at ${path.relative(__dirname, SNAPSHOT_DB)}`);
+} catch (e) {
+  // a broken native module must never take the demo down with it
+  console.warn('[data] snapshot store DISABLED —', e.message);
+  console.warn('[data] (npm install better-sqlite3@11 — v12+ needs Node 22)');
+}
+
+const noStore = res => res.status(503).json({ error: 'snapshot store unavailable on this server' });
+const optFloat = v => (v === null || v === undefined || v === '' ? null : +v);
+
+app.post('/api/snapshots', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const data = req.body || {};
+  const sessionId = String(data.session_id || 'unknown').slice(0, 64);
+  const snapshotId = String(data.snapshot_id || `${sessionId}-${new Date().toISOString()}`).slice(0, 128);
+  const capturedAt = String(data.captured_at || new Date().toISOString()).slice(0, 40);
+  const readings = Array.isArray(data.readings) ? data.readings.slice(0, 400) : [];
+  try {
+    snapDb.transaction(() => {
+      snapStmts.insertSnap.run(snapshotId, sessionId, capturedAt,
+        parseInt(data.duration_ms, 10) || 5000,
+        optFloat(data.lat), optFloat(data.lng), optFloat(data.gps_accuracy));
+      readings.forEach((r, i) => snapStmts.insertReading.run(snapshotId,
+        Number.isFinite(+r.reading_index) ? +r.reading_index : i,
+        parseInt(r.offset_ms, 10) || 0,
+        +r.accel_x || 0, +r.accel_y || 0, +r.accel_z || 0,
+        +r.alpha || 0, +r.beta || 0, +r.gamma || 0,
+        +r.audio_level || 0));
+    })();
+  } catch (e) {
+    if (/UNIQUE constraint/.test(e.message))
+      return res.status(409).json({ error: 'snapshot_id already exists' });
+    console.warn('[data] insert failed:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+  res.json({ ok: true, snapshot_id: snapshotId, reading_count: readings.length });
+});
+
+app.get('/api/snapshots', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const limit = clamp(parseInt(req.query.limit, 10) || 500, 1, 10000);
+  res.json({ snapshots: snapStmts.list.all(limit) });
+});
+
+// registered before /api/snapshots/:id so the extension isn't read as an id
+app.get('/api/snapshots.csv', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const cols = ['session_id', 'snapshot_id', 'captured_at', 'duration_ms', 'lat', 'lng', 'gps_accuracy',
+                'reading_index', 'offset_ms', 'accel_x', 'accel_y', 'accel_z', 'alpha', 'beta', 'gamma', 'audio_level'];
+  const esc = v => (v === null || v === undefined) ? ''
+    : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  const lines = [cols.join(',')];
+  for (const row of snapStmts.exportRows.iterate()) lines.push(cols.map(c => esc(row[c])).join(','));
+  res.type('text/csv')
+     .set('content-disposition', 'attachment; filename="pulse-snapshots.csv"')
+     .send(lines.join('\n'));
+});
+
+app.get('/api/snapshots/:id', (req, res) => {
+  if (!snapDb) return noStore(res);
+  const snapshot = snapStmts.one.get(req.params.id);
+  if (!snapshot) return res.status(404).json({ error: 'snapshot not found' });
+  res.json({ snapshot, readings: snapStmts.readings.all(req.params.id) });
+});
+
+// dashboard Data tab tiles
+app.get('/api/data/summary', (_, res) => {
+  if (!snapDb) return res.json({ available: false });
+  const s = snapStmts.summary.get();
+  let bytes = 0;
+  try { bytes = fs.statSync(SNAPSHOT_DB).size; } catch {}
+  res.json({ available: true, ...s, bytes });
+});
+
+app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
+
+// The collaborator's standalone sensor page, served from the same origin so
+// its relative /api/snapshots POST hits this server through the same tunnel.
+app.get('/sensor-test', (_, res) => res.sendFile(path.join(__dirname, 'backend', 'sensor_test.html')));
 
 // --------------------------------------------------------- crowd settings
 app.get('/crowd', (_, res) => res.json(crowdCfg));
@@ -525,13 +1143,28 @@ function publicOrigin(req) {
 // localhost, or plain http — are both invisible until phones fail in the room.
 function originProblem(origin) {
   if (/^https?:\/\/(localhost|127\.|\[?::1)/i.test(origin))
-    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Start a tunnel and reload this page through its URL.';
+    return 'This points at localhost. Only this machine can open it — a phone resolves localhost to itself. Run "npm run dev" (it starts the tunnel automatically once cloudflared is installed via "npm run get-tunnel").';
   if (origin.startsWith('http://'))
     return 'This is plain HTTP. Phones will check in and then report 0.00 movement forever, because motion and GPS are blocked outside a secure context.';
   return null;
 }
 
-const qrUrlFor = (req, zone) => `${publicOrigin(req)}/join.html${zone ? '?zone=' + encodeURIComponent(zone) : ''}`;
+// The address phones can actually reach, and what's wrong with it if anything.
+// The dashboard's QR modal asks here instead of trusting location.origin —
+// the server knows about PUBLIC_URL / the tunnel; the browser only knows how
+// it happened to be opened.
+app.get('/public-url', (req, res) => {
+  const origin = publicOrigin(req);
+  res.json({ origin, fixed: !!process.env.PUBLIC_URL, problem: originProblem(origin) });
+});
+
+const qrUrlFor = (req, opts = {}) => {
+  const q = new URLSearchParams();
+  if (opts.venue) q.set('v', opts.venue);
+  if (opts.zone) q.set('zone', opts.zone);
+  const qs = q.toString();
+  return `${publicOrigin(req)}/join.html${qs ? '?' + qs : ''}`;
+};
 const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0A0C14', light: '#FFFFFF' } });
 
 // The single event-wide poster. No zone in the URL — GPS resolves it, and
@@ -539,16 +1172,24 @@ const qrSvg = url => QRCode.toString(url, { type: 'svg', margin: 1, color: { dar
 // Registered before /qr/:zone.svg because that pattern would swallow it.
 app.get('/qr/event.svg', async (req, res) => res.type('svg').send(await qrSvg(qrUrlFor(req))));
 
+// Every venue has its own QR from the moment it's saved — the id rides in the
+// URL so a poster printed for one venue stays that venue's poster.
+app.get('/qr/venue/:id.svg', async (req, res) => {
+  if (!venues.has(req.params.id)) return res.status(404).json({ error: 'no such venue' });
+  res.type('svg').send(await qrSvg(qrUrlFor(req, { venue: req.params.id })));
+});
+
 app.get('/qr/:zone.svg', async (req, res) =>
-  res.type('svg').send(await qrSvg(qrUrlFor(req, req.params.zone))));
+  res.type('svg').send(await qrSvg(qrUrlFor(req, { zone: req.params.zone }))));
 
 // Printable poster, and the honest answer to "will this QR actually work?" —
 // it shows the encoded URL as text and refuses to look fine when it isn't.
 app.get('/qr', async (req, res) => {
   const zone = req.query.zone ? String(req.query.zone) : '';
-  const url = qrUrlFor(req, zone);
+  const forVenue = req.query.v ? venues.get(String(req.query.v)) : null;
+  const url = qrUrlFor(req, { zone, venue: forVenue && forVenue.id });
   const problem = originProblem(url);
-  const z = zone && zoneById[zone];
+  const z = zone && !forVenue && zoneById[zone];
   res.type('html').send(`<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — check-in poster</title>
@@ -567,10 +1208,12 @@ app.get('/qr', async (req, res) => {
  @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
 </style>
 <div class="card">
-  <h1>${z ? z.label : venue.name}</h1>
+  <h1>${z ? z.label : forVenue ? forVenue.name : venue.name}</h1>
   <p class="sub">Scan to join${z ? '' : ' — your zone updates as you move'}</p>
   ${await qrSvg(url).then(s => s.replace('<svg', '<svg class="qr"'))}
   <div class="url">${url}</div>
+  ${forVenue && forVenue.id !== activeId
+    ? `<div class="warn"><b>“${forVenue.name}” is not the live venue.</b><br>Scans always join whichever venue is active — make this one active before the event.</div>` : ''}
   ${problem
     ? `<div class="warn"><b>This QR will not work for phones.</b><br>${problem}</div>`
     : `<div class="ok">HTTPS · reachable from any phone</div>`}
@@ -906,8 +1549,15 @@ server.on('error', e => {
 server.listen(PORT, () => {
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
+  console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
-  console.log(`  QR poster  http://localhost:${PORT}/qr`);
+  console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
+  console.log(`  QR page    http://localhost:${PORT}/qr`);
+  console.log(`  Auth       ${AUTH_MODE === 'off' ? 'off (venue writes open — AUTH_MODE=off)'
+    : AUTH_MODE === 'local' ? 'local accounts (sign up from the dashboard)'
+    : 'Supabase (venue writes gated)'}`);
+  console.log(`  Data       ${snapDb ? `collecting to ${path.relative(__dirname, SNAPSHOT_DB)} (Data tab · /sensor-test)`
+                                     : 'snapshot store DISABLED — see [data] warning above'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +

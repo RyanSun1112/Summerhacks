@@ -7,12 +7,17 @@
     "start": "node server.js",
     "check": "node --check server.js && node --check scripts/select-song.js",
     "test": "node test/dj.test.js",
-    "select-song": "node scripts/select-song.js"
+    "select-song": "node scripts/select-song.js",
+    "dev": "node dev.js",
+    "dev:local": "node --watch server.js",
+    "get-tunnel": "node dev.js --get"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.2",
+    "better-sqlite3": "^11.10.0",
     "express": "^4.19.2",
     "openai": "^7.4.0",
     "qrcode": "^1.5.4",

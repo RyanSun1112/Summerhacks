@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — Venue owner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99; --ok:#3ECF8E; --warn:#F0A93B; --bad:#E85D5D;
+    --rule:rgba(240,239,247,.10); --glass:rgba(12,15,34,.72);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    display:flex;flex-direction:column;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 70% 50% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  }
+  .lab{font-size:9.5px;font-weight:600;letter-spacing:.20em;text-transform:uppercase;color:var(--muted)}
+  header{
+    position:relative;z-index:2;display:flex;align-items:center;gap:14px;
+    padding:16px 26px;border-bottom:1px solid var(--rule);
+  }
+  .mark b{font-size:16px;font-weight:700;letter-spacing:.20em;text-transform:uppercase}
+  .mark span{font-size:11px;color:var(--muted);margin-left:10px;letter-spacing:.05em}
+  header a{margin-left:auto;color:var(--muted);font-size:11px;text-decoration:none;letter-spacing:.08em;text-transform:uppercase}
+  header a:hover{color:var(--ink)}
+  main{position:relative;z-index:1;flex:1;display:flex;justify-content:center;padding:40px 20px 60px}
+  .card{
+    width:100%;max-width:440px;background:var(--glass);border:1px solid var(--rule);
+    border-radius:10px;padding:28px 26px 24px;backdrop-filter:blur(18px);
+    box-shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  .card.wide{max-width:560px}
+  h1{font-size:22px;font-weight:600;margin:6px 0 8px}
+  .sub{font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:22px}
+  label{display:block;margin:14px 0 6px}
+  input{
+    width:100%;background:rgba(8,10,24,.65);border:1px solid var(--rule);border-radius:6px;
+    color:var(--ink);font-family:var(--mono);font-size:13px;padding:11px 12px;
+  }
+  input:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:10px;margin-top:18px}
+  button{
+    font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    border:0;border-radius:5px;padding:12px 16px;cursor:pointer;
+  }
+  .primary{background:var(--accent);color:#080A18;flex:1}
+  .primary:hover{filter:brightness(1.08)}
+  .ghost{background:none;border:1px solid var(--rule);color:var(--muted);flex:1}
+  .ghost:hover{color:var(--ink);border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+  button:disabled:hover{filter:none;color:var(--muted);border-color:var(--rule)}
+  .msg{margin-top:14px;font-family:var(--mono);font-size:11.5px;line-height:1.4;min-height:1.2em}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+  .hidden{display:none!important}
+  .who{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px}
+  .who b{color:var(--ink);font-weight:500}
+  .actions{display:flex;gap:10px;margin-bottom:18px}
+  .vlist{display:flex;flex-direction:column;gap:8px}
+  .vrow{
+    display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--rule);
+    border-radius:7px;background:rgba(8,10,24,.4);
+  }
+  .vrow .vn{font-size:14px;font-weight:600;flex:1}
+  .vrow .meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .live{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);padding:2px 6px;border-radius:3px}
+  .vrow button{padding:8px 12px;background:none;border:1px solid var(--rule);color:var(--ink)}
+  .vrow button:hover{border-color:var(--accent)}
+  .vrow button.danger{color:var(--bad)}
+  .empty{font-size:13px;color:var(--muted);padding:18px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark"><b>Pulse</b><span>Venue owner</span></div>
+  <a href="/dashboard.html">Public dashboard</a>
+</header>
+
+<main>
+  <!-- Auth -->
+  <section id="authCard" class="card">
+    <div class="lab">Account</div>
+    <h1>Sign in to manage venues</h1>
+    <p class="sub">Attendees still check in anonymously via QR. This login is only for venue owners.</p>
+    <label class="lab" for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <label class="lab" for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+    <div class="row">
+      <button class="primary" id="btnLogin" type="button">Log in</button>
+      <button class="ghost" id="btnSignup" type="button">Sign up</button>
+    </div>
+    <div class="msg" id="authMsg"></div>
+    <div class="msg" id="authHint"></div>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="dashCard" class="card wide hidden">
+    <div class="lab">Your venues</div>
+    <h1>Owner dashboard</h1>
+    <p class="who">Signed in as <b id="who"></b></p>
+    <div class="actions">
+      <button class="primary" id="btnNew" type="button">Create new venue</button>
+      <button class="ghost" id="btnLogout" type="button">Log out</button>
+    </div>
+    <div id="venueList" class="vlist"></div>
+    <div id="unclaimedSec" class="hidden" style="margin-top:22px">
+      <div class="lab">Unclaimed venues</div>
+      <p class="sub" style="margin:6px 0 10px;font-size:12px">Nobody owns these. Claim one and it's yours to edit, delete and see in your dashboard list.</p>
+      <div id="unclaimedList" class="vlist"></div>
+    </div>
+    <div class="msg" id="dashMsg"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let sb = null;
+let accessToken = null;
+let busy = false;
+
+// A paused Supabase project (free tier sleeps) or a wrong URL makes the client
+// hang with no rejection, so the button sits on "Signing in…" forever with an
+// empty console. Every call gets a deadline instead.
+const AUTH_TIMEOUT_MS = 15000;
+function withTimeout(promise, what) {
+  let t;
+  return Promise.race([
+    promise.finally(() => clearTimeout(t)),
+    new Promise((_, rej) => { t = setTimeout(() =>
+      rej(new Error(what + ' timed out after ' + (AUTH_TIMEOUT_MS / 1000) + 's. The Supabase project may be paused — open your project dashboard to wake it.')),
+      AUTH_TIMEOUT_MS); })
+  ]);
+}
+
+function setMsg(el, text, kind) {
+  el.textContent = text || '';
+  el.className = 'msg' + (kind ? ' ' + kind : '');
+}
+
+// Both auth buttons share this: nothing runs before init() succeeds, nothing
+// runs twice, and every failure lands on screen rather than in a dead promise.
+function guard(what, fn) {
+  return async () => {
+    if (busy) return;
+    if (!sb) {
+      setMsg($('#authMsg'), 'Owner accounts are off on this server — there is nothing to sign in to yet.', 'err');
+      return;
+    }
+    busy = true;
+    $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+    setMsg($('#authMsg'), what + '…');
+    try {
+      await fn();
+    } catch (e) {
+      console.warn('[owner] ' + what, e);
+      let m = e.message || (what + ' failed');
+      if (/failed to fetch|networkerror|load failed/i.test(m))
+        m = 'Could not reach Supabase. Check SUPABASE_URL in .env and that the project is awake.';
+      setMsg($('#authMsg'), m, 'err');
+    } finally {
+      busy = false;
+      $('#btnLogin').disabled = $('#btnSignup').disabled = false;
+    }
+  };
+}
+
+function authOff(reason, hint) {
+  $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+  setMsg($('#authMsg'), reason, 'err');
+  setMsg($('#authHint'), hint || '');
+}
+
+async function authHeaders() {
+  const h = { 'content-type': 'application/json' };
+  if (accessToken) h.Authorization = 'Bearer ' + accessToken;
+  return h;
+}
+
+// Local mode: the Pulse server holds the accounts itself. Same five calls the
+// Supabase client exposes, backed by /auth/* — so the rest of the page cannot
+// tell the difference. The session is shared with the dashboard via
+// localStorage under the same key.
+const OWNER_LS = 'pulseOwnerSession';
+function localAdapter() {
+  const load = () => { try { return JSON.parse(localStorage.getItem(OWNER_LS) || 'null'); } catch { return null; } };
+  const save = s => s ? localStorage.setItem(OWNER_LS, JSON.stringify(s)) : localStorage.removeItem(OWNER_LS);
+  const asSession = s => ({ access_token: s.token, user: { id: s.userId, email: s.email } });
+  const call = async (path, body, token) => {
+    const r = await fetch(path, { method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+      body: body ? JSON.stringify(body) : undefined });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: { message: b.error || ('HTTP ' + r.status) } };
+    return { ok: b };
+  };
+  return { auth: {
+    async getSession() {
+      const s = load();
+      if (!s || !s.token) return { data: { session: null } };
+      const r = await fetch('/auth/me', { headers: { Authorization: 'Bearer ' + s.token } }).catch(() => null);
+      if (!r || !r.ok) { if (r) save(null); return { data: { session: null } }; }
+      return { data: { session: asSession(s) } };
+    },
+    onAuthStateChange() {},
+    async signInWithPassword({ email, password }) {
+      const r = await call('/auth/login', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signUp({ email, password }) {
+      const r = await call('/auth/signup', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signOut() {
+      const s = load();
+      if (s && s.token) await call('/auth/logout', null, s.token).catch(() => {});
+      save(null);
+    }
+  } };
+}
+
+async function init() {
+  const cfgRes = await fetch('/auth/config').catch(() => null);
+  const cfg = cfgRes ? await cfgRes.json().catch(() => ({})) : {};
+  if (!cfgRes || (!cfgRes.ok && cfgRes.status !== 503)) {
+    authOff('Could not reach the server.', 'Start it with npm run dev, then reload.');
+    return;
+  }
+  if (cfg.mode === 'off' || (!cfg.enabled && !cfg.url)) {
+    authOff('Owner accounts are off on this server (AUTH_MODE=off) — there is no account to create.',
+      'Venue create/edit/delete are open to everyone right now, so you can use the dashboard as-is.');
+    return;
+  }
+  setMsg($('#authHint'), '');
+  if (cfg.mode === 'local') {
+    sb = localAdapter();
+  } else {
+    if (typeof supabase === 'undefined') {
+      authOff('The Supabase library did not load (CDN blocked or offline).',
+              'Venue editing still works without an account — go to the dashboard.');
+      return;
+    }
+    sb = supabase.createClient(cfg.url, cfg.anonKey);
+  }
+  sb.auth.onAuthStateChange((_event, session) => {
+    accessToken = session ? session.access_token : null;
+  });
+  // getSession refreshes an expired token over the network, so it can stall too.
+  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Restoring session');
+  accessToken = session ? session.access_token : null;
+  if (session) showDash(session);
+}
+
+async function showDash(session) {
+  $('#authCard').classList.add('hidden');
+  $('#dashCard').classList.remove('hidden');
+  $('#who').textContent = session.user.email || session.user.id;
+  await loadMyVenues();
+}
+
+function showAuth() {
+  $('#dashCard').classList.add('hidden');
+  $('#authCard').classList.remove('hidden');
+  $('#venueList').innerHTML = '';
+}
+
+async function loadMyVenues() {
+  const res = await fetch('/api/me/venues', { headers: await authHeaders() })
+    .catch(e => { setMsg($('#dashMsg'), 'Could not reach the server: ' + e.message, 'err'); return null; });
+  if (!res) return;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    setMsg($('#dashMsg'), body.error || 'Failed to load venues', 'err');
+    if (res.status === 401) showAuth();
+    return;
+  }
+  setMsg($('#dashMsg'), '');
+  const list = body.venues || [];
+  if (!list.length) {
+    $('#venueList').innerHTML = '<div class="empty">No venues yet. Create one to open the editor.</div>';
+    return;
+  }
+  $('#venueList').innerHTML = list.map(v => `
+    <div class="vrow" data-id="${esc(v.id)}">
+      <div>
+        <div class="vn">${esc(v.name || v.id)}${v.active ? ' <span class="live">LIVE</span>' : ''}</div>
+        <div class="meta">${v.missing ? 'file missing on server' : (v.zones + ' zones')}${v.calibrated ? ' · calibrated' : ''}</div>
+      </div>
+      <button type="button" data-act="edit">Edit</button>
+      <button type="button" class="danger" data-act="del" ${v.active ? 'disabled title="Activate another venue first"' : ''}>Delete</button>
+    </div>`).join('');
+  $('#venueList').querySelectorAll('.vrow').forEach(row => {
+    row.querySelector('[data-act="edit"]').addEventListener('click', () => {
+      location.href = '/dashboard.html?edit=' + encodeURIComponent(row.dataset.id);
+    });
+    const del = row.querySelector('[data-act="del"]');
+    if (del && !del.disabled) del.addEventListener('click', () => deleteVenue(row.dataset.id, row));
+  });
+
+  // ownerless venues — claimable here, invisible in the dashboard rail
+  const un = body.unclaimed || [];
+  $('#unclaimedSec').classList.toggle('hidden', !un.length);
+  $('#unclaimedList').innerHTML = un.map(v => `
+    <div class="vrow" data-id="${esc(v.id)}">
+      <div>
+        <div class="vn">${esc(v.name || v.id)}${v.active ? ' <span class="live">LIVE</span>' : ''}</div>
+        <div class="meta">${v.zones} zones · unclaimed</div>
+      </div>
+      <button type="button" data-act="claim">Claim</button>
+    </div>`).join('');
+  $('#unclaimedList').querySelectorAll('[data-act="claim"]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('.vrow').dataset.id;
+      btn.disabled = true;
+      const res = await fetch('/venues/' + encodeURIComponent(id) + '/claim',
+        { method: 'POST', headers: await authHeaders() });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg($('#dashMsg'), b.error || 'Claim failed', 'err'); btn.disabled = false; return; }
+      await loadMyVenues();                      // reload first — it clears the msg line
+      setMsg($('#dashMsg'), 'Claimed ' + id + ' — it\'s yours now.', 'ok');
+    }));
+}
+
+async function deleteVenue(id, row) {
+  if (!confirm('Delete venue "' + id + '"? This cannot be undone.')) return;
+  const res = await fetch('/venues/' + encodeURIComponent(id), {
+    method: 'DELETE', headers: await authHeaders()
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    setMsg($('#dashMsg'), body.error || 'Delete failed', 'err');
+    return;
+  }
+  setMsg($('#dashMsg'), 'Deleted ' + id, 'ok');
+  row.remove();
+  if (!$('#venueList').children.length) loadMyVenues();
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+$('#btnLogin').addEventListener('click', guard('Signing in', async () => {
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  if (!email || !password) throw new Error('Enter an email and password.');
+  const { data, error } = await withTimeout(
+    sb.auth.signInWithPassword({ email, password }), 'Sign in');
+  if (error) throw new Error(error.message);
+  console.log('[owner] login ok', data.user && data.user.id);
+  accessToken = data.session.access_token;
+  setMsg($('#authMsg'), 'Signed in.', 'ok');
+  showDash(data.session);
+}));
+
+$('#btnSignup').addEventListener('click', guard('Creating account', async () => {
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  if (!email) throw new Error('Enter an email address.');
+  if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+  const { data, error } = await withTimeout(sb.auth.signUp({ email, password }), 'Sign up');
+  if (error) throw new Error(error.message);
+  // With "Confirm email" off, session is present immediately.
+  if (data.session) {
+    console.log('[owner] signup ok', data.user && data.user.id);
+    accessToken = data.session.access_token;
+    setMsg($('#authMsg'), 'Account created.', 'ok');
+    showDash(data.session);
+  } else {
+    setMsg($('#authMsg'),
+      'Account created — check email to confirm, or disable Confirm email in Supabase Auth settings.',
+      'ok');
+  }
+}));
+
+$('#btnLogout').addEventListener('click', async () => {
+  try { await withTimeout(sb.auth.signOut(), 'Sign out'); }
+  catch (e) { console.warn('[owner] signout', e); }   // local state clears regardless
+  accessToken = null;
+  showAuth();
+  setMsg($('#authMsg'), 'Signed out.', 'ok');
+});
+
+$('#btnNew').addEventListener('click', () => {
+  location.href = '/dashboard.html?edit=new';
+});
+
+init().catch(e => {
+  console.error('[owner] init', e);
+  authOff(e.message || 'Init failed', 'Venue editing still works without an account — go to the dashboard.');
+});
+</script>
+</body>
+</html>
