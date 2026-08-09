@@ -1242,6 +1242,13 @@ const M_PER_DEG = 111320;                        // GEO is set by setActive()
 const GPS_MAX_ACCURACY = 25;   // metres — ignore fixes vaguer than this
 const NEAREST_MAX_M    = 18;   // don't claim a zone from further away than this
 const ZONE_SWITCH_VOTES = 3;   // consecutive agreeing fixes before switching zone
+// Fast path, re-measured rather than loosened blindly: at ±5m a single fix
+// names the wrong zone 5.8% of the time, so TWO consecutive agreeing good
+// fixes are wrong together ~0.3% — safer than three votes at ±8m (17.3%³).
+// So when both this fix and the previous one are ≤ GOOD_ACC, two votes are
+// enough and a walk into the next zone registers in 2s instead of 3-4.
+const GOOD_ACC = 6;            // metres — a fix this sharp earns the fast path
+const ZONE_SWITCH_VOTES_GOOD = 2;
 
 let gpsRejects = 0, gpsWarned = false;
 
@@ -1403,14 +1410,26 @@ io.on('connection', socket => {
     }
     p.gpsNote = null;
 
-    // real position drives the dot, eased so GPS jitter doesn't make it twitch
-    p.anchor = { x: lerp(p.anchor.x, n.x, 0.35), y: lerp(p.anchor.y, n.y, 0.35) };
+    // Real position drives the dot, eased so GPS jitter doesn't make it
+    // twitch — but eased ADAPTIVELY, or walking feels like wading:
+    //   far from the anchor (>30m)  → 0.85, basically snap; that's a real
+    //                                 move, not jitter at any accuracy
+    //   sharp fix (≤8m)             → 0.55, trust it
+    //   ordinary fix                → 0.35, the original smoothing
+    const acc = p.gps.accuracy != null ? p.gps.accuracy : 15;
+    const dm = Math.hypot((n.x - p.anchor.x) * GEO.spanX, (n.y - p.anchor.y) * GEO.spanY);
+    const k = dm > 30 ? 0.85 : acc <= 8 ? 0.55 : 0.35;
+    p.anchor = { x: lerp(p.anchor.x, n.x, k), y: lerp(p.anchor.y, n.y, k) };
+
+    const goodNow = acc <= GOOD_ACC;
+    const votesNeeded = (goodNow && p.prevFixGood) ? ZONE_SWITCH_VOTES_GOOD : ZONE_SWITCH_VOTES;
+    p.prevFixGood = goodNow;
 
     const hit = zoneAt(n.x, n.y);
     if (!hit || hit.id === p.zone || hit.d > NEAREST_MAX_M) { p.zoneCand = null; p.zoneVotes = 0; return; }
     if (p.zoneCand === hit.id) p.zoneVotes++;
     else { p.zoneCand = hit.id; p.zoneVotes = 1; }
-    if (p.zoneVotes >= ZONE_SWITCH_VOTES) { p.zone = hit.id; p.zoneCand = null; p.zoneVotes = 0; }
+    if (p.zoneVotes >= votesNeeded) { p.zone = hit.id; p.zoneCand = null; p.zoneVotes = 0; }
   });
 
   // Counters are cumulative on the phone, so take the max and never go

@@ -85,11 +85,16 @@ centre degrades to "nobody moves", never "everyone scatters".
 GPS is deliberately fail-safe, and these guards exist because the zones are smaller than GPS error —
 do not loosen them without re-measuring:
 - Fixes worse than `GPS_MAX_ACCURACY` (25m) are ignored.
-- A zone change needs `ZONE_SWITCH_VOTES` (3) consecutive agreeing fixes. At ±8m accuracy this is the
-  difference between a spurious zone change every 2.7 minutes and every few seconds.
+- A zone change needs `ZONE_SWITCH_VOTES` (3) consecutive agreeing fixes — with a re-measured fast
+  path: when this fix AND the previous one are ≤6m, two votes suffice (±5m misassigns 5.8% per fix,
+  so two agreeing ≈0.3% — safer than three votes at ±8m). Weak fixes carry no vote and no veto.
+  At ±8m the 3-vote rule is the difference between a spurious change every 2.7 minutes and every few
+  seconds; don't collapse it to 2 for ordinary fixes.
 - Points landing outside the `outline` polygon are rejected and the person keeps their zone. This is
   what makes an uncalibrated venue degrade into "nobody moves" rather than "everyone scatters".
-- Dot position is eased at 0.35/fix toward the real position, never snapped.
+- Dot position is eased per fix, never snapped — adaptively: 0.85 when the fix is >30m from the
+  anchor (that's a real move, not jitter), 0.55 for ≤8m fixes, 0.35 otherwise. Standing-still jitter
+  still damps (~1m dot motion on a 3m stray) while a walk converges in 2-3 fixes instead of ~6.
 
 Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 17.3% at ±8m, 31.7% at
 ±12m. The short axis is the hard limit — the site is 2.884× wider than tall, so most zones are only a
