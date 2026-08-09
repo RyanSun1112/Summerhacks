@@ -250,8 +250,11 @@ const needsBigBody = req => req.path === '/detect'
   || /^\/venues\/[^/]+\/plan$/.test(req.path)
   || /^\/api\/venues\/[^/]+\/capture$/.test(req.path);
 app.use((req, res, next) => (needsBigBody(req) ? bigJson : smallJson)(req, res, next));
+// Landing splits attendees vs organizers. Must be before static so `/` is not
+// shadowed by any other default, and so we never bounce cold visits into the
+// owner-gated dashboard.
+app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (_, res) => res.redirect('/dashboard.html'));
 app.get('/venue', (_, res) => res.json(venue));
 
 // What the clients need to run auth. Anon key only, never the service role.
@@ -2034,6 +2037,7 @@ server.on('error', e => {
 server.listen(PORT, () => {
   const pub = configuredPublicUrl();
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
+  console.log(`  Home       http://localhost:${PORT}/`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
   console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
