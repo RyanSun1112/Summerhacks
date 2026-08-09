@@ -51,6 +51,12 @@ server picks one of three modes at boot (the log says which):
 
 Venue geometry lives as JSON in `venues/` in every mode; auth only stores *who owns which venue*.
 
+With auth on, the venue list is **scoped to the signed-in account**: you see your own venues, the
+LIVE one (it's on the projector — always public), and unclaimed venues (first account to save one
+owns it). Another account's venues never appear in your list. This is list tidiness, not secrecy —
+the live map still serves the active venue's geometry to everyone, and ownership is enforced on
+writes. The account modal links to `/owner.html` for managing all your venues in one place.
+
 Environment variables, all optional:
 
 | Variable | Default | Does |

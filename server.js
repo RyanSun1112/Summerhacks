@@ -432,16 +432,56 @@ app.get('/api/me/venues', requireAuth, async (req, res) => {
   }
 });
 
+// Optional auth: resolves the user when a valid Bearer token rides along,
+// and never rejects — for routes that shape their answer to who's asking.
+async function maybeAuth(req) {
+  if (!AUTH_ENABLED) return null;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) return null;
+  if (AUTH_MODE === 'local') return localUserByToken(token);
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    return (!error && data.user) ? data.user : null;
+  } catch { return null; }
+}
+
+// Every venue's owner in one read, for filtering lists.
+async function getAllOwners() {
+  if (!AUTH_ENABLED) return {};
+  if (AUTH_MODE === 'local') return { ...ownersDb.owners };
+  const { data, error } = await supabaseAdmin.from('venue_owners').select('venue_id, owner_id');
+  if (error) { console.log('[auth] owners read error:', error.message); return {}; }
+  return Object.fromEntries((data || []).map(r => [r.venue_id, r.owner_id]));
+}
+
 // ------------------------------------------------------------ venue CRUD
-// Reads stay public (dashboard + join). Writes require owner auth when enabled.
-app.get('/venues', (_, res) => res.json({
-  active: activeId,
-  venues: [...venues.values()].map(v => ({
-    id: v.id, name: v.name, subtitle: v.subtitle || '',
-    zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-    hasPlan: fs.existsSync(planPath(v.id))
-  }))
-}));
+// The venue LIST is scoped to the asker when auth is on: the live venue is
+// public (it's on the projector), unclaimed venues stay visible so they can
+// be claimed, but a venue someone owns appears only in its owner's list.
+// This is tidiness, not security — GET /venues/:id stays public because the
+// map needs geometry, and writes are what ownership actually protects.
+app.get('/venues', async (req, res) => {
+  const user = await maybeAuth(req);
+  const owners = await getAllOwners();
+  const visible = [...venues.values()].filter(v => {
+    if (!AUTH_ENABLED) return true;
+    if (v.id === activeId) return true;
+    const owner = owners[v.id];
+    return !owner || (user && owner === user.id);
+  });
+  res.json({
+    active: activeId,
+    signedIn: !!user,
+    venues: visible.map(v => ({
+      id: v.id, name: v.name, subtitle: v.subtitle || '',
+      zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+      hasPlan: fs.existsSync(planPath(v.id)),
+      mine: !!(user && owners[v.id] === user.id),
+      unclaimed: AUTH_ENABLED ? !owners[v.id] : false
+    }))
+  });
+});
 
 app.get('/venues/:id', (req, res) => {
   const v = venues.get(req.params.id);

@@ -84,6 +84,12 @@ process.on('SIGTERM', shutdown);
   console.log('[dev] starting cloudflared quick tunnel…');
   tun = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`]);
   let buf = '', started = false;
+  // keep the tail of cloudflared's own output, so a failure names its cause
+  // (rate-limited, DNS blocked, no network) instead of just "no URL"
+  const tail = [];
+  const keepTail = d => String(d).split(/\r?\n/).forEach(l => {
+    if (l.trim()) { tail.push(l.trim().slice(0, 160)); if (tail.length > 6) tail.shift(); }
+  });
   const begin = url => {
     if (started) return;
     started = true;
@@ -96,24 +102,28 @@ process.on('SIGTERM', shutdown);
     startServer(url);
   };
   const onData = d => {
-    buf += d;
+    buf += d; keepTail(d);
     const m = buf.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
     if (m) begin(m[0]);
   };
   tun.stdout.on('data', onData);
   tun.stderr.on('data', onData);
+  const explain = () => { if (tail.length) { console.log('[dev] cloudflared said:'); tail.forEach(l => console.log('        ' + l)); } };
   tun.on('exit', code => {
     if (!started) {
       console.log(`[dev] tunnel died before giving a URL (exit ${code}) — starting without it.`);
+      explain();
       begin(null);
     } else if (srv) {
       console.log('[dev] tunnel exited — QR codes now point at a dead host. Restart dev.js.');
+      explain();
     }
   });
   // no URL after 25s (offline, blocked, rate-limited) → run anyway
   setTimeout(() => {
     if (!started) {
       console.log('[dev] no tunnel URL after 25s — starting without it. QRs stay localhost-only.');
+      explain();
       begin(null);
     }
   }, 25000);

@@ -443,6 +443,8 @@
     </div>
     <div class="msgline" id="acctMsg"></div>
     <button class="vbtn" id="acctCancel" type="button" style="margin-top:6px">Close</button>
+    <a href="/owner.html" style="display:block;margin-top:12px;font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-decoration:none">
+      Open the owner page → <span style="color:var(--muted);opacity:.7">manage all your venues in one place</span></a>
   </div>
 </div>
 
@@ -522,6 +524,7 @@ ownerAuthReady=(async()=>{
     console.log('[owner-auth] mode',ownerMode,ownerToken?'— signed in as '+ownerEmail:'— signed out');
   }catch(e){ console.warn('[owner-auth]',e); }
   renderAcct();
+  loadVenueList();          // the list is scoped by who's asking — refresh now that we know
   return !!ownerToken;
 })();
 
@@ -580,7 +583,7 @@ async function acctAuth(kind){
       ownerToken=data.session.access_token;
       ownerEmail=(data.user&&data.user.email)||email;
     }
-    renderAcct(); renderAcctModal();
+    renderAcct(); renderAcctModal(); loadVenueList();
     setAcctMsg(kind==='signup'?'Account created.':'Signed in.','ok');
     setTimeout(()=>closeAcct(true),350);
   }catch(e){
@@ -598,7 +601,7 @@ $('#acctOut').addEventListener('click',async()=>{
   if(ownerMode==='local'){ fetch('/auth/logout',{method:'POST',headers:ownerHeaders()}).catch(()=>{}); ownerStore(null); }
   else if(ownerSb){ try{ await withDeadline(ownerSb.auth.signOut(),'Sign out'); }catch(e){} }
   ownerToken=null; ownerEmail=null;
-  renderAcct(); renderAcctModal(); setAcctMsg('Signed out.','ok');
+  renderAcct(); renderAcctModal(); loadVenueList(); setAcctMsg('Signed out.','ok');
 });
 $('#acctCancel').addEventListener('click',()=>closeAcct(false));
 $('#acctModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) closeAcct(false); });
@@ -1106,12 +1109,14 @@ setInterval(()=>{ if(view==='data') renderData(); },10000);
 
 /* ========================================================= VENUE SWITCHER */
 async function loadVenueList(){
-  try{ venueIndex=await fetch('/venues').then(r=>r.json()); }catch(e){ return; }
+  // the token scopes the list: your venues + the live one + unclaimed seeds
+  try{ venueIndex=await fetch('/venues',{headers:ownerHeaders()}).then(r=>r.json()); }catch(e){ return; }
   $('#venueList').innerHTML=venueIndex.venues.map(v=>{
     const sel=(previewId||venueIndex.active)===v.id;
-    return `<div class="vrow${sel?' sel':''}" data-id="${v.id}">
+    return `<div class="vrow${sel?' sel':''}" data-id="${v.id}" ${v.unclaimed?'title="Unclaimed — the first account to save it owns it"':''}>
       <span class="vn">${esc(v.name)}</span>
-      ${v.id===venueIndex.active?'<span class="live">LIVE</span>':`<span class="vz">${v.zones}z</span>`}
+      ${v.id===venueIndex.active?'<span class="live">LIVE</span>'
+        :`<span class="vz">${v.unclaimed?'open':v.zones+'z'}</span>`}
     </div>`;
   }).join('');
   $('#venueList').querySelectorAll('.vrow').forEach(r=>
