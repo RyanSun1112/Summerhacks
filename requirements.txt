@@ -1,4 +1,7 @@
-# Offline song preprocessing (Python 3.10+)
+# NOT used by the deployed Node web service (server.js / package.json).
+# Offline song preprocessing only (python preprocess_songs.py). If a host
+# auto-detects Python from this file, force the runtime to Node (see render.yaml).
+
 librosa>=0.11.0,<1
 numpy>=1.26,<3
 soundfile>=0.12.1,<1
