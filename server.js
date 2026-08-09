@@ -404,16 +404,20 @@ const venueSummary = v => ({
   hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
 });
 
-// Venues owned by the logged-in account (for owner.html).
+// Venues owned by the logged-in account, plus the unclaimed pool — the owner
+// page shows both, and claiming is how a seed venue gets an owner at all now
+// that unclaimed venues stay out of the dashboard rail.
 app.get('/api/me/venues', requireAuth, async (req, res) => {
-  if (!AUTH_ENABLED) return res.json({ venues: [...venues.values()].map(venueSummary) });
-  if (AUTH_MODE === 'local') {
-    const list = Object.entries(ownersDb.owners)
-      .filter(([, owner]) => owner === req.user.id)
-      .map(([id]) => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
-    return res.json({ venues: list, user: req.user });
-  }
+  if (!AUTH_ENABLED) return res.json({ venues: [...venues.values()].map(venueSummary), unclaimed: [] });
   try {
+    const owners = await getAllOwners();
+    const unclaimed = [...venues.values()].filter(v => !owners[v.id]).map(venueSummary);
+    if (AUTH_MODE === 'local') {
+      const list = Object.entries(ownersDb.owners)
+        .filter(([, owner]) => owner === req.user.id)
+        .map(([id]) => venues.get(id) ? venueSummary(venues.get(id)) : { id, name: id, missing: true });
+      return res.json({ venues: list, unclaimed, user: req.user });
+    }
     const { data, error } = await supabaseAdmin
       .from('venue_owners').select('venue_id, created_at').eq('owner_id', req.user.id);
     if (error) {
@@ -425,10 +429,27 @@ app.get('/api/me/venues', requireAuth, async (req, res) => {
       if (!v) return { id: row.venue_id, name: row.venue_id, missing: true, created_at: row.created_at };
       return { ...venueSummary(v), created_at: row.created_at };
     });
-    res.json({ venues: list, user: { id: req.user.id, email: req.user.email } });
+    res.json({ venues: list, unclaimed, user: { id: req.user.id, email: req.user.email } });
   } catch (e) {
     console.log('[auth] /api/me/venues exception:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// Take ownership of a venue nobody owns. Saving over it always claimed it;
+// this claims without having to re-save, and 409s if someone got there first.
+app.post('/venues/:id/claim', requireAuth, async (req, res) => {
+  if (!AUTH_ENABLED || !req.user) return res.status(400).json({ error: 'accounts are off on this server' });
+  const id = req.params.id;
+  if (!venues.has(id)) return res.status(404).json({ error: 'no such venue' });
+  try {
+    const owner = await getVenueOwner(id);
+    if (owner === req.user.id) return res.json({ ok: true, alreadyYours: true });
+    if (owner) return res.status(409).json({ error: 'already owned by another account' });
+    await claimVenue(id, req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(409).json({ error: 'already owned by another account' });
   }
 });
 
@@ -457,21 +478,19 @@ async function getAllOwners() {
 
 // ------------------------------------------------------------ venue CRUD
 // The venue LIST is scoped to the asker when auth is on: the live venue is
-// public (it's on the projector); signed-in accounts also get their own
-// venues plus unclaimed ones (visible so they can be claimed — save one and
-// it's yours); a venue someone owns appears only in its owner's list, and a
-// signed-out viewer sees nothing but the live venue.
-// This is tidiness, not security — GET /venues/:id stays public because the
-// map needs geometry, and writes are what ownership actually protects.
+// public (it's on the projector); a signed-in account additionally sees ITS
+// OWN venues and nothing else — not other accounts', not unclaimed ones.
+// Unclaimed venues are managed from the owner page (claim endpoint below),
+// so they never clutter the rail. This is tidiness, not security —
+// GET /venues/:id stays public because the map needs geometry, and writes
+// are what ownership actually protects.
 app.get('/venues', async (req, res) => {
   const user = await maybeAuth(req);
   const owners = await getAllOwners();
   const visible = [...venues.values()].filter(v => {
     if (!AUTH_ENABLED) return true;
     if (v.id === activeId) return true;
-    if (!user) return false;
-    const owner = owners[v.id];
-    return !owner || owner === user.id;
+    return user && owners[v.id] === user.id;
   });
   res.json({
     active: activeId,

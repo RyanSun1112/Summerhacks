@@ -52,11 +52,13 @@ server picks one of three modes at boot (the log says which):
 Venue geometry lives as JSON in `venues/` in every mode; auth only stores *who owns which venue*.
 
 With auth on, the venue list is **scoped to the signed-in account**: signed out you see only the
-LIVE venue (it's on the projector — always public); signed in you also see your own venues plus
-unclaimed ones, tagged `open` (first account to save one owns it). Another account's venues never
-appear in your list. This is list tidiness, not secrecy — the live map still serves the active
-venue's geometry to everyone, and ownership is enforced on writes. The rail's **Owner page →** link
-and the account modal both go to `/owner.html` for managing all your venues in one place.
+LIVE venue (it's on the projector — always public); signed in you see the live venue plus **your
+own** — never another account's, and not unclaimed ones either. Ownerless venues (created before
+accounts, or seeds) live in an **Unclaimed** section on `/owner.html` with a Claim button — claim
+one and it's yours to edit, delete and see in your list (saving over an unclaimed venue also claims
+it). This is list tidiness, not secrecy — the live map still serves the active venue's geometry to
+everyone, and ownership is enforced on writes. The rail's **Owner page →** link and the account
+modal both go to `/owner.html`.
 
 Environment variables, all optional:
 

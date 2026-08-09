@@ -114,6 +114,11 @@
       <button class="ghost" id="btnLogout" type="button">Log out</button>
     </div>
     <div id="venueList" class="vlist"></div>
+    <div id="unclaimedSec" class="hidden" style="margin-top:22px">
+      <div class="lab">Unclaimed venues</div>
+      <p class="sub" style="margin:6px 0 10px;font-size:12px">Nobody owns these. Claim one and it's yours to edit, delete and see in your dashboard list.</p>
+      <div id="unclaimedList" class="vlist"></div>
+    </div>
     <div class="msg" id="dashMsg"></div>
   </section>
 </main>
@@ -305,6 +310,29 @@ async function loadMyVenues() {
     const del = row.querySelector('[data-act="del"]');
     if (del && !del.disabled) del.addEventListener('click', () => deleteVenue(row.dataset.id, row));
   });
+
+  // ownerless venues — claimable here, invisible in the dashboard rail
+  const un = body.unclaimed || [];
+  $('#unclaimedSec').classList.toggle('hidden', !un.length);
+  $('#unclaimedList').innerHTML = un.map(v => `
+    <div class="vrow" data-id="${esc(v.id)}">
+      <div>
+        <div class="vn">${esc(v.name || v.id)}${v.active ? ' <span class="live">LIVE</span>' : ''}</div>
+        <div class="meta">${v.zones} zones · unclaimed</div>
+      </div>
+      <button type="button" data-act="claim">Claim</button>
+    </div>`).join('');
+  $('#unclaimedList').querySelectorAll('[data-act="claim"]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('.vrow').dataset.id;
+      btn.disabled = true;
+      const res = await fetch('/venues/' + encodeURIComponent(id) + '/claim',
+        { method: 'POST', headers: await authHeaders() });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg($('#dashMsg'), b.error || 'Claim failed', 'err'); btn.disabled = false; return; }
+      await loadMyVenues();                      // reload first — it clears the msg line
+      setMsg($('#dashMsg'), 'Claimed ' + id + ' — it\'s yours now.', 'ok');
+    }));
 }
 
 async function deleteVenue(id, row) {
