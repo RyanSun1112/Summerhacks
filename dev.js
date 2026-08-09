@@ -158,6 +158,33 @@ process.on('SIGTERM', shutdown);
   }
   startTunnel();
 
+  // Zombie watch. A connector can lose the edge and retry forever without
+  // exiting or minting a new URL — pages serve 1033/530 while everything
+  // local looks healthy. So probe our own public URL from here: sustained
+  // failure kills the tunnel process, which flows into the normal respawn
+  // path and a fresh hostname. Patience rules matter — a new tunnel can take
+  // a couple of minutes to become reachable, and a flapping edge must not
+  // cause endless hostname churn.
+  let wdUrl = null, wdFails = 0, wdHealthy = false;
+  setInterval(async () => {
+    if (!currentUrl || !tun) return;
+    if (wdUrl !== currentUrl) { wdUrl = currentUrl; wdFails = 0; wdHealthy = false; }
+    let ok = false;
+    try { ok = (await fetch(currentUrl + '/api/health', { signal: AbortSignal.timeout(15000) })).ok; } catch {}
+    if (ok) {
+      if (!wdHealthy) console.log('[dev] tunnel confirmed reachable from the public internet ✓');
+      wdHealthy = true; wdFails = 0; tunRespawns = 0;
+      return;
+    }
+    wdFails++;
+    const limit = wdHealthy ? 4 : 7;               // ~3 min once healthy, ~5 min from cold
+    if (wdFails >= limit) {
+      console.log(`[dev] ⚠ tunnel unreachable from the internet (${wdFails} consecutive checks${wdHealthy ? '' : ' since start'}) — recycling it for a fresh hostname…`);
+      try { tun.kill(); } catch {}
+      wdFails = 0; wdHealthy = false;
+    }
+  }, 45000);
+
   // no URL after 25s (offline, blocked, rate-limited) → run anyway
   setTimeout(() => {
     if (!started) {
