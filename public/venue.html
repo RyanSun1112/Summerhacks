@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080A18">
+<title>Pulse — Venue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99; --ok:#3ECF8E; --warn:#F0A93B; --hype:#F05A3C;
+    --rule:rgba(240,239,247,.10); --glass:rgba(12,15,34,.88);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{min-height:100%;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px}
+  body{min-height:100dvh;display:flex;flex-direction:column}
+  .lab{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  header{
+    flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;
+    padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top));
+    border-bottom:1px solid var(--rule);background:rgba(8,10,24,.94);z-index:5;
+  }
+  .back{
+    display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 12px;
+    border:1px solid var(--rule);border-radius:6px;color:var(--ink);text-decoration:none;
+    font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .back:active{border-color:var(--accent)}
+  .mark{min-width:0;flex:1}
+  .mark b{display:block;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mark span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hc{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .hc b{color:var(--ink);font-weight:500}
+  main{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px calc(18px + env(safe-area-inset-bottom))}
+  .status{padding:28px 8px;text-align:center;color:var(--muted);font-size:14px}
+  .status.err{color:#FFB4A8}
+  .badge{
+    display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    padding:4px 8px;border-radius:3px;margin-bottom:8px;
+  }
+  .badge.hype{color:#080A18;background:var(--hype)}
+  .badge.calm{color:#080A18;background:#5B9CFF}
+  .badge.mixed{color:#080A18;background:var(--warn)}
+
+  .plan-stage{
+    flex:1;min-height:min(62dvh,560px);width:100%;position:relative;
+    border:1px solid var(--rule);border-radius:10px;background:#0a0c18;overflow:hidden;
+  }
+  .plan-hint{
+    position:absolute;top:0;left:0;right:0;z-index:4;padding:8px 10px;font-size:12px;color:var(--muted);text-align:center;
+    background:rgba(10,12,28,.88);border-bottom:1px solid var(--rule);pointer-events:none;
+  }
+  #map{display:block;width:100%;height:100%}
+  .dot-layer{position:absolute;inset:0;pointer-events:none;z-index:2}
+  .plan-dot{
+    position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;padding:0;border:2px solid #fff;
+    border-radius:50%;overflow:hidden;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.55);
+    background:#1a1d2e;z-index:2;transition:transform .15s,box-shadow .15s;pointer-events:auto;
+  }
+  .plan-dot img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;background:#1a1d2e}
+  .plan-dot.broken{background:linear-gradient(135deg,#2a2040,#1a1d2e);border-color:rgba(240,239,247,.35)}
+  .plan-dot.broken::after{
+    content:'?';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:16px;color:var(--muted);
+  }
+  .plan-dot:active,.plan-dot.on{transform:scale(1.08);z-index:5;box-shadow:0 0 0 3px var(--accent),0 8px 20px rgba(0,0,0,.55)}
+  .plan-dot.on{width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:10px}
+
+  .unplaced{
+    flex:none;margin-top:12px;padding:12px 14px;border:1px dashed var(--rule);border-radius:10px;
+    background:rgba(240,239,247,.03);display:none;
+  }
+  .unplaced.on{display:block}
+  .unplaced .lab{margin-bottom:10px}
+  .unplaced-row{display:flex;flex-wrap:wrap;gap:10px}
+  .unplaced .plan-dot{position:relative;left:auto;top:auto;margin:0}
+
+  .expand{
+    flex:none;margin-top:12px;padding:14px;border:1px solid var(--rule);border-radius:10px;
+    background:var(--glass);display:none;
+  }
+  .expand.on{display:block}
+  .expand img{
+    width:100%;max-height:min(42dvh,320px);object-fit:cover;border-radius:8px;display:block;
+    background:#111;margin-bottom:10px;
+  }
+  .expand img.broken{display:none}
+  .expand .vn{font-size:17px;font-weight:600;margin:4px 0}
+  .expand .meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:10px}
+  .expand .metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .expand .m{font-family:var(--mono);font-size:13px}
+  .expand .m span{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+  .expand-close{
+    width:100%;margin-top:12px;min-height:44px;border:1px solid var(--rule);border-radius:6px;
+    background:none;color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  }
+  .expand-close:active{border-color:var(--accent)}
+
+  @media (min-width:560px){
+    main{padding:16px 20px 24px;max-width:960px;margin:0 auto;width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="/city.html">← City map</a>
+  <div class="mark">
+    <b id="venueName">Venue</b>
+    <span id="venueSub">Loading…</span>
+  </div>
+  <div class="hc"><b id="count">0</b> captures</div>
+</header>
+<main id="main">
+  <div class="status" id="status">Loading venue…</div>
+</main>
+
+<script>
+const ACCENT = [59, 79, 224];
+const ACCENT2 = [123, 63, 212];
+const $ = s => document.querySelector(s);
+const venueId = (new URLSearchParams(location.search).get('id') || '').trim();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+let venue = null;
+let mapPlan = null;
+let captures = [];
+let selectedId = null;
+let pollMs = 5000;
+let pollTimer = null;
+let MW = 0, MH = 0, MX = 0, MY = 0;
+let cv = null, ctx = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[ch]);
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month:'short', day:'numeric', hour:'numeric', minute:'2-digit'
+    });
+  } catch { return iso; }
+}
+
+function hash01(str, salt) {
+  let h = 2166136261 ^ (salt || 0);
+  const s = String(str || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+// Same kind styling the dashboard map uses for zone rectangles.
+function kindStyle(kind, a) {
+  if (kind === 'event') return { fill: rgba(a, .15), stroke: rgba(a, .75), text: rgba(a, 1) };
+  if (kind === 'social') return { fill: 'rgba(240,239,247,.055)', stroke: 'rgba(240,239,247,.30)', text: 'rgba(240,239,247,.70)' };
+  if (kind === 'food' || kind === 'market')
+    return { fill: 'rgba(240,239,247,.042)', stroke: 'rgba(240,239,247,.24)', text: 'rgba(240,239,247,.60)' };
+  return { fill: 'rgba(240,239,247,.020)', stroke: 'rgba(240,239,247,.14)', text: 'rgba(240,239,247,.40)' };
+}
+
+function px(nx, ny) { return [MX + nx * MW, MY + ny * MH]; }
+
+function photoUrl(c) {
+  // Always hit the same-origin proxy — never the raw Supabase URL (intermittent 403s).
+  if (!c || !c.id) return '';
+  const base = `/api/captures/${encodeURIComponent(c.id)}/photo`;
+  return base + '?t=' + encodeURIComponent(String(c.created_at || c.id).slice(0, 24));
+}
+
+function zoneById(id) {
+  return (venue && venue.zones || []).find(z => z.id === id) || null;
+}
+
+function zoneLabelFor(c) {
+  if (!c || !c.zone_id) return null;
+  const z = zoneById(c.zone_id);
+  return z ? (z.label || z.short || z.id) : null;
+}
+
+function captureInZone(c) {
+  return !!(c.zone_id && zoneById(c.zone_id));
+}
+
+// Stable position inside a zone rectangle (dashboard zone geometry, 0–1).
+function posInZone(c, z, occupied) {
+  const taken = occupied || [];
+  const minDist2 = 0.022 * 0.022;
+  const clear = (x, y) => {
+    for (const o of taken) {
+      const dx = x - o.x, dy = y - o.y;
+      if (dx * dx + dy * dy < minDist2) return false;
+    }
+    return true;
+  };
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const u = 0.16 + hash01(c.id, 1 + attempt * 3) * 0.68;
+    const vv = 0.16 + hash01(c.id, 2 + attempt * 3) * 0.68;
+    const p = { x: z.x + u * z.w, y: z.y + vv * z.h };
+    if (clear(p.x, p.y)) return p;
+  }
+  return {
+    x: z.x + (0.16 + hash01(c.id, 1) * 0.68) * z.w,
+    y: z.y + (0.16 + hash01(c.id, 2) * 0.68) * z.h
+  };
+}
+
+function fit() {
+  if (!cv || !venue) return;
+  const dpr = devicePixelRatio || 1;
+  const r = cv.parentElement.getBoundingClientRect();
+  cv.width = Math.max(1, r.width * dpr);
+  cv.height = Math.max(1, r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const padX = Math.max(28, r.width * 0.04), padY = Math.max(36, r.height * 0.06);
+  let w = r.width - padX * 2, h = w / (venue.aspect || 1.6);
+  if (h > r.height - padY * 2) { h = r.height - padY * 2; w = h * (venue.aspect || 1.6); }
+  MW = w; MH = h; MX = (r.width - w) / 2; MY = (r.height - h) / 2;
+}
+
+// Floor-plan draw — same approach as dashboard.html's map (outline, optional
+// containers/route, zone rectangles by kind, labels). No live crowd overlay.
+function drawMap() {
+  if (!cv || !ctx || !venue) return;
+  if (!MW) fit();
+  const r = cv.parentElement.getBoundingClientRect();
+  const a = ACCENT, a2 = ACCENT2;
+  ctx.clearRect(0, 0, r.width, r.height);
+
+  if (mapPlan && mapPlan.complete && mapPlan.naturalWidth && venue.showPlan !== false) {
+    ctx.save(); ctx.globalAlpha = 0.30;
+    ctx.drawImage(mapPlan, MX, MY, MW, MH);
+    ctx.restore();
+  }
+
+  if (venue.outline && venue.outline.length >= 3) {
+    ctx.beginPath();
+    venue.outline.forEach((p, i) => {
+      const q = px(p[0], p[1]);
+      i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+    });
+    ctx.closePath();
+    const gg = ctx.createLinearGradient(MX, MY, MX + MW, MY + MH);
+    gg.addColorStop(0, rgba(a, .06)); gg.addColorStop(1, rgba(a2, .03));
+    ctx.fillStyle = gg; ctx.fill();
+    ctx.strokeStyle = rgba(a, .35); ctx.lineWidth = 1.4; ctx.stroke();
+  }
+
+  ctx.lineWidth = 1;
+  (venue.containers || []).forEach(b => {
+    const cw = b.w / b.cols, ch = b.h / b.rows;
+    for (let c = 0; c < b.cols; c++) for (let rr = 0; rr < b.rows; rr++) {
+      const q = px(b.x + c * cw, b.y + rr * ch);
+      const w = cw * MW - 1.5, h = ch * MH - 1.5;
+      ctx.fillStyle = 'rgba(240,239,247,.036)'; ctx.fillRect(q[0], q[1], w, h);
+      ctx.strokeStyle = 'rgba(240,239,247,.13)'; ctx.strokeRect(q[0] + .5, q[1] + .5, w, h);
+    }
+  });
+
+  if (venue.route && venue.route.length) {
+    ctx.save();
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    venue.route.forEach((p, i) => {
+      const q = px(p[0], p[1]);
+      i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+    });
+    ctx.strokeStyle = rgba(a2, .45); ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.restore();
+  }
+
+  (venue.zones || []).forEach(z => {
+    const q = px(z.x, z.y), w = z.w * MW, h = z.h * MH;
+    const s = kindStyle(z.kind, a);
+    ctx.fillStyle = s.fill; ctx.fillRect(q[0], q[1], w, h);
+    ctx.strokeStyle = s.stroke; ctx.lineWidth = z.kind === 'event' ? 1.3 : 1;
+    ctx.strokeRect(q[0] + .5, q[1] + .5, w, h);
+    if (w > 36) {
+      ctx.font = '600 8.5px "IBM Plex Mono",monospace';
+      ctx.fillStyle = s.text;
+      ctx.fillText(z.short || z.label || z.id, q[0] + 5, q[1] + 12);
+    }
+  });
+
+  (venue.streets || []).forEach(s => {
+    const q = px(s.x, s.y);
+    ctx.save(); ctx.translate(q[0], q[1]); ctx.rotate((s.rot || 0) * Math.PI / 180);
+    ctx.font = '600 8.5px "Space Grotesk",sans-serif';
+    ctx.fillStyle = 'rgba(126,125,153,.75)'; ctx.textAlign = 'center';
+    ctx.fillText(s.label, 0, 0); ctx.restore();
+  });
+  ctx.textAlign = 'left';
+  (venue.entrances || []).forEach(e => {
+    const q = px(e.x, e.y);
+    ctx.fillStyle = rgba(a, .9); ctx.fillRect(q[0] - 3, q[1] - 3, 6, 6);
+    ctx.font = '600 8px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(126,125,153,.9)';
+    ctx.fillText(e.label, q[0] + 10, q[1] + 3);
+  });
+}
+
+function makeDot(c) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'plan-dot' + (c.id === selectedId ? ' on' : '');
+  btn.dataset.id = c.id;
+  const zl = zoneLabelFor(c);
+  btn.title = (c.vibe_label || 'mixed')
+    + (zl ? ' · ' + zl : ' · unplaced')
+    + ' · ' + fmtTime(c.created_at);
+  const img = document.createElement('img');
+  img.alt = '';
+  img.loading = 'lazy';
+  img.src = photoUrl(c);
+  img.onerror = () => {
+    btn.classList.add('broken');
+    img.remove();
+  };
+  btn.appendChild(img);
+  btn.addEventListener('click', () => selectCapture(c.id));
+  return btn;
+}
+
+function placeDots() {
+  const layer = $('#dotLayer');
+  const unplaced = $('#unplaced');
+  const unplacedRow = $('#unplacedRow');
+  if (!layer || !venue) return;
+  layer.innerHTML = '';
+  if (unplacedRow) unplacedRow.innerHTML = '';
+
+  const placed = captures.filter(captureInZone);
+  const loose = captures.filter(c => !captureInZone(c));
+  const occupied = [];
+
+  // Sort for stable collision resolution
+  [...placed].sort((a, b) => String(a.id).localeCompare(String(b.id))).forEach(c => {
+    const z = zoneById(c.zone_id);
+    const p = posInZone(c, z, occupied);
+    occupied.push(p);
+    const btn = makeDot(c);
+    const q = px(p.x, p.y);
+    btn.style.left = q[0] + 'px';
+    btn.style.top = q[1] + 'px';
+    layer.appendChild(btn);
+  });
+
+  if (unplaced && unplacedRow) {
+    if (loose.length) {
+      unplaced.classList.add('on');
+      loose.forEach(c => unplacedRow.appendChild(makeDot(c)));
+    } else {
+      unplaced.classList.remove('on');
+    }
+  }
+}
+
+function expandHtml(c) {
+  if (!c) return '';
+  const vibe = c.vibe_label || 'mixed';
+  const zl = zoneLabelFor(c);
+  const zoneLine = zl
+    ? `<div class="meta">Captured in ${esc(zl)}</div>`
+    : `<div class="meta">Unplaced — no zone recorded</div>`;
+  return `
+    <img src="${esc(photoUrl(c))}" alt="" onerror="this.classList.add('broken')">
+    <span class="badge ${esc(vibe)}">${esc(vibe)}</span>
+    <div class="vn">${esc(c.venue_name || venue?.name || venueId)}</div>
+    <div class="meta">${esc(fmtTime(c.created_at))}${c.captured_by ? ' · ' + esc(c.captured_by) : ''}</div>
+    ${zoneLine}
+    <div class="metrics">
+      <div class="m"><span>Energy</span>${(+c.energy || 0).toFixed(2)}</div>
+      <div class="m"><span>Sync</span>${(+c.sync || 0).toFixed(2)}</div>
+      <div class="m"><span>Arousal</span>${(+c.arousal || 0).toFixed(2)}</div>
+    </div>
+    <button type="button" class="expand-close" id="expandClose">Collapse</button>`;
+}
+
+function selectCapture(id) {
+  selectedId = selectedId === id ? null : id;
+  document.querySelectorAll('.plan-dot').forEach(el => {
+    el.classList.toggle('on', el.dataset.id === selectedId);
+  });
+  const box = $('#expand');
+  if (!box) return;
+  const c = captures.find(x => x.id === selectedId) || null;
+  if (!c) {
+    box.classList.remove('on');
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = expandHtml(c);
+  box.classList.add('on');
+  $('#expandClose')?.addEventListener('click', () => selectCapture(null));
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function render() {
+  $('#count').textContent = captures.length;
+  $('#venueSub').textContent = captures.length
+    ? captures.length + ' capture' + (captures.length === 1 ? '' : 's') + ' · floor plan'
+    : 'No captures yet · floor plan';
+
+  const main = $('#main');
+  const already = $('#planStage');
+  if (!already) {
+    main.innerHTML = `
+      <div class="plan-stage" id="planStage">
+        <div class="plan-hint">Tap a photo · zones match the live venue map</div>
+        <canvas id="map"></canvas>
+        <div class="dot-layer" id="dotLayer"></div>
+      </div>
+      <div class="unplaced" id="unplaced">
+        <div class="lab">Unplaced captures</div>
+        <div class="unplaced-row" id="unplacedRow"></div>
+      </div>
+      <div class="expand" id="expand"></div>`;
+    cv = $('#map');
+    ctx = cv.getContext('2d');
+    addEventListener('resize', () => { fit(); drawMap(); placeDots(); });
+  } else {
+    cv = $('#map');
+    ctx = cv.getContext('2d');
+  }
+
+  // Optional plan underlay (same as dashboard) — vector zones always draw.
+  if (!mapPlan && venueId) {
+    const img = new Image();
+    img.onload = () => { mapPlan = img; drawMap(); };
+    img.onerror = () => { mapPlan = null; };
+    img.src = '/venues/' + encodeURIComponent(venueId) + '/plan?t=' + Date.now();
+  }
+
+  fit();
+  drawMap();
+  placeDots();
+  // Second pass after layout — first paint can measure a 0-height stage.
+  requestAnimationFrame(() => { fit(); drawMap(); placeDots(); });
+
+  if (selectedId && captures.some(c => c.id === selectedId)) {
+    const box = $('#expand');
+    const c = captures.find(x => x.id === selectedId);
+    box.innerHTML = expandHtml(c);
+    box.classList.add('on');
+    $('#expandClose')?.addEventListener('click', () => selectCapture(null));
+  } else if (selectedId) {
+    selectedId = null;
+    const box = $('#expand');
+    if (box) { box.classList.remove('on'); box.innerHTML = ''; }
+  }
+}
+
+function sameCaptureSet(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].zone_id !== b[i].zone_id) return false;
+  }
+  return true;
+}
+
+async function loadCaptures({ quiet } = {}) {
+  try {
+    const res = await fetch('/api/captures?venue=' + encodeURIComponent(venueId));
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not load captures');
+    const next = body.captures || [];
+    next.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    const unchanged = sameCaptureSet(captures, next);
+    captures = next;
+    pollMs = 5000;
+    if (!quiet || !unchanged || !$('#planStage')) render();
+    else {
+      $('#count').textContent = captures.length;
+      placeDots();
+    }
+  } catch (e) {
+    pollMs = Math.min(20000, pollMs + 2500);
+    if (!captures.length) {
+      $('#main').innerHTML = `<div class="status err">${esc(e.message || 'Failed to load captures')}</div>`;
+    }
+  } finally {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => loadCaptures({ quiet: true }), pollMs);
+  }
+}
+
+async function boot() {
+  if (!venueId) {
+    $('#venueName').textContent = 'Missing venue';
+    $('#venueSub').textContent = 'Add ?id=… to the URL';
+    $('#main').innerHTML = '<div class="status err">No venue id in the URL.</div>';
+    return;
+  }
+
+  try {
+    const venueRes = await fetch('/venues/' + encodeURIComponent(venueId));
+    if (!venueRes.ok) throw new Error('Venue not found');
+    venue = await venueRes.json();
+    $('#venueName').textContent = venue.name || venueId;
+    document.title = 'Pulse — ' + (venue.name || venueId);
+    await loadCaptures();
+  } catch (e) {
+    $('#venueName').textContent = venueId;
+    $('#venueSub').textContent = 'Failed to load';
+    $('#main').innerHTML = `<div class="status err">${esc(e.message || 'Error')}</div>`;
+  }
+}
+
+const socket = io();
+socket.on('capture', c => {
+  if (!c || c.venue_id !== venueId) return;
+  if (captures.some(x => x.id === c.id)) return;
+  captures.unshift(c);
+  render();
+});
+
+boot();
+</script>
+</body>
+</html>

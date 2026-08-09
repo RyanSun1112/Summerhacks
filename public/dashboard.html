@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Pulse — STACKT Market</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,6 +190,53 @@
   body.noVenues nav button:not([data-v="venues"]){display:none}
   body.noVenues #venueName,body.noVenues .hc{display:none}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+  /* ---- phone / narrow: don't break, stack chrome, scroll tables ---- */
+  @media (max-width:720px){
+    header{
+      flex-wrap:wrap;gap:8px 12px;padding:10px 12px;
+      padding-top:max(10px,env(safe-area-inset-top));
+    }
+    .mark span{max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .hc{margin-left:0}
+    nav{
+      order:5;width:100%;margin-left:0;overflow-x:auto;-webkit-overflow-scrolling:touch;
+      gap:4px;padding-bottom:2px;
+    }
+    nav button{
+      flex:none;min-height:44px;padding:10px 14px;font-size:11px;letter-spacing:.12em;
+    }
+    #ownerLink{margin-left:0!important;min-height:44px;display:inline-flex;align-items:center;padding:8px}
+    #leftrail{
+      top:auto;left:10px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));
+      width:auto;max-height:38dvh;flex-direction:row;gap:8px;
+    }
+    #leftrail .panel{min-width:min(200px,70vw);max-height:100%;overflow:auto}
+    #radio{
+      left:10px;right:10px;bottom:auto;top:10px;width:auto;max-width:none;
+      padding:12px 14px;
+    }
+    #legend{display:none}
+    #previewBar{
+      left:10px;right:10px;transform:none;top:auto;bottom:max(42dvh,120px);
+      flex-wrap:wrap;width:auto;max-width:none;
+    }
+    .rbtn{width:44px;height:44px}
+    .load{min-height:44px;font-size:11px}
+    .vin,.vsel{font-size:16px;min-height:44px;padding:11px 12px}
+    .sheet{padding:16px 14px;overflow-x:auto}
+    .sheet table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;min-width:520px}
+    .ved{grid-template-columns:1fr;height:auto;min-height:100%;overflow-y:auto}
+    .ved-col,.ved-main{border:0!important;max-height:none}
+    .ved-col:first-child{border-bottom:1px solid var(--rule)!important}
+    .vtool{min-height:44px;padding:10px 12px;font-size:11px}
+    .vbtn{min-height:44px;padding:12px 10px;font-size:11px}
+    .vrow{min-height:44px;padding:10px}
+  }
+  @media (max-width:420px){
+    #leftrail{max-height:32dvh}
+    .mark span{display:none}
+  }
 </style>
 </head>
 <body>

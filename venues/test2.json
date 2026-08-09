@@ -1,0 +1,47 @@
+{
+  "name": "test2",
+  "subtitle": "",
+  "aspect": 1.6,
+  "outline": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      0,
+      1
+    ]
+  ],
+  "zones": [
+    {
+      "id": "zone1",
+      "label": "Zone 1",
+      "short": "ZONE 1",
+      "kind": "event",
+      "x": 0.1112,
+      "y": 0.1017,
+      "w": 0.2421,
+      "h": 0.2332,
+      "cap": 40
+    }
+  ],
+  "showPlan": true,
+  "geo": {
+    "calibrated": false,
+    "origin": {
+      "lat": 0,
+      "lon": 0
+    },
+    "spanX": 100,
+    "spanY": 62.5,
+    "bearing": 0
+  }
+}

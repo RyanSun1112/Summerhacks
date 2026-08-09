@@ -79,147 +79,11 @@ const supabaseAdmin = AUTH_MODE === 'supabase'
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
-// Local accounts. Passwords are scrypt-hashed with a per-user salt; sessions
-// are random tokens. Stored in the SAME SQLite database as the sensor
-// snapshots (backend/data.db) so persistence lives in one place — the
-// collaborator's tables are untouched, these sit beside them. When the
-// native module is unavailable, a JSON file keeps auth working. Persisted at
-// all because `node --watch` restarts on every file edit, and being signed
-// out each time would make the editor unusable.
-const OWNERS_PATH = process.env.OWNERS_PATH || path.join(__dirname, 'data', 'owners.json');
-let authStore = null;
-
-function jsonAuthStore() {
-  let db = { users: [], sessions: {}, owners: {} };
-  try { db = { ...db, ...JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8')) }; } catch { /* first boot */ }
-  const save = () => {
-    fs.mkdirSync(path.dirname(OWNERS_PATH), { recursive: true });
-    fs.writeFileSync(OWNERS_PATH, JSON.stringify(db, null, 2));
-  };
-  return {
-    kind: 'json (' + path.relative(__dirname, OWNERS_PATH) + ')',
-    userByEmail: e => db.users.find(u => u.email === e) || null,
-    addUser: u => { db.users.push(u); save(); },
-    addSession: (t, id) => { db.sessions[t] = { userId: id, createdAt: Date.now() }; save(); },
-    delSession: t => { if (db.sessions[t]) { delete db.sessions[t]; save(); } },
-    sessionUser: t => {
-      const s = t && db.sessions[t];
-      const u = s && db.users.find(u => u.id === s.userId);
-      return u ? { id: u.id, email: u.email } : null;
-    },
-    ownerOf: v => db.owners[v] || null,
-    setOwner: (v, id) => {
-      if (db.owners[v] && db.owners[v] !== id) throw new Error('already owned');
-      db.owners[v] = id; save();
-    },
-    clearOwner: v => { if (db.owners[v]) { delete db.owners[v]; save(); } },
-    allOwners: () => ({ ...db.owners }),
-    ownedBy: id => Object.entries(db.owners).filter(([, o]) => o === id).map(([v]) => v),
-    raw: db
-  };
-}
-
-function sqliteAuthStore() {
-  snapDb.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
-      salt TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS sessions (
-      token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS venue_owners (
-      venue_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, created_at TEXT NOT NULL);
-  `);
-  const q = {
-    userByEmail: snapDb.prepare('SELECT * FROM users WHERE email = ?'),
-    addUser: snapDb.prepare('INSERT INTO users (id, email, salt, hash, created_at) VALUES (?, ?, ?, ?, ?)'),
-    addSession: snapDb.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)'),
-    delSession: snapDb.prepare('DELETE FROM sessions WHERE token = ?'),
-    sessionUser: snapDb.prepare(`SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`),
-    ownerOf: snapDb.prepare('SELECT owner_id FROM venue_owners WHERE venue_id = ?'),
-    setOwner: snapDb.prepare('INSERT INTO venue_owners (venue_id, owner_id, created_at) VALUES (?, ?, ?)'),
-    clearOwner: snapDb.prepare('DELETE FROM venue_owners WHERE venue_id = ?'),
-    allOwners: snapDb.prepare('SELECT venue_id, owner_id FROM venue_owners'),
-    ownedBy: snapDb.prepare('SELECT venue_id FROM venue_owners WHERE owner_id = ?'),
-    countUsers: snapDb.prepare('SELECT COUNT(*) AS n FROM users')
-  };
-  // One-time migration: accounts that lived in the JSON file move into the
-  // database, sessions included, so nobody gets signed out by the change.
-  if (q.countUsers.get().n === 0 && fs.existsSync(OWNERS_PATH)) {
-    try {
-      const old = JSON.parse(fs.readFileSync(OWNERS_PATH, 'utf8'));
-      snapDb.transaction(() => {
-        (old.users || []).forEach(u =>
-          q.addUser.run(u.id, u.email, u.salt, u.hash, new Date(u.createdAt || Date.now()).toISOString()));
-        Object.entries(old.sessions || {}).forEach(([t, s]) =>
-          q.addSession.run(t, s.userId, new Date(s.createdAt || Date.now()).toISOString()));
-        Object.entries(old.owners || {}).forEach(([v, o]) =>
-          q.setOwner.run(v, o, new Date().toISOString()));
-      })();
-      const n = (old.users || []).length;
-      if (n) console.log(`[auth] migrated ${n} account(s) + ownership from ${path.relative(__dirname, OWNERS_PATH)} into the database`);
-    } catch (e) { console.warn('[auth] migration from owners.json failed:', e.message); }
-  }
-  const now = () => new Date().toISOString();
-  return {
-    kind: 'sqlite (' + path.relative(__dirname, SNAPSHOT_DB) + ')',
-    userByEmail: e => q.userByEmail.get(e) || null,
-    addUser: u => q.addUser.run(u.id, u.email, u.salt, u.hash, now()),
-    addSession: (t, id) => q.addSession.run(t, id, now()),
-    delSession: t => q.delSession.run(t),
-    sessionUser: t => (t && q.sessionUser.get(t)) || null,
-    ownerOf: v => { const r = q.ownerOf.get(v); return r ? r.owner_id : null; },
-    setOwner: (v, id) => {
-      const cur = q.ownerOf.get(v);
-      if (cur && cur.owner_id !== id) throw new Error('already owned');
-      if (!cur) q.setOwner.run(v, id, now());
-    },
-    clearOwner: v => q.clearOwner.run(v),
-    allOwners: () => Object.fromEntries(q.allOwners.all().map(r => [r.venue_id, r.owner_id])),
-    ownedBy: id => q.ownedBy.all(id).map(r => r.venue_id)
-  };
-}
-
-if (AUTH_MODE === 'local') authStore = snapDb ? sqliteAuthStore() : jsonAuthStore();
-
-const hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32).toString('hex');
-function localSignup(email, password) {
-  email = String(email || '').trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('that does not look like an email address');
-  if (String(password || '').length < 6) throw new Error('password must be at least 6 characters');
-  if (authStore.userByEmail(email)) throw new Error('an account with that email already exists — log in instead');
-  const salt = crypto.randomBytes(16).toString('hex');
-  const user = { id: 'u_' + crypto.randomBytes(8).toString('hex'), email, salt,
-                 hash: hashPw(password, salt), createdAt: Date.now() };
-  authStore.addUser(user);
-  const token = crypto.randomBytes(32).toString('hex');
-  authStore.addSession(token, user.id);
-  console.log('[auth] local signup:', email);
-  return { token, userId: user.id, email };
-}
-function localLogin(email, password) {
-  email = String(email || '').trim().toLowerCase();
-  const u = authStore.userByEmail(email);
-  // hash against a dummy salt when the user is unknown, so a wrong email and a
-  // wrong password take the same time to reject
-  const h = Buffer.from(hashPw(password, u ? u.salt : 'no-such-user'), 'hex');
-  const ok = u && crypto.timingSafeEqual(h, Buffer.from(u.hash, 'hex'));
-  if (!ok) throw new Error('wrong email or password');
-  const token = crypto.randomBytes(32).toString('hex');
-  authStore.addSession(token, u.id);
-  console.log('[auth] local login:', email);
-  return { token, userId: u.id, email };
-}
-function localUserByToken(token) {
-  return authStore ? authStore.sessionUser(token) : null;
-}
-
-if (AUTH_MODE === 'off') {
-  console.warn('[auth] OFF — venue create/update/delete are open to anyone (AUTH_MODE=off)');
-} else if (AUTH_MODE === 'local') {
-  console.log(`[auth] local accounts in ${authStore.kind} — sign up from the dashboard.`);
-  console.log('[auth] (set SUPABASE_* in .env for hosted accounts, or AUTH_MODE=off to open venue writes)');
+if (!AUTH_ENABLED) {
+  console.warn('[auth] DISABLED — set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env');
+  console.warn('[auth] Venue create/update/delete stay open until auth is configured.');
 } else {
-  console.log('[auth] Supabase auth enabled for venue-owner routes');
+  console.log('[auth] Supabase enabled — venue-owner routes + vibe captures');
 }
 
 // ----------------------------------------------------------------- venues
@@ -228,7 +92,9 @@ if (AUTH_MODE === 'off') {
 // the editor has something to clone and the tracked file stays pristine.
 const VENUES_DIR = process.env.VENUES_DIR || path.join(__dirname, 'venues');  // overridable so tests use a scratch dir
 const BUILTIN    = path.join(__dirname, 'venue.json');
-const PLAN_MAX   = 8 * 1024 * 1024;             // floor plan upload ceiling
+const PLAN_MAX    = 8 * 1024 * 1024;            // floor plan upload ceiling
+const CAPTURE_MAX = 5 * 1024 * 1024;            // vibe-capture photo ceiling
+const CAPTURES_BUCKET = 'captures';
 
 const venues = new Map();                        // id -> venue
 let venue = null, zoneById = {}, GEO = null, activeId = null;
@@ -268,6 +134,8 @@ function setActive(id) {
   // anyone checked in is pinned to a zone id that may not exist here
   const home = defaultZone();
   for (const p of attendees.values()) {
+    // Live event moved — their check-in now belongs to the new active venue.
+    if (!p.sim) p.venueId = id;
     if (zoneById[p.zone]) continue;
     p.zone = home; p.anchor = anchorInZone(home); p.zoneCand = null; p.zoneVotes = 0;
   }
@@ -357,7 +225,9 @@ const planPath = id => path.join(VENUES_DIR, id + '-plan.png');
 // rejected the upload before the large one was ever reached.
 const smallJson = express.json({ limit: '64kb' });
 const bigJson   = express.json({ limit: PLAN_MAX });
-const needsBigBody = req => req.path === '/detect' || /^\/venues\/[^/]+\/plan$/.test(req.path);
+const needsBigBody = req => req.path === '/detect'
+  || /^\/venues\/[^/]+\/plan$/.test(req.path)
+  || /^\/api\/venues\/[^/]+\/capture$/.test(req.path);
 app.use((req, res, next) => (needsBigBody(req) ? bigJson : smallJson)(req, res, next));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.redirect('/dashboard.html'));
@@ -392,16 +262,8 @@ app.post('/auth/logout', localOnly, (req, res) => {
   if (token) authStore.delSession(token);
   res.json({ ok: true });
 });
-// Lets a page validate a stored token on load instead of discovering it's dead
-// on the first save.
-app.get('/auth/me', localOnly, (req, res) => {
-  const header = req.headers.authorization || '';
-  const user = localUserByToken(header.startsWith('Bearer ') ? header.slice(7).trim() : '');
-  if (!user) return res.status(401).json({ error: 'invalid session' });
-  res.json({ user });
-});
 
-// Verify Authorization: Bearer <token> — a Supabase JWT or a local session.
+// Verify Supabase JWT from Authorization: Bearer <access_token>.
 async function requireAuth(req, res, next) {
   if (!AUTH_ENABLED) return next();               // AUTH_MODE=off
   const header = req.headers.authorization || '';
@@ -575,10 +437,10 @@ async function getAllOwners() {
 // The venue LIST is scoped to the asker when auth is on: the live venue is
 // public (it's on the projector); a signed-in account additionally sees ITS
 // OWN venues and nothing else — not other accounts', not unclaimed ones.
-// Unclaimed venues are managed from the owner page (claim endpoint below),
-// so they never clutter the rail. This is tidiness, not security —
-// GET /venues/:id stays public because the map needs geometry, and writes
-// are what ownership actually protects.
+// Unclaimed venues are managed from the owner page (claim endpoint), so they
+// never clutter the rail. GET /venues/:id stays public because the map needs
+// geometry. Each row carries `mine` so the dashboard can unlock from
+// restricted (zero-owned) mode, plus lat/lon for the city map.
 app.get('/venues', async (req, res) => {
   const user = await maybeAuth(req);
   const owners = await getAllOwners();
@@ -590,13 +452,17 @@ app.get('/venues', async (req, res) => {
   res.json({
     active: activeId,
     signedIn: !!user,
-    venues: visible.map(v => ({
-      id: v.id, name: v.name, subtitle: v.subtitle || '',
-      zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-      hasPlan: fs.existsSync(planPath(v.id)),
-      mine: !!(user && owners[v.id] === user.id),
-      unclaimed: AUTH_ENABLED ? !owners[v.id] : false
-    }))
+    venues: visible.map(v => {
+      const { lat, lon } = venueLatLon(v);
+      return {
+        id: v.id, name: v.name, subtitle: v.subtitle || '',
+        zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+        hasPlan: fs.existsSync(planPath(v.id)),
+        mine: !!(user && owners[v.id] === user.id),
+        unclaimed: AUTH_ENABLED ? !owners[v.id] : false,
+        lat, lon
+      };
+    })
   });
 });
 
@@ -1178,6 +1044,288 @@ app.post('/crowd', (req, res) => {
 // curl this if the dashboard looks wrong — it's the exact payload being broadcast
 app.get('/state.json', (_, res) => res.json(publicState()));
 
+// ---------------------------------------------------------- vibe captures
+// Permanent photo + live crowd reading. Public write (same trust as join/
+// motion sockets); persists in Supabase so it survives process death.
+// Tuned against the default FAKE crowd (liveliness ≈0.7): energy usually
+// sits ~0.35–0.75 and sync climbs once a few people move together. Thresholds
+// stay explainable — judges can hear the rule in one sentence.
+function vibeLabel(energy, sync) {
+  const e = +energy || 0, s = +sync || 0;
+  // Room is both lively AND moving as one body → hype
+  if (e > 0.55 && s > 0.45) return 'hype';
+  // Quiet floor, regardless of sync → calm
+  if (e < 0.28) return 'calm';
+  return 'mixed';
+}
+
+// City-map pin: approximate venue centre from geo.origin + half the site span.
+// Fine at city scale; per-zone GPS precision is a different problem.
+function venueLatLon(v) {
+  const g = v && v.geo, o = g && g.origin;
+  if (!o || typeof o.lat !== 'number' || typeof o.lon !== 'number') return { lat: null, lon: null };
+  const halfY = ((g.spanY || 50) / 2) / 111320;
+  const halfX = ((g.spanX || 100) / 2) / (111320 * Math.max(0.2, Math.cos(o.lat * Math.PI / 180)));
+  return { lat: +(o.lat - halfY).toFixed(6), lon: +(o.lon + halfX).toFixed(6) };
+}
+
+// Light double-tap guard: one capture per venue+device every 30s.
+const captureCooldown = new Map();               // key -> expiresAt
+const CAPTURE_COOLDOWN_MS = 30_000;
+function captureAllowed(venueId, deviceId) {
+  const key = `${venueId}:${deviceId || 'anon'}`;
+  const now = Date.now();
+  const until = captureCooldown.get(key) || 0;
+  if (until > now) return false;
+  captureCooldown.set(key, now + CAPTURE_COOLDOWN_MS);
+  if (captureCooldown.size > 2000) {
+    for (const [k, t] of captureCooldown) if (t <= now) captureCooldown.delete(k);
+  }
+  return true;
+}
+
+async function uploadCapturePhoto(buf, ext, contentType) {
+  const name = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const { error } = await supabaseAdmin.storage.from(CAPTURES_BUCKET).upload(name, buf, {
+    contentType, upsert: false, cacheControl: '86400'
+  });
+  if (error) throw new Error(error.message || 'storage upload failed');
+  const { data } = supabaseAdmin.storage.from(CAPTURES_BUCKET).getPublicUrl(name);
+  if (!data || !data.publicUrl) throw new Error('no public URL from storage');
+  return data.publicUrl;
+}
+
+// Extract object key from a Supabase public/signed URL, or accept a bare key.
+function captureStorageKey(photoUrl) {
+  const s = String(photoUrl || '').trim();
+  if (!s) return null;
+  // .../object/public/captures/<key> or .../object/sign/captures/<key>
+  let m = s.match(/\/storage\/v1\/object\/(?:public|sign)\/captures\/([^?#]+)/i);
+  if (m) return decodeURIComponent(m[1]);
+  // Some SDKs emit /storage/v1/object/public/captures%2F<key>
+  m = s.match(/\/captures(?:%2F|\/)([^?#]+)/i);
+  if (m) return decodeURIComponent(m[1]);
+  // Bare storage key as stored
+  if (/^[0-9]+-[a-f0-9]+\.(png|jpe?g|webp)$/i.test(s)) return s;
+  // Last path segment if it looks like our upload name
+  m = s.match(/\/([0-9]+-[a-f0-9]+\.(?:png|jpe?g|webp))(?:\?|$)/i);
+  if (m) return m[1];
+  return null;
+}
+
+// Browser img tags hit Supabase directly and intermittently 403 (CF / private
+// bucket / missing SELECT policy). Always serve photos same-origin instead.
+function withProxiedPhoto(row) {
+  if (!row || !row.id) return row;
+  return Object.assign({}, row, { photo_url: `/api/captures/${row.id}/photo` });
+}
+
+// Must be a live, non-sim check-in for THIS venue. device_id is the pulse
+// session id from join.html — same trust model as motion/geo sockets.
+function assertCaptureCheckIn(venueId, deviceId) {
+  if (!deviceId) {
+    return { ok: false, status: 401, error: 'check in at this venue first — scan the QR and tap Check in' };
+  }
+  const p = attendees.get(deviceId);
+  if (!p || p.sim) {
+    return { ok: false, status: 401, error: 'check in at this venue first — scan the QR and tap Check in' };
+  }
+  if (!alive(p)) {
+    return { ok: false, status: 401, error: 'your check-in expired — reopen the join page and check in again' };
+  }
+  if (p.venueId !== venueId) {
+    console.log('[capture] deny: device', deviceId, 'checked into', p.venueId, 'not', venueId);
+    return { ok: false, status: 403, error: 'you are checked into a different venue — scan this venue\'s QR to capture here' };
+  }
+  return { ok: true, person: p };
+}
+
+// Photo + frozen live metrics. Metrics always come from server-side `crowd`
+// (recomputed here) — never trust client-supplied energy/sync/arousal.
+app.post('/api/venues/:id/capture', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env' });
+  }
+  const id = req.params.id;
+  const v = venues.get(id);
+  if (!v) return res.status(404).json({ error: 'no such venue' });
+
+  const deviceId = String((req.body && req.body.device_id) || req.get('x-device-id') || '').slice(0, 64);
+  const gate = assertCaptureCheckIn(id, deviceId);
+  if (!gate.ok) {
+    console.log('[capture] deny check-in:', gate.error, 'venue=', id, 'device=', deviceId || '(none)');
+    return res.status(gate.status).json({ error: gate.error });
+  }
+
+  if (!captureAllowed(id, deviceId)) {
+    console.log('[capture] rate-limited', id, deviceId);
+    return res.status(429).json({ error: 'slow down — one capture per venue every 30s' });
+  }
+
+  const dataUrl = String((req.body && req.body.image) || '');
+  const m = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'expected a png, jpeg or webp data URL' });
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); }
+  catch { return res.status(400).json({ error: 'invalid base64 image' }); }
+  if (!buf.length) return res.status(400).json({ error: 'empty image' });
+  if (buf.length < 512) return res.status(400).json({ error: 'photo looks empty — try again with the camera' });
+  if (buf.length > CAPTURE_MAX) return res.status(413).json({ error: 'photo is too large (max 5MB)' });
+
+  computeCrowd();
+  const energy = +crowd.energy || 0;
+  const sync = +crowd.sync || 0;
+  const arousal = +crowd.arousal || 0;
+  const label = vibeLabel(energy, sync);
+  const { lat, lon } = venueLatLon(v);
+  const capturedBy = (req.body && req.body.captured_by != null)
+    ? String(req.body.captured_by).trim().slice(0, 24) || null
+    : null;
+
+  try {
+    // Create the public bucket on first use if schema.sql hasn't been run yet
+    // for Storage (table still must exist — that part needs the SQL editor).
+    const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+    if (!buckets || !buckets.some(b => b.id === CAPTURES_BUCKET || b.name === CAPTURES_BUCKET)) {
+      const { error: bErr } = await supabaseAdmin.storage.createBucket(CAPTURES_BUCKET, {
+        public: true, fileSizeLimit: CAPTURE_MAX,
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp']
+      });
+      if (bErr && !/already exists/i.test(bErr.message || '')) {
+        console.log('[capture] create bucket fail:', bErr.message);
+        return res.status(500).json({
+          error: bErr.message + ' — run supabase/schema.sql (creates captures table + storage bucket)'
+        });
+      }
+      console.log('[capture] created storage bucket', CAPTURES_BUCKET);
+    }
+
+    const photoUrl = await uploadCapturePhoto(buf, m[1] === 'jpeg' ? 'jpg' : m[1], `image/${m[1]}`);
+    // Nearest zone via the SAME geoToNorm + zoneAt path the live map uses for
+    // attendee dots — not the check-in zone alone (that can be stale after they
+    // walk). Falls back to person.zone when there's no usable position yet.
+    const zoneId = captureZoneId(gate.person);
+    const row = {
+      venue_id: id,
+      venue_name: v.name || id,
+      lat, lon,
+      photo_url: photoUrl,
+      energy, sync, arousal,
+      vibe_label: label,
+      captured_by: capturedBy,
+      zone_id: zoneId
+    };
+    const { data, error } = await supabaseAdmin.from('captures').insert(row).select().single();
+    if (error) {
+      console.log('[capture] insert fail:', error.message);
+      const hint = /could not find the table|schema cache/i.test(error.message || '')
+        ? ' — run supabase/schema.sql in the Supabase SQL editor'
+        : /zone_id|column/i.test(error.message || '')
+          ? ' — run: alter table public.captures add column if not exists zone_id text;'
+          : '';
+      return res.status(500).json({ error: error.message + hint });
+    }
+    const proxied = withProxiedPhoto(data);
+    console.log('[capture] ok', data.id, id, label,
+      `zone=${zoneId || 'none'}`,
+      `e=${energy.toFixed(2)} s=${sync.toFixed(2)} a=${arousal.toFixed(2)} bytes=${buf.length}`);
+    io.emit('capture', proxied);                  // city.html updates live
+    res.json({ ok: true, capture: proxied });
+  } catch (e) {
+    console.log('[capture] fail:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Same-origin photo bytes. Service role can read even when the public URL 403s.
+app.get('/api/captures/:id/photo', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).send('captures unavailable');
+  }
+  const id = String(req.params.id || '').slice(0, 64);
+  try {
+    const { data: row, error } = await supabaseAdmin
+      .from('captures')
+      .select('photo_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      console.log('[capture] photo meta fail:', error.message);
+      return res.status(500).send('lookup failed');
+    }
+    if (!row || !row.photo_url) return res.status(404).send('not found');
+    const key = captureStorageKey(row.photo_url);
+    if (!key) {
+      console.log('[capture] bad photo url for', id, '—', String(row.photo_url).slice(0, 120));
+      return res.status(404).send('bad photo url');
+    }
+    const { data: blob, error: dErr } = await supabaseAdmin.storage
+      .from(CAPTURES_BUCKET)
+      .download(key);
+    if (dErr || !blob) {
+      console.log('[capture] photo download fail:', dErr && dErr.message, 'key=', key);
+      return res.status(404).send('missing file');
+    }
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const ext = (key.split('.').pop() || '').toLowerCase();
+    const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+      : ext === 'webp' ? 'image/webp'
+      : 'image/png';
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.type(type);
+    res.send(buf);
+  } catch (e) {
+    console.log('[capture] photo exception:', e.message);
+    res.status(500).send('error');
+  }
+});
+
+// Public artifact — last 200 captures across every venue, newest first.
+// Optional ?venue=<id> scopes to one venue (still open — viewing needs no check-in).
+// Brief retries: undici "fetch failed" to Supabase is usually a transient DNS/IPv6 blip.
+async function listCaptures(limit, venueFilter) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let q = supabaseAdmin
+      .from('captures')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (venueFilter) q = q.eq('venue_id', venueFilter);
+    const { data, error } = await q;
+    if (!error) return { data, error: null };
+    lastErr = error;
+    const transient = /fetch failed|network|ECONN|ETIMEDOUT|ENOTFOUND/i.test(error.message || '');
+    if (!transient || attempt === 2) break;
+    await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+  }
+  return { data: null, error: lastErr };
+}
+
+app.get('/api/captures', async (req, res) => {
+  if (!AUTH_ENABLED || !supabaseAdmin) {
+    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env', captures: [] });
+  }
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  const venueFilter = String(req.query.venue || '').trim().slice(0, 40);
+  try {
+    const { data, error } = await listCaptures(limit, venueFilter);
+    if (error) {
+      const cause = error.cause && (error.cause.code || error.cause.message);
+      console.log('[capture] list fail:', error.message, cause ? '(' + cause + ')' : '');
+      return res.status(500).json({ error: error.message, captures: [] });
+    }
+    res.json({
+      captures: (data || []).map(withProxiedPhoto),
+      venue: venueFilter || null
+    });
+  } catch (e) {
+    const cause = e.cause && (e.cause.code || e.cause.message);
+    console.log('[capture] list exception:', e.message, cause ? '(' + cause + ')' : '');
+    res.status(500).json({ error: e.message, captures: [] });
+  }
+});
+
 // Mock/future CrowdState -> deterministic target/ranking -> optional server-side
 // OpenAI final judge. This endpoint never receives audio and never exposes a key.
 app.get('/api/dj/scenarios', (_, res) => res.json({
@@ -1420,20 +1568,22 @@ app.get('/qr', async (req, res) => {
   const problem = originProblem(url);
   const z = zone && !forVenue && zoneById[zone];
   res.type('html').send(`<!doctype html><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Pulse — check-in poster</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
- body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#0A0C14;
-      font-family:'Space Grotesk',system-ui,sans-serif;padding:32px}
- .card{max-width:620px;width:100%;text-align:center}
- h1{font-size:40px;margin:0 0 6px;letter-spacing:-.02em}
- .sub{font-size:17px;color:#5A6070;margin:0 0 26px}
- .qr{width:min(78vw,380px);height:auto;display:block;margin:0 auto}
- .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:20px;word-break:break-all}
- .warn{margin-top:22px;padding:15px 17px;border-radius:11px;text-align:left;
-       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55}
- .ok{margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2E9E6B}
+ body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#fff;color:#0A0C14;
+      font-family:'Space Grotesk',system-ui,sans-serif;
+      padding:max(20px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+ .card{max-width:min(620px,100%);width:100%;text-align:center}
+ h1{font-size:clamp(26px,8vw,40px);margin:0 0 6px;letter-spacing:-.02em;line-height:1.15;word-break:break-word}
+ .sub{font-size:clamp(15px,4vw,17px);color:#5A6070;margin:0 0 22px;line-height:1.4}
+ .qr{width:min(78vw,380px);max-width:100%;height:auto;display:block;margin:0 auto}
+ .url{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5A6070;margin-top:18px;word-break:break-all;line-height:1.45;padding:0 4px}
+ .warn{margin-top:20px;padding:14px 15px;border-radius:11px;text-align:left;
+       background:#FFF3E0;border:1px solid #F0A93B;color:#6B4A12;font-size:14px;line-height:1.55;
+       overflow-wrap:anywhere}
+ .ok{margin-top:20px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#2E9E6B}
  @media print{.warn{border-color:#999;background:#fff}.noprint{display:none}}
 </style>
 <div class="card">
@@ -1516,6 +1666,28 @@ function zoneAt(x, y) {
     if (!best || d < best.d) best = { id: z.id, inside: false, d };
   }
   return best;
+}
+
+// Capture-time zone: identical nearest-zone logic the live dashboard already
+// trusts (geoToNorm + zoneAt + NEAREST_MAX_M). Prefer a fresh GPS fix; else the
+// eased anchor the map draws; else the voted/check-in zone.
+function captureZoneId(person) {
+  if (!person || !venue) return null;
+  let x = null, y = null;
+  if (person.gps && person.gpsNote == null
+      && typeof person.gps.lat === 'number' && typeof person.gps.lon === 'number') {
+    const n = geoToNorm(person.gps.lat, person.gps.lon);
+    if (n && pointInPolygon(n.x, n.y, venue.outline)) { x = n.x; y = n.y; }
+  }
+  if (x == null && person.anchor
+      && typeof person.anchor.x === 'number' && typeof person.anchor.y === 'number') {
+    x = person.anchor.x; y = person.anchor.y;
+  }
+  if (x != null && y != null && GEO) {
+    const hit = zoneAt(x, y);
+    if (hit && (hit.inside || hit.d <= NEAREST_MAX_M)) return hit.id;
+  }
+  return person.zone || null;
 }
 
 // ----------------------------------------------------------------- state
@@ -1603,9 +1775,13 @@ io.on('connection', socket => {
     if (name) person.name = name.slice(0, 24);
     if (!existing || person.zone !== z) person.anchor = anchorInZone(z);
     person.zone = z; person.lastSeen = Date.now();
+    person.venueId = activeId;                   // capture gated to this venue
     attendees.set(pid, person);
     socket.data.pid = pid;
-    if (ack) ack({ ok: true, id: pid, zone: z, zoneLabel: zoneById[z].label });
+    if (ack) ack({
+      ok: true, id: pid, zone: z, zoneLabel: zoneById[z].label,
+      venueId: activeId, venueName: venue && venue.name
+    });
   });
 
   socket.on('motion', ({ energy }) => {
@@ -1804,13 +1980,10 @@ server.listen(PORT, () => {
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
   console.log(`  Owner      http://localhost:${PORT}/owner.html`);
   console.log(`  Phone      http://localhost:${PORT}/join.html`);
+  console.log(`  City map   http://localhost:${PORT}/city.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
   console.log(`  QR page    http://localhost:${PORT}/qr`);
-  console.log(`  Auth       ${AUTH_MODE === 'off' ? 'off (venue writes open — AUTH_MODE=off)'
-    : AUTH_MODE === 'local' ? 'local accounts (sign up from the dashboard)'
-    : 'Supabase (venue writes gated)'}`);
-  console.log(`  Data       ${snapDb ? `collecting to ${path.relative(__dirname, SNAPSHOT_DB)} (Data tab · /sensor-test)`
-                                     : 'snapshot store DISABLED — see [data] warning above'}`);
+  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
   console.log(process.env.PUBLIC_URL
     ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
