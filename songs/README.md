@@ -35,3 +35,12 @@ reliable matching, copy `data/tracks.example.json` to `data/tracks.json` and set
 each record's `audioFile` to its path relative to this directory. The working
 `data/tracks.json` file is also ignored so a private playlist export is not pushed
 accidentally.
+
+## This library
+
+The committed tracks are Creative-Commons-licensed electronic music from the
+Internet Archive's netlabel collections (Kahvi, Monotonik, Thinner, One,
+rec72, Enough Records, Budabeats and others), fetched by
+`tools/fetch_cc_songs.js`. Credit belongs to the artists named in each
+filename; the individual releases carry their own CC licenses on
+archive.org. `data/songProfiles.json` was generated from exactly this set.
