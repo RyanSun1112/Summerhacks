@@ -839,6 +839,7 @@ $('#loadBtn').addEventListener('click',()=>$('#file').click());
 $('#file').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f) return;
   if(dj.on) djStop(true);                          // manual load takes the deck back
+  music.src=null;                                  // phones can't reach a local file
   deck.src=URL.createObjectURL(f);
   const nice=f.name.replace(/\.[^.]+$/,'').replace(/[_]+/g,' ').trim();
   const parts=nice.split(/\s+[-–]\s+/);
@@ -1244,7 +1245,9 @@ function djPlay(song){
   dj.fadingOut=false; djFadeCancel();
   deck.volume=0;                                   // fade in from silence
   dj.recent.push(song.id); if(dj.recent.length>12) dj.recent.shift();
-  music.title=song.title; music.artist=song.artist; music.bpm=song.bpm; pushMusic();
+  // src rides the state broadcast so phones can stream the same file —
+  // server-hosted songs only; a local file never leaves this machine
+  music.title=song.title; music.artist=song.artist; music.bpm=song.bpm; music.src=song.audioUrl; pushMusic();
   $('#rTitle').textContent=song.title;
   $('#rArtist').textContent=song.artist+' · '+song.bpm+' bpm · auto-DJ';
   $('#djNowTitle').textContent=song.title;

@@ -2035,6 +2035,7 @@ function publicState() {
 io.on('connection', socket => {
   socket.emit('venue', venue);
   socket.emit('state', publicState());
+  socket.emit('music:state', music);   // a phone joining mid-song learns the track NOW, not on the host's next push
 
   // Check-in. Event-wide QR omits venue → join the live venue (GPS places the
   // zone). Per-venue QR passes v=<id>: must exist and must be the live venue,
@@ -2155,7 +2156,14 @@ io.on('connection', socket => {
   });
 
   // host deck -> everyone
-  socket.on('music:state', m => { music = { ...music, ...m }; io.emit('music:state', music); });
+  socket.on('music:state', m => {
+    music = { ...music, ...m };
+    // src tells every phone what audio to stream. Any socket can emit this
+    // event (the host does), so only library files may ever ride it — an
+    // arbitrary URL here would be an audio injection into the whole room.
+    if (music.src != null && !/^\/songs\/[^/\\]+$/.test(String(music.src))) music.src = null;
+    io.emit('music:state', music);
+  });
   socket.on('music:frame', f => { frame = f; socket.broadcast.emit('music:frame', f); });
 
   socket.on('disconnect', () => {
