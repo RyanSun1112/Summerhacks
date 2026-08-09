@@ -60,6 +60,19 @@ The directory scan is recursive. Metadata matching prefers an explicit local fil
 or track ID, then embedded tags, then normalized artist/title filenames. Ambiguous
 matches are skipped and reported rather than guessed.
 
+For a redistribution-safe catalogue that ships with the deployed app, place its
+audio under `songs/` and run:
+
+```bash
+python preprocess_songs.py \
+  --audio-dir ./songs \
+  --output ./data/songProfiles.json
+```
+
+The final profile preserves the matched relative path as `audioFile`. The live
+server uses that exact path first, scans nested folders, and only uses conservative
+filename inference for older profile databases.
+
 ## Analysis and resumption
 
 Librosa retains actual BPM plus compact RMS, onset, spectral, zero-crossing, and

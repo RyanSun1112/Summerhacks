@@ -66,9 +66,42 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .map-fab.filter-fab.on{display:inline-flex;align-items:center}
   .sw{width:10px;height:10px;border-radius:50%;display:block;flex:none}
-  .pin{
-    width:18px;height:18px;border-radius:50%;border:2px solid #fff;
-    box-shadow:0 0 0 2px rgba(0,0,0,.35),0 4px 12px rgba(0,0,0,.45);
+  .story-pin{
+    position:relative;width:56px;height:56px;border-radius:50%;padding:3px;background:#111;
+    border:3px solid var(--story-color,#F0A93B);
+    box-shadow:0 0 0 3px rgba(8,10,24,.75),0 7px 22px rgba(0,0,0,.58);
+    transition:transform .16s ease,box-shadow .16s ease;
+  }
+  .story-pin:hover{transform:scale(1.08);box-shadow:0 0 0 3px rgba(8,10,24,.75),0 10px 28px rgba(0,0,0,.7)}
+  .story-pin img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;background:#171a2c}
+  .story-pin .story-count{
+    position:absolute;right:-7px;top:-7px;min-width:21px;height:21px;padding:0 5px;border-radius:11px;
+    display:grid;place-items:center;background:var(--ink);color:var(--ground);border:2px solid var(--ground);
+    font:600 10px/1 var(--mono);
+  }
+  .story-pin .story-live{
+    position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);padding:3px 6px;border-radius:3px;
+    background:var(--story-color,#F0A93B);color:#080A18;font:700 8px/1 var(--mono);
+    letter-spacing:.10em;text-transform:uppercase;white-space:nowrap;
+  }
+  .vibe-panel{
+    position:absolute;z-index:1100;right:10px;top:10px;width:min(292px,calc(100vw - 76px));
+    padding:14px;border:1px solid var(--rule);border-radius:12px;background:var(--glass);
+    backdrop-filter:blur(16px);box-shadow:0 14px 40px rgba(0,0,0,.38);
+  }
+  .vibe-panel[hidden]{display:none}
+  .vibe-panel-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+  .vibe-panel h2{font-size:16px;line-height:1.2;margin:2px 0 2px}
+  .vibe-panel .place{font:11px/1.3 var(--mono);color:var(--muted)}
+  .vibe-panel .badge{margin:0 0 0 auto;flex:none}
+  .meter{display:grid;grid-template-columns:72px 1fr 35px;gap:8px;align-items:center;margin-top:8px}
+  .meter-name{font:600 10px/1 var(--mono);letter-spacing:.10em;text-transform:uppercase;color:var(--muted)}
+  .meter-track{height:7px;border-radius:6px;background:rgba(240,239,247,.10);overflow:hidden}
+  .meter-fill{display:block;height:100%;width:0;border-radius:inherit;background:var(--meter-color,var(--accent));transition:width .35s ease}
+  .meter-value{text-align:right;font:600 11px/1 var(--mono)}
+  .story-open{
+    width:100%;min-height:42px;margin-top:13px;border:0;border-radius:7px;background:var(--accent);color:#080A18;
+    cursor:pointer;font:700 11px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
   }
   .leaflet-popup-content-wrapper{
     background:var(--glass);color:var(--ink);border:1px solid var(--rule);
@@ -246,6 +279,37 @@
   }
   .detail-close:active{border-color:var(--accent)}
 
+  /* Full-screen story viewer, opened from a photo pin. */
+  .story-scrim{position:fixed;inset:0;z-index:2020;background:rgba(2,3,10,.82);opacity:0;pointer-events:none;transition:opacity .2s}
+  .story-scrim.on{opacity:1;pointer-events:auto}
+  .story-modal{
+    position:fixed;z-index:2021;left:50%;top:50%;transform:translate(-50%,-46%) scale(.97);
+    width:min(430px,calc(100vw - 24px));max-height:min(92dvh,760px);overflow:auto;
+    background:#0c0f22;border:1px solid var(--rule);border-radius:15px;box-shadow:0 30px 90px rgba(0,0,0,.72);
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+  }
+  .story-modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .story-progress{display:flex;gap:4px;padding:10px 10px 0}
+  .story-progress i{display:block;flex:1;height:3px;border-radius:3px;background:rgba(240,239,247,.18)}
+  .story-progress i.on{background:var(--ink)}
+  .story-top{display:flex;align-items:center;gap:10px;padding:10px 12px}
+  .story-top .copy{min-width:0;flex:1}
+  .story-top h2{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .story-top .sub{font:11px/1.4 var(--mono);color:var(--muted);margin-top:2px}
+  .story-x{width:40px;height:40px;border:0;border-radius:50%;background:rgba(240,239,247,.08);color:var(--ink);font-size:22px;cursor:pointer}
+  .story-media{position:relative;width:100%;height:min(54dvh,540px);background:#050611;overflow:hidden}
+  .story-media img{width:100%;height:100%;object-fit:cover;display:block}
+  .story-nav{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr}
+  .story-nav button{border:0;background:transparent;cursor:pointer;color:transparent}
+  .story-stats{padding:13px 14px 15px}
+  .story-stats-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .story-stats-head .when{margin-left:auto;font:11px/1 var(--mono);color:var(--muted)}
+  .story-venue-link{
+    display:flex;align-items:center;justify-content:center;min-height:42px;margin-top:12px;border:1px solid var(--rule);
+    border-radius:7px;color:var(--ink);text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .story-venue-link[hidden]{display:none}
+
   @media (min-width:560px){
     .gallery-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
   }
@@ -260,6 +324,10 @@
     }
     .modal.on,.detail.on{transform:translateY(0)}
     .errbar{top:auto;bottom:max(72px,calc(env(safe-area-inset-bottom) + 60px))}
+    .vibe-panel{top:auto;bottom:max(70px,calc(env(safe-area-inset-bottom) + 58px));right:8px;width:calc(100vw - 72px);padding:11px}
+    .vibe-panel-head{margin-bottom:8px}.meter{margin-top:6px}.story-open{margin-top:10px}
+    .story-modal{left:0;right:0;top:auto;bottom:0;width:100%;max-width:none;max-height:94dvh;border-radius:16px 16px 0 0;transform:translateY(110%)}
+    .story-modal.on{transform:translateY(0)}
   }
 </style>
 </head>
@@ -277,6 +345,18 @@
   <button type="button" class="map-fab" id="legendBtn" aria-haspopup="dialog">Vibe key</button>
   <button type="button" class="map-fab filter-fab" id="filterChip" aria-haspopup="dialog">Venue filter</button>
   <div class="errbar" id="err"></div>
+  <aside class="vibe-panel" id="vibePanel" aria-live="polite" hidden>
+    <div class="vibe-panel-head">
+      <div>
+        <div class="lab" id="vibeEyebrow">Current event vibe</div>
+        <h2 id="vibeName">—</h2>
+        <div class="place" id="vibePlace">—</div>
+      </div>
+      <span class="badge mixed" id="vibeBadge">mixed</span>
+    </div>
+    <div id="vibeMeters"></div>
+    <button type="button" class="story-open" id="storyOpen">View location story</button>
+  </aside>
 </div>
 <div class="toast" id="toast">New capture landed</div>
 
@@ -322,6 +402,33 @@
   </div>
 </div>
 
+<div class="story-scrim" id="storyScrim"></div>
+<section class="story-modal" id="storyModal" role="dialog" aria-modal="true" aria-labelledby="storyTitle" aria-hidden="true">
+  <div class="story-progress" id="storyProgress"></div>
+  <div class="story-top">
+    <div class="copy">
+      <h2 id="storyTitle">—</h2>
+      <div class="sub" id="storySubtitle">—</div>
+    </div>
+    <button type="button" class="story-x" id="storyClose" aria-label="Close story">×</button>
+  </div>
+  <div class="story-media">
+    <img id="storyImage" src="" alt="Event moment">
+    <div class="story-nav" aria-label="Story navigation">
+      <button type="button" id="storyPrev" aria-label="Previous moment">Previous</button>
+      <button type="button" id="storyNext" aria-label="Next moment">Next</button>
+    </div>
+  </div>
+  <div class="story-stats">
+    <div class="story-stats-head">
+      <span class="badge mixed" id="storyBadge">mixed</span>
+      <span class="when" id="storyWhen">—</span>
+    </div>
+    <div id="storyMeters"></div>
+    <a class="story-venue-link" id="storyVenueLink" href="#">Open venue</a>
+  </div>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="/qr-scanner.js"></script>
@@ -349,6 +456,9 @@ const venuePins = new Map();                     // venueId -> { marker, vibe, c
 const capturesByVenue = new Map();               // venueId -> capture[] (newest first)
 let captureTotal = 0;
 let fitted = false;
+let usingDemoData = false;
+let selectedVenueId = null;
+let storyIndex = 0;
 
 function setFilterChip(name) {
   const chip = $('#filterChip');
@@ -371,16 +481,20 @@ function goVenue(venueId) {
   location.href = '/venue.html?id=' + encodeURIComponent(venueId);
 }
 
-function pinIcon(label) {
+function pinIcon(label, capture, count) {
   const c = VIBE_COLOR[label] || VIBE_COLOR.mixed;
+  const src = esc(capturePhotoUrl(capture));
+  const badge = count > 1 ? `<span class="story-count">${Math.min(count, 99)}</span>` : '';
   return L.divIcon({
     className: '',
-    html: `<div style="width:44px;height:44px;display:grid;place-items:center">
-      <div class="pin" style="background:${c}"></div>
+    html: `<div style="width:72px;height:72px;display:grid;place-items:center">
+      <div class="story-pin" style="--story-color:${c}">
+        <img src="${src}" alt="" loading="lazy">
+        ${badge}<span class="story-live">${capture && capture.demo ? 'sample' : 'live'}</span>
+      </div>
     </div>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -16]
+    iconSize: [72, 72],
+    iconAnchor: [36, 36]
   });
 }
 
@@ -388,6 +502,31 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[ch]);
+}
+
+function capturePhotoUrl(capture) {
+  if (!capture) return '';
+  if (capture.demo && capture.photo_url) return capture.photo_url;
+  if (capture.photo_url && !capture.id) return capture.photo_url;
+  return capture.id ? `/api/captures/${encodeURIComponent(capture.id)}/photo` : '';
+}
+
+const pct = value => Math.round(Math.max(0, Math.min(1, +value || 0)) * 100);
+
+function meterHtml(capture) {
+  const metrics = [
+    ['Energy', capture.energy, '#F05A3C'],
+    ['Dancing', capture.sync, '#7B6CFF'],
+    ['Excitement', capture.arousal, '#F0A93B']
+  ];
+  return metrics.map(([name, value, color]) => {
+    const amount = pct(value);
+    return `<div class="meter">
+      <span class="meter-name">${name}</span>
+      <span class="meter-track"><i class="meter-fill" style="--meter-color:${color};width:${amount}%"></i></span>
+      <span class="meter-value">${amount}%</span>
+    </div>`;
+  }).join('');
 }
 
 function fmtTime(iso) {
@@ -450,16 +589,20 @@ function syncVenuePin(venueId, { announce } = {}) {
 
   if (existing && existing.marker) {
     existing.marker.setLatLng(ll);
-    existing.marker.setIcon(pinIcon(vibe));
+    existing.marker.setIcon(pinIcon(vibe, list[0], list.length));
     existing.vibe = vibe;
     existing.count = list.length;
     existing.name = name;
     existing.latest = list[0];
   } else {
-    const marker = L.marker(ll, { icon: pinIcon(vibe) }).addTo(map);
-    marker.on('click', () => goVenue(venueId));
+    const marker = L.marker(ll, {
+      icon: pinIcon(vibe, list[0], list.length),
+      title: `${name} — ${vibe} vibe`
+    }).addTo(map);
+    marker.on('click', () => openStory(venueId));
     venuePins.set(venueId, { marker, vibe, count: list.length, name, latest: list[0] });
   }
+  if (!selectedVenueId || selectedVenueId === venueId) showVibePanel(venueId);
   if (announce) flashToast();
 }
 
@@ -492,12 +635,22 @@ function ingestCaptures(list) {
     captureTotal += arr.length;
     syncVenuePin(id);
   }
+  const first = [...next.keys()][0];
+  if (first && (!selectedVenueId || !next.has(selectedVenueId))) showVibePanel(first);
   updateCount();
 }
 
 function addLiveCapture(c) {
   if (!c || !c.venue_id) return;
   if (venueFilter && c.venue_id !== venueFilter) return;
+  if (usingDemoData && !c.demo) {
+    for (const pin of venuePins.values()) if (pin.marker) map.removeLayer(pin.marker);
+    venuePins.clear();
+    capturesByVenue.clear();
+    captureTotal = 0;
+    selectedVenueId = null;
+    usingDemoData = false;
+  }
   const list = capturesByVenue.get(c.venue_id) || [];
   if (list.some(x => x.id === c.id)) return;
   list.unshift(c);
@@ -505,6 +658,75 @@ function addLiveCapture(c) {
   captureTotal += 1;
   syncVenuePin(c.venue_id, { announce: true });
   updateCount();
+}
+
+function setVibeBadge(el, label) {
+  const vibe = VIBE_COLOR[label] ? label : 'mixed';
+  el.className = `badge ${vibe}`;
+  el.textContent = vibe;
+}
+
+function showVibePanel(venueId) {
+  const list = capturesByVenue.get(venueId) || [];
+  if (!list.length) return;
+  selectedVenueId = venueId;
+  const latest = list[0];
+  const panel = $('#vibePanel');
+  $('#vibeEyebrow').textContent = latest.demo ? 'Sample event vibe' : 'Current event vibe';
+  $('#vibeName').textContent = latest.venue_name || venueId;
+  $('#vibePlace').textContent = [latest.area, fmtTime(latest.created_at), `${list.length} moment${list.length === 1 ? '' : 's'}`]
+    .filter(Boolean).join(' · ');
+  setVibeBadge($('#vibeBadge'), latest.vibe_label || 'mixed');
+  $('#vibeMeters').innerHTML = meterHtml(latest);
+  panel.hidden = false;
+}
+
+function renderStory() {
+  const list = capturesByVenue.get(selectedVenueId) || [];
+  if (!list.length) return closeStory();
+  storyIndex = Math.max(0, Math.min(storyIndex, list.length - 1));
+  const capture = list[storyIndex];
+  $('#storyTitle').textContent = capture.venue_name || selectedVenueId;
+  $('#storySubtitle').textContent = [capture.area, capture.demo ? 'Sample event' : null].filter(Boolean).join(' · ') || 'Live event moment';
+  $('#storyImage').src = capturePhotoUrl(capture);
+  $('#storyWhen').textContent = fmtTime(capture.created_at);
+  setVibeBadge($('#storyBadge'), capture.vibe_label || 'mixed');
+  $('#storyMeters').innerHTML = meterHtml(capture);
+  $('#storyProgress').innerHTML = list.map((_, index) => `<i class="${index === storyIndex ? 'on' : ''}"></i>`).join('');
+  const venueLink = $('#storyVenueLink');
+  venueLink.hidden = false;
+  if (capture.demo) {
+    venueLink.textContent = 'Return to event map';
+    venueLink.href = '#';
+    venueLink.dataset.action = 'return-to-map';
+  } else {
+    venueLink.textContent = 'Open venue';
+    venueLink.href = '/venue.html?id=' + encodeURIComponent(selectedVenueId);
+    delete venueLink.dataset.action;
+  }
+}
+
+function openStory(venueId, index = 0) {
+  if (!capturesByVenue.has(venueId)) return;
+  showVibePanel(venueId);
+  storyIndex = index;
+  renderStory();
+  $('#storyScrim').classList.add('on');
+  $('#storyModal').classList.add('on');
+  $('#storyModal').setAttribute('aria-hidden', 'false');
+}
+
+function closeStory() {
+  $('#storyScrim').classList.remove('on');
+  $('#storyModal').classList.remove('on');
+  $('#storyModal').setAttribute('aria-hidden', 'true');
+}
+
+function stepStory(direction) {
+  const list = capturesByVenue.get(selectedVenueId) || [];
+  if (!list.length) return;
+  storyIndex = (storyIndex + direction + list.length) % list.length;
+  renderStory();
 }
 
 function fitIfNeeded() {
@@ -575,9 +797,26 @@ $('#filterScrim').addEventListener('click', () => {
   closeFilterModal();
 });
 $('#openGalleryBtn').addEventListener('click', () => closeFilterModal());
+$('#storyOpen').addEventListener('click', () => selectedVenueId && openStory(selectedVenueId));
+$('#storyClose').addEventListener('click', closeStory);
+$('#storyScrim').addEventListener('click', closeStory);
+$('#storyPrev').addEventListener('click', () => stepStory(-1));
+$('#storyNext').addEventListener('click', () => stepStory(1));
+$('#storyVenueLink').addEventListener('click', event => {
+  const link = event.currentTarget;
+  if (link.dataset.action !== 'return-to-map') return;
+  event.preventDefault();
+  closeStory();
+  const pin = venuePins.get(selectedVenueId);
+  if (pin && pin.marker) {
+    map.panTo(pin.marker.getLatLng());
+    pin.marker.getElement()?.focus();
+  }
+});
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if ($('#storyModal').classList.contains('on')) { closeStory(); return; }
   if ($('#filterModal').classList.contains('on')) { closeFilterModal(); return; }
   if ($('#legendModal').classList.contains('on')) closeLegend();
 });
@@ -622,6 +861,22 @@ async function loadVenueMeta() {
 let capturePollMs = 5000;
 let capturePollTimer = null;
 
+async function loadDemoCaptures() {
+  const res = await fetch('/demo/event-stories.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('Sample event stories are unavailable');
+  const body = await res.json();
+  const now = Date.now();
+  const demos = (body.captures || []).map(c => ({
+    ...c,
+    created_at: new Date(now - Math.max(0, +c.age_minutes || 0) * 60000).toISOString(),
+    demo: true
+  }));
+  usingDemoData = true;
+  ingestCaptures(demos);
+  $('#err').classList.remove('on');
+  fitIfNeeded();
+}
+
 async function loadCaptures() {
   try {
     const url = venueFilter
@@ -630,22 +885,29 @@ async function loadCaptures() {
     const res = await fetch(url);
     const body = await res.json();
     if (!res.ok) {
-      // Keep whatever pins we already have; only surface the error if the map is empty.
-      if (!captureTotal) {
-        $('#err').textContent = 'Could not load captures — retrying…';
-        $('#err').classList.add('on');
-      }
+      if (!captureTotal || usingDemoData) await loadDemoCaptures();
       capturePollMs = Math.min(20000, capturePollMs + 2500);
       return;
     }
     capturePollMs = 5000;
     $('#err').classList.remove('on');
-    ingestCaptures(body.captures || []);
+    const liveCaptures = body.captures || [];
+    if (liveCaptures.length) {
+      usingDemoData = false;
+      ingestCaptures(liveCaptures);
+    } else {
+      await loadDemoCaptures();
+      capturePollMs = 10000;
+    }
     fitIfNeeded();
   } catch (e) {
-    if (!captureTotal) {
-      $('#err').textContent = 'Could not load captures — retrying…';
-      $('#err').classList.add('on');
+    try {
+      if (!captureTotal || usingDemoData) await loadDemoCaptures();
+    } catch (_) {
+      if (!captureTotal) {
+        $('#err').textContent = 'Could not load captures — retrying…';
+        $('#err').classList.add('on');
+      }
     }
     capturePollMs = Math.min(20000, capturePollMs + 2500);
   } finally {

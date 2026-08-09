@@ -53,6 +53,7 @@ def test_final_output_preserves_raw_values_and_bounds_normalized_values() -> Non
     result = normalize_library([profile("low", 20, 0.1, 1), profile("high", 90, 0.3, 3)])
     assert result[0]["energy"] == 0.0
     assert result[1]["energy"] == 1.0
+    assert result[0]["audioFile"] == "low.wav"
     assert result[1]["raw"]["llm"]["energy"] == 90
     assert result[1]["raw"]["audio"]["rmsMean"] == 0.3
     assert all(0 <= song["normalizedAudio"]["rmsMean"] <= 1 for song in result)

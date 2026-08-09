@@ -72,6 +72,8 @@
   .m{display:flex;align-items:baseline;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--rule)}
   .m:last-of-type{border-bottom:0}
   .m b{font-family:var(--mono);font-size:15px;font-weight:500}
+  .m .trend{font-size:11px;color:var(--muted);margin-left:3px}
+  #metricSource{font-family:var(--mono);font-size:8.5px;line-height:1.45;color:var(--muted);margin-top:8px}
   #spark{width:100%;height:34px;display:block;margin-top:8px}
 
   #radio{bottom:20px;right:22px;width:328px;padding:15px 17px 16px;overflow:hidden}
@@ -307,12 +309,13 @@
 
   <div id="leftrail">
     <div class="panel" id="metrics">
-      <div class="lab" style="margin-bottom:5px">Crowd</div>
-      <div class="m"><span class="lab">Energy</span><b id="mEnergy">0.00</b></div>
-      <div class="m"><span class="lab">Sync</span><b id="mSync">0.00</b></div>
-      <div class="m"><span class="lab">Arousal</span><b id="mArousal">0.00</b></div>
-      <div class="m"><span class="lab">In sessions</span><b id="mDensity">0%</b></div>
-      <div class="m"><span class="lab">Avg dwell</span><b id="mDwell">0m</b></div>
+      <div class="lab" style="margin-bottom:5px">DJ crowd state</div>
+      <div class="m" title="Average physical movement measured across active phones"><span class="lab">Energy</span><b><span id="mEnergy">0.00</span><span class="trend" id="mEnergyTrend">→</span></b></div>
+      <div class="m" title="Current rhythm proxy: how similarly the crowd is moving"><span class="lab">Rhythm</span><b><span id="mRhythm">0.00</span><span class="trend" id="mRhythmTrend">→</span></b></div>
+      <div class="m" title="How concentrated attendees are across venue zones"><span class="lab">Clustering</span><b><span id="mClustering">0.00</span><span class="trend" id="mClusteringTrend">→</span></b></div>
+      <div class="m" title="Recent phone microphone levels, or the host audio analyser as fallback"><span class="lab">Volume</span><b><span id="mVolume">0.00</span><span class="trend" id="mVolumeTrend">→</span></b></div>
+      <div class="m" title="Recent steps per person per minute"><span class="lab">Mobility</span><b><span id="mMobility">0.00</span><span class="trend" id="mMobilityTrend">→</span></b></div>
+      <div id="metricSource">Waiting for crowd measurements…</div>
       <canvas id="spark"></canvas>
     </div>
 
@@ -355,7 +358,7 @@
 
   <div class="sheet" id="sheet-people">
     <table>
-      <thead><tr><th>Name</th><th>Team</th><th>Zone</th><th>Movement</th><th>Heart</th><th>Steps</th><th>Fix</th><th>Dwell</th></tr></thead>
+      <thead><tr><th>Name</th><th>Team</th><th>Zone</th><th>Movement</th><th>Steps</th><th>Fix</th><th>Dwell</th></tr></thead>
       <tbody id="peopleRows"></tbody>
     </table>
   </div>
@@ -412,7 +415,7 @@
         <div id="djCands" style="margin-top:12px"></div>
       </div>
       <div class="panel" style="position:static;padding:16px 18px">
-        <span class="lab">Live crowd — average of everyone's sensors</span>
+        <span class="lab">Live DJ crowd state — inputs used for song selection</span>
         <div id="djTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px;margin-top:12px"></div>
         <canvas id="djSpark" style="width:100%;height:110px;display:block;margin-top:14px"></canvas>
         <div class="dim" id="djSparkLegend" style="font-family:var(--mono);font-size:10px;margin-top:6px"></div>
@@ -1068,15 +1071,8 @@ function draw(){
     pos.x=lerp(pos.x,tx,0.045); pos.y=lerp(pos.y,ty,0.045);
     const q=px(pos.x,pos.y);
 
-    // SIGNATURE: ring expands at this person's real heart rate. when the room
-    // locks in, the rings visibly fall into step with one another.
-    if(p.hr){
-      const per=60/p.hr, ph=(t%per)/per, e=Math.pow(1-ph,2.6);
-      ctx.beginPath(); ctx.arc(q[0],q[1],3.2+(1-e)*13,0,7);
-      ctx.strokeStyle=rgba(a,e*.8); ctx.lineWidth=1.2; ctx.stroke();
-    }
     ctx.beginPath(); ctx.arc(q[0],q[1],2.5+p.energy*1.4,0,7);
-    ctx.fillStyle=p.hr?rgb(a):'rgba(240,239,247,.5)'; ctx.fill();
+    ctx.fillStyle=rgb(a); ctx.fill();
   });
   if(state){ const ids=new Set(state.people.map(p=>p.id)); for(const k of smooth.keys()) if(!ids.has(k)) smooth.delete(k); }
 
@@ -1141,11 +1137,28 @@ socket.on('state',s=>{
   state=s;
   $('#count').textContent=s.crowd.count;
   $('#peak').textContent=s.crowd.peak;
-  $('#mEnergy').textContent=s.crowd.energy.toFixed(2);
-  $('#mSync').textContent=s.crowd.sync.toFixed(2);
-  $('#mArousal').textContent=s.crowd.arousal.toFixed(2);
-  $('#mDensity').textContent=Math.round(s.crowd.density*100)+'%';
-  $('#mDwell').textContent=Math.round(s.crowd.dwell)+'m';
+  const c=s.djCrowdState||{};
+  const show=(metric,trend)=>{
+    const value=Number.isFinite(c[metric])?c[metric]:0;
+    const direction=Number.isFinite(c[trend])?c[trend]:0.5;
+    const valueEl=$('#m'+metric[0].toUpperCase()+metric.slice(1));
+    const trendEl=$('#m'+metric[0].toUpperCase()+metric.slice(1)+'Trend');
+    valueEl.textContent=value.toFixed(2);
+    trendEl.textContent=direction>0.56?'↗':direction<0.44?'↘':'→';
+    trendEl.title='Trend '+direction.toFixed(2)+' (0.5 is stable)';
+  };
+  show('energy','energyTrend');
+  show('rhythm','rhythmTrend');
+  show('clustering','clusteringTrend');
+  show('volume','volumeTrend');
+  show('mobility','mobilityTrend');
+  const src=s.djSources||{};
+  const sourceMix=[];
+  if(src.liveAttendees) sourceMix.push(src.liveAttendees+' live');
+  if(src.simulatedAttendees) sourceMix.push(src.simulatedAttendees+' simulated');
+  $('#metricSource').textContent=(sourceMix.length?sourceMix.join(' + ')+' · ':'')+
+    'volume: '+(src.volumeFrom||'unavailable')+' · mobility: '+
+    (Number.isFinite(src.stepsPerMin)?src.stepsPerMin.toFixed(1):'0.0')+' steps/min/person';
   if(view==='people') renderPeople();
   if(view==='zones') renderZones();
 });
@@ -1156,9 +1169,6 @@ const zoneLabel=id=>{ const z=venue&&venue.zones.find(z=>z.id===id); return z?z.
 function renderPeople(){
   $('#peopleRows').innerHTML=state.people.slice().sort((x,y)=>y.energy-x.energy).map(p=>{
     const m=Math.max(0,Math.round((Date.now()-p.joinedAt)/60000));
-    const hr=p.hr
-      ? `<span class="n">${p.hr}</span>${p.hrBaseline?` <span class="dim">+${Math.round((p.hr/p.hrBaseline-1)*100)}%</span>`:''}`
-      : '<span class="dim">no sensor</span>';
     // 'offsite' means GPS mapped outside the venue outline — venue.geo needs
     // calibrating. 'weak' means the fix was too vague to trust.
     const fix=!p.gps?'<span class="dim">—</span>'
@@ -1169,7 +1179,7 @@ function renderPeople(){
     return `<tr><td>${esc(p.name)}</td><td><span class="chip">${esc(p.team||'—')}</span></td>
       <td>${esc(zoneLabel(p.zone))}</td>
       <td><span class="meter"><i style="width:${Math.round(p.energy*100)}%"></i></span></td>
-      <td>${hr}</td><td>${steps}</td><td>${fix}</td><td class="n">${m}m</td></tr>`;
+      <td>${steps}</td><td>${fix}</td><td class="n">${m}m</td></tr>`;
   }).join('');
 }
 function renderZones(){
@@ -1272,8 +1282,8 @@ async function djStart(){
     const song=djPlayable(b);
     if(!song){
       djStatus(b.library&&b.library.example
-        ? 'No playable audio: the library is the fictional example set. Drop MP3s into songs/, run python preprocess_songs.py, restart.'
-        : 'No audio file matches any profiled song — file names in songs/ must contain the song title or id.','err');
+        ? 'No playable audio: add redistribution-safe tracks to songs/, preprocess them, then restart.'
+        : 'No audio file matches a profile — regenerate data/songProfiles.json from the same audio directory so each profile has the correct audioFile path.','err');
       return;
     }
     dj.on=true;
@@ -1424,22 +1434,19 @@ async function renderDjLive(){
   let b=null;
   try{ b=await fetch('/api/dj/crowdstate').then(r=>r.json()); }catch(e){ return; }
   dj.live=b;
-  const L=b.live;
+  const C=b.crowdState;
+  const arrow=value=>value>0.56?'↗':value<0.44?'↘':'→';
   const tiles=[
-    ['In venue',L.count],
-    ['Avg movement',L.avgEnergy.toFixed(2)],
-    ['Avg heart',L.avgHr?L.avgHr+' bpm':'—'],
-    ['Steps/min ea.',L.stepsPerMin],
-    ['Avg steps',L.avgSteps.toLocaleString()],
-    ['Located',L.located],
-    ['Sync',L.sync.toFixed(2)],
-    ['Arousal',L.arousal.toFixed(2)],
-    ['Room volume',b.crowdState.volume.toFixed(2)]
+    ['Energy',C.energy,C.energyTrend],
+    ['Rhythm',C.rhythm,C.rhythmTrend],
+    ['Clustering',C.clustering,C.clusteringTrend],
+    ['Volume',C.volume,C.volumeTrend],
+    ['Mobility',C.mobility,C.mobilityTrend]
   ];
-  $('#djTiles').innerHTML=tiles.map(([l,v])=>
+  $('#djTiles').innerHTML=tiles.map(([l,v,trend])=>
     `<div style="border:1px solid var(--rule);border-radius:7px;padding:9px 11px">
       <span class="lab" style="font-size:8.5px">${l}</span>
-      <b style="display:block;font-family:var(--mono);font-size:16px;font-weight:500;margin-top:4px">${v}</b>
+      <b style="display:block;font-family:var(--mono);font-size:16px;font-weight:500;margin-top:4px">${v.toFixed(2)} <span class="dim" title="Trend ${trend.toFixed(2)}; 0.5 is stable">${arrow(trend)}</span></b>
     </div>`).join('');
   // sparkline of the five dims the DJ actually decides on
   const cvs=$('#djSpark'), dpr=devicePixelRatio||1;
@@ -1457,7 +1464,7 @@ async function renderDjLive(){
     });
   }
   $('#djSparkLegend').innerHTML=series.map(([k,color])=>`<span style="color:${color}">━ ${k}</span>`).join(' &nbsp;')
-    +` &nbsp;<span class="dim">· volume from ${esc(b.sources.volumeFrom)}</span>`;
+    +` &nbsp;<span class="dim">· ${b.sources.liveAttendees||0} live + ${b.sources.simulatedAttendees||0} simulated · volume from ${esc(b.sources.volumeFrom)}</span>`;
   if(!dj.decision) drawDjMoment();                 // live preview until first capture
 }
 setInterval(()=>{ if(view==='dj') renderDjLive(); },2000);

@@ -86,6 +86,7 @@ def normalize_library(
                 "id": metadata.id,
                 "title": metadata.title,
                 "artist": metadata.artist,
+                "audioFile": raw_profile.source_file,
                 "album": metadata.album,
                 "year": metadata.year,
                 "genres": metadata.genres,

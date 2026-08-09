@@ -44,11 +44,12 @@ Thumbs.db
 # The event library IS tracked (user's call 2026-08-09): ~1.4GB of
 # CC-licensed netlabel tracks from archive.org, committed so deploys and
 # clones play without re-fetching. This makes clones heavy — deliberate.
-!/songs/*.mp3
-!/songs/*.wav
-!/songs/*.flac
-!/songs/*.m4a
+# Only place redistribution-safe audio here.
 !/songs/README.md
+!/songs/**/*.mp3
+!/songs/**/*.m4a
+!/songs/**/*.wav
+!/songs/**/*.flac
 
 # Rebuildable preprocessing diagnostics (the final songProfiles.json may be committed)
 /data/tracks.json
