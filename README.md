@@ -24,24 +24,45 @@ Then open **http://localhost:3000/dashboard.html**.
 
 | URL | What it is |
 |---|---|
-| `/dashboard.html` | Host dashboard — map, people, zones, radio |
-| `/owner.html` | Venue-owner sign up / log in (Supabase email+password) |
+| `/dashboard.html` | Host dashboard — map, people, zones, venues editor, radio, sign-in |
+| `/owner.html` | Standalone venue-owner page (the dashboard has the same sign-in built in) |
 | `/join.html` | What a phone sees after scanning |
 | `/qr/event.svg` | The single event-wide QR poster |
+| `/qr/venue/<id>.svg` | A specific venue's QR, e.g. `/qr/venue/stackt.svg` |
 | `/qr/<zone>.svg` | Per-zone poster, e.g. `/qr/northhall.svg` |
-| `/calibrate.html` | GPS calibration tool (see below) |
+| `/calibrate.html` | Two-point GPS calibration tool (see below) |
 | `/state.json` | The exact payload broadcast to clients — curl this to debug |
+| `/sensor-test` | Standalone raw-sensor capture page (writes to the same snapshot store) |
+| `/api/snapshots` | The collected sensor data — see **Data collection** |
 
-### Venue-owner auth (Supabase)
+### Venue-owner accounts
 
-Attendees on `/join.html` stay anonymous. Only venue create/update/delete is gated.
+Attendees on `/join.html` stay anonymous — accounts gate the **host dashboard** and venue
+create/update/delete. With accounts on, opening `/dashboard.html` signed out sends you to
+`/owner.html`; signing in lands you on the owner screen (your venues, unclaimed pool, **Live
+dashboard** button), and signing out returns you there. An account that owns **no venues yet** gets
+a dashboard with only the Venues tab, opened on a blank editor — build or claim your first venue and
+the map/people/zones/data tabs unlock. This is front-door UX, not a security boundary — the live
+state APIs stay open for phones. The server picks one of three modes at boot (the log says which):
 
-1. Create a Supabase project; run `supabase/schema.sql` in the SQL editor.
-2. Auth → Providers → Email: turn **off** “Confirm email” for the hackathon.
-3. Copy `.env.example` → `.env` and fill `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-4. Restart `node server.js`, open `/owner.html`, sign up, then **Create new venue** (opens the existing editor on the dashboard).
+- **local** — the default, zero setup. Accounts live on the Pulse server itself, in the same SQLite
+  database as the collected sensor data (`backend/data.db` — passwords scrypt-hashed, never stored).
+  Sign up takes ten seconds and works offline.
+- **supabase** — set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in `.env`
+  (create a project, run `supabase/schema.sql`, and turn **off** Confirm email under Auth →
+  Providers → Email). Accounts live in Supabase, ownership in its `venue_owners` table.
+- **off** — `AUTH_MODE=off` in `.env`. No accounts; venue writes are open to anyone with the page.
 
-Venue geometry still lives as JSON in `venues/`. Supabase only stores `venue_id → owner_id`. Without the env vars, writes stay open (logged as `[auth] DISABLED`).
+Venue geometry lives as JSON in `venues/` in every mode; auth only stores *who owns which venue*.
+
+With auth on, the venue list is **scoped to the signed-in account**: signed out you see only the
+LIVE venue (it's on the projector — always public); signed in you see the live venue plus **your
+own** — never another account's, and not unclaimed ones either. Ownerless venues (created before
+accounts, or seeds) live in an **Unclaimed** section on `/owner.html` with a Claim button — claim
+one and it's yours to edit, delete and see in your list (saving over an unclaimed venue also claims
+it). This is list tidiness, not secrecy — the live map still serves the active venue's geometry to
+everyone, and ownership is enforced on writes. The rail's **Owner page →** link and the account
+modal both go to `/owner.html`.
 
 Environment variables, all optional:
 
@@ -61,6 +82,8 @@ Environment variables, all optional:
 | `OPENAI_MODEL` | `gpt-5.4` | Vision model that reads the plan |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Vision model that reads the plan |
 | `VENUE` | first found | Which venue to start live |
+| `AUTH_MODE` | `local` | `off` opens venue writes; Supabase keys switch to hosted accounts |
+| `SUPABASE_URL` + `_ANON_KEY` + `_SERVICE_ROLE_KEY` | — | All three together enable Supabase auth |
 
 ```bash
 FAKE=0 node server.js            # real check-ins only
@@ -103,9 +126,39 @@ profile database; it does not run librosa or call an LLM for song features. See
 [the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
 caching, audio-only testing, and full-library commands.
 
+The default event library is `songs/`: copy local MP3/WAV/FLAC/M4A files there and
+run `python preprocess_songs.py`. Its audio contents are Git-ignored and analyzed in
+place. A metadata template is available at `data/tracks.example.json`.
+
+## Auto-DJ — the crowd chooses the next song
+
+The final loop is closed: the room's sensors pick the music. Press **Auto-DJ** in the radio player
+(or **Start Auto-DJ** on the DJ tab — one tap, browsers refuse audio without a gesture) and:
+
+1. A profiled song with a matching audio file starts on the deck.
+2. At the song's **midpoint**, the server captures *the moment* — a real `CrowdState` built from
+   everyone's sensors: movement energy, the sync metric as rhythm, zone clustering, phone-mic
+   loudness from the snapshot store, steps-per-minute as mobility, and each one's trend vs a minute
+   ago.
+3. The DJ engine turns that moment into a target, ranks the whole library, and queues the winner.
+4. When the song ends, the queued pick plays. Repeat.
+
+Setup: copy MP3/WAV/FLAC files into `songs/`, run `python preprocess_songs.py` to build
+`data/songProfiles.json`, restart. Audio is matched to profiles by filename (it should contain the
+song's title). Until then the fictional example profiles rank — visible in the DJ tab — but nothing
+can play, and the tab says so.
+
+The **DJ tab** (host-only, like the whole dashboard) shows the decision being made: the song meter
+with the capture marker at the midpoint, the captured moment's factors with trend arrows next to the
+policy's target and what the chosen song actually delivers, every candidate's score with the
+engine's reasons, and live 2-second averages of everyone's sensors with sparklines.
+
+Selection is deterministic by design — the optional OpenAI judge stays behind `DJ_AI_TOKEN` on
+`/api/dj/select`, so a dead API can cost a suggestion, never the playlist.
+
 ## Adaptive song selection
 
-The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
+The deterministic DJ engine consumes a validated `CrowdState` and the
 preprocessed profiles. It converts the room state into an explicit musical target,
 ranks eligible songs, explains its scores, and optionally lets OpenAI choose among
 only the top ten. AI is server-side and never required: missing keys, timeouts,
@@ -116,11 +169,15 @@ score.
 npm run select-song -- --scenario dancingGrowing
 npm run select-song -- --scenario socializing
 npm run select-song -- --scenario losingDanceFloor --json
+npm run select-song -- --scenario dancingGrowing --mode match
+npm run select-song -- --scenario dancingGrowing --mode blend --guidance-strength 0.35
 npm run select-song -- --list-scenarios
 ```
 
 Add `--ai` to request the optional final judge. Without `data/songProfiles.json`, the
 CLI and API clearly fall back to fictional `data/songProfiles.example.json` records.
+Selection defaults to `guide`; use `match` to mirror the current room or `blend` with
+a `0`–`1` guidance strength to interpolate between matching and intervention.
 The server also exposes `GET /api/dj/scenarios` and `POST /api/dj/select`; neither
 route changes the currently playing track. See [the DJ selection guide](docs/dj-selection.md).
 
@@ -132,6 +189,17 @@ route changes the currently playing track. See [the DJ selection guide](docs/dj-
 | Anything the host sees | `public/dashboard.html` | No, just reload |
 | Anything a phone sees | `public/join.html` | No, just reload |
 | Metrics, sockets, fake crowd | `server.js` | Yes |
+| API keys, ports, model | `.env` | Yes — read once at boot |
+
+**Use `npm run dev` while working.** It does two things: starts a cloudflared quick tunnel (when the
+binary is present — fetch it once with `npm run get-tunnel`) and runs `node --watch server.js` with
+`PUBLIC_URL` set to the tunnel, so the server restarts on every save **and QR codes automatically
+encode the tunnel URL**. The tunnel lives outside the server process, so its URL survives those
+restarts. No binary → it still runs, just without a tunnel (`npm run dev:local` is the plain
+watcher). Forgetting to restart is the most common way a change appears not to have worked: the old
+process keeps answering, so the dashboard and `/ai` look healthy while serving code from before your
+edit. Reload the browser with Ctrl+Shift+R too, or a cached `dashboard.html` will hide client-side
+changes the same way.
 
 `venue.json` is entirely normalized 0–1 coordinates, so changing venue means editing that one file —
 never hardcode coordinates in the clients. After editing it, check every zone corner still falls inside
@@ -175,14 +243,18 @@ The host's browser is the only thing that touches audio. It broadcasts the deriv
 The **Venues** tab is a full editor, and the left rail on the Map tab switches between what you've
 built.
 
-1. **+ New venue**, give it a name.
+1. **+ New venue**, give it a name (you'll be asked to sign in the first time).
 2. **Drop in a floor plan image.** Zones are found automatically — no drawing required. The image is
    traced over, never rendered on the live map, and its proportions set the venue's `aspect`, which is
    what makes coordinates line up with the real site.
-3. **Type two coordinates.** Detection drops a pin on each opposite corner of the site; you supply
-   their real lat/lon (paste from Google Maps) or stand there and capture. That's the whole manual
-   step.
-4. **Save**, or **Save & make active** to move the live event onto it.
+3. **Say where it is.** Type the address (or paste `lat, lon`, or press **I'm here now** on site) and
+   hit **Centre venue there** — one location is enough to turn GPS on, assuming a 120 m-wide site
+   unless a scale bar said otherwise. The **Check it on Google Maps** link shows exactly where the map
+   now sits. For metre accuracy, refine with the two corner pins: if the drawing carried a scale bar,
+   a north arrow or an address they arrive pre-filled; otherwise paste coordinates from Google Maps or
+   stand at a corner and capture.
+4. **Save**, or **Save & make active** to move the live event onto it. **Show check-in QR** gives the
+   venue its own scannable code (also available from the map's left rail).
 
 ### Editing what came back
 
@@ -263,6 +335,37 @@ guarantees the local reader makes, so whichever reader ran, what reaches `valida
 
 If the call fails for any reason — no quota, bad key, timeout, malformed answer — the editor falls
 back to the local reader and tells you what went wrong rather than leaving you stuck.
+
+### Can AI do the GPS calibration too?
+
+Partly, and the split is worth understanding because it's not a limitation of the model.
+
+Calibration needs three things. A drawing can carry two of them:
+
+| Needs | Where it comes from | Can AI read it? |
+|---|---|---|
+| Size in metres | A scale bar | **Yes** |
+| Rotation vs north | A north arrow | **Yes**, when the arrow is unambiguous |
+| Position on Earth | Nothing on the drawing | **Only** if an address is printed |
+
+So when you drop a plan, the model is also asked for the scale bar, the north arrow and any printed
+address. A found address is geocoded through OpenStreetMap's Nominatim (free, no key), and the result
+back-projects into the two corner pins so they arrive **pre-filled with real coordinates you can
+correct**, rather than empty.
+
+It is reported as `estimated`, never `calibrated`. That distinction is deliberate: geocoding an
+address lands you within tens of metres of the building, and zones here are around 10m, so an
+address-derived anchor is a good starting point and a bad final answer. The flag only flips to
+calibrated when you edit a pin yourself — the claim of accuracy stays yours.
+
+Everything is validated before it's believed: a scale read as 3m or 9km is treated as a misread, and a
+plan carrying none of the three markings comes back with `usable: false` and says so, rather than
+inventing an anchor. Tested both ways — an annotated plan resolved `290 Bremner Blvd` to the real CN
+Tower and read its scale bar to within 6%; an unannotated one returned `from: []` and left the pins
+empty.
+
+The honest summary: it saves you finding coordinates for a venue whose address is on the drawing, and
+gets the size and rotation right. It does not remove the two-pin step if you want zone-level accuracy.
 
 ### Which model to use
 
@@ -381,6 +484,37 @@ There's a geometry check worth rerunning if you edit the file — every zone cor
 
 **Radio** — spectrum, transport, seek, volume, and the four palette swatches currently derived from the track. Bottom-right on the dashboard, pinned to the bottom on phones.
 
+## Data collection
+
+Every checked-in phone quietly contributes to a research dataset on top of the live metrics. Once
+someone taps **Start movement & location**, the phone captures a 5-second batch of raw readings at
+~10 Hz — accelerometer x/y/z, orientation α/β/γ, and mic loudness (level only, never audio, and only
+if the mic was allowed) — plus its latest GPS fix, and uploads the batch every 30 seconds. Batches,
+never a stream: 100 phones is ~3 requests/second.
+
+It lands in SQLite at `backend/data.db` using the exact schema the Flask backend in `backend/`
+defined (`snapshots` + `snapshot_readings`), so anything written against that backend — including
+plain Python `sqlite3` — reads the same file. The API is the same too, now served by the one Node
+server over the one tunnel:
+
+| Route | Does |
+|---|---|
+| `POST /api/snapshots` | store one capture (snapshot row + one row per reading) |
+| `GET /api/snapshots` | list, newest first, with reading counts (`?limit=`) |
+| `GET /api/snapshots/<id>` | one capture with all its readings |
+| `GET /api/snapshots.csv` | the whole dataset as CSV, one row per reading |
+| `GET /api/data/summary` | totals for the dashboard tiles |
+| `GET /sensor-test` | the standalone capture/test page |
+
+The dashboard's **Data** tab shows totals (snapshots, readings, phones seen, DB size), the latest
+captures with GPS fixes, and a per-snapshot chart of accel magnitude and audio level — plus one-click
+CSV export.
+
+Privacy shape: snapshots are stored under the phone's random `pulse:id`, never the name; the check-in
+consent text says exactly what is collected. Requires `better-sqlite3@11` (v12+ needs Node 22); if the
+native module fails to load, the store disables itself with a `[data]` log line and everything else
+runs normally.
+
 ## Metrics
 
 Two are worth defending when a judge asks what's actually new:
@@ -425,8 +559,10 @@ Setting `PUBLIC_URL` still works and overrides all of this — worth doing if yo
 in advance, since it pins the URL regardless of how you open the page. Just remember quick tunnels
 get a new hostname on every restart, so a poster printed against an old one is waste paper.
 
-`/qr?zone=northhall` gives the per-zone poster; `/qr/event.svg` and `/qr/<zone>.svg` still return the
-bare SVG if you'd rather place it yourself.
+`/qr?zone=northhall` gives the per-zone poster and `/qr?v=<venueId>` a specific venue's poster
+(it warns if that venue isn't the live one — scans always join whatever is live). `/qr/event.svg`,
+`/qr/venue/<id>.svg` and `/qr/<zone>.svg` return the bare SVG if you'd rather place it yourself.
+The dashboard's **Check-in QR** button shows the same code in a modal, with the same warnings.
 
 To save one as a printable PNG:
 
@@ -492,7 +628,11 @@ device rate and sends a single summarised float every 500ms; sending raw 30Hz fr
 melt the server. GPS is throttled to one fix a second, and step count comes from peak detection on the
 accelerometer stream that's already being sampled.
 
-Heart rate is optional and uses the standard BLE GATT Heart Rate Service (`0x180D`), so any strap advertising "Bluetooth heart rate" works. Chrome on Android and desktop only — **iOS has no Web Bluetooth at all**, so design the demo assuming most phones contribute movement only.
+The phone also shows a live **sound level** in approximate dB, derived from the same mic RMS the
+snapshot store records (level only, never audio; phones aren't calibrated SPL meters, hence
+"approx"). Heart-rate pairing was dropped from the phone UI — iOS has no Web Bluetooth, so it could
+never work for most of the room — but the server's HR pipeline and the dashboard's pulse rings
+remain, fed by the simulator.
 
 ## localhost vs the tunnel
 
@@ -519,37 +659,29 @@ Use localhost for developing the dashboard, and the tunnel whenever a phone is i
 
 `DeviceMotionEvent` and Web Bluetooth are hard-blocked on plain HTTP. Phones will check in fine and then report 0.00 movement forever, with no error anywhere. This is the most common way this project fails.
 
-A Cloudflare quick tunnel gives you a public HTTPS URL in one command, with no account and no config.
-
-**macOS / Linux**
-
-```bash
-brew install cloudflared          # or: https://github.com/cloudflare/cloudflared/releases
-cloudflared tunnel --url http://localhost:3000
-```
-
-**Windows** — `winget install --id Cloudflare.cloudflared`, or if you don't have winget, the binary
-needs no install at all:
-
-```powershell
-curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
-.\cloudflared.exe tunnel --url http://localhost:3000
-```
-
-It prints a `https://something.trycloudflare.com` URL. Restart the server in a second terminal with
-that URL in `PUBLIC_URL`:
+A Cloudflare quick tunnel gives you a public HTTPS URL with no account and no config — and it's
+automated here:
 
 ```bash
-PUBLIC_URL=https://your-tunnel.trycloudflare.com node server.js
+npm run get-tunnel     # one time: downloads the official cloudflared binary (~60 MB, gitignored)
+npm run dev            # every time: tunnel + server together
 ```
+
+`npm run dev` starts the tunnel, waits for its URL, and launches the server with `PUBLIC_URL` already
+set — it prints the dashboard and QR-poster links to open. QR codes encode the tunnel automatically,
+even if you're browsing the dashboard on localhost. (macOS: `brew install cloudflared` instead of
+`get-tunnel`; `TUNNEL=0 npm run dev` skips the tunnel on purpose.)
+
+Doing it by hand still works — run `cloudflared tunnel --url http://localhost:3000` yourself and start
+the server with that URL in `PUBLIC_URL`:
+
 ```powershell
 $env:PUBLIC_URL="https://your-tunnel.trycloudflare.com"; node server.js
 ```
 
-`PUBLIC_URL` matters — it's what gets encoded into the QR posters, and it overrides the request's Host
-header entirely, so posters are correct no matter which address generated them. Without it they point
-at localhost and nobody can check in. The URL is random and changes every time you restart the tunnel,
-so regenerate posters after restarting.
+`PUBLIC_URL` is what gets encoded into the QR posters, and it overrides the request's Host header
+entirely, so posters are correct no matter which address generated them. The tunnel URL is random and
+changes every time the tunnel restarts, so regenerate posters after restarting `npm run dev`.
 
 **Don't count on the local network instead.** Campus and guest Wi-Fi (UofT's included) normally run
 client isolation, so a phone cannot reach your laptop's LAN address even on the same SSID — and plain

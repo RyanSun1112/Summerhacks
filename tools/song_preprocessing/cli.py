@@ -6,7 +6,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import DEFAULT_CACHE_DIRECTORY, DEFAULT_OUTPUT_PATH, AnalysisConfig, LLMConfig, NormalizationConfig
+from .config import (
+    DEFAULT_CACHE_DIRECTORY,
+    DEFAULT_OUTPUT_PATH,
+    AnalysisConfig,
+    LLMConfig,
+    NormalizationConfig,
+    pricing_for_model,
+)
 from .llm_annotator import MockSongAnnotator, OpenAISongAnnotator
 from .pipeline import SongPreprocessingPipeline
 
@@ -27,6 +34,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", default=LLMConfig().model, help="OpenAI model name")
     parser.add_argument("--llm-batch-size", type=int, default=LLMConfig().batch_size)
     parser.add_argument("--llm-concurrency", type=int, default=LLMConfig().concurrency)
+    parser.add_argument(
+        "--max-llm-cost-usd",
+        type=float,
+        default=LLMConfig().max_estimated_run_cost_usd,
+        help="Conservative local ceiling for estimated API spend in this run (default: $0.50)",
+    )
+    parser.add_argument(
+        "--llm-input-cost-per-million",
+        type=float,
+        help="Required with an unknown --model; use its current standard input-token price",
+    )
+    parser.add_argument(
+        "--llm-output-cost-per-million",
+        type=float,
+        help="Required with an unknown --model; use its current standard output-token price",
+    )
     parser.add_argument("--energy-strategy", choices=("llm", "hybrid"), default="llm")
     return parser
 
@@ -47,19 +70,39 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--llm-batch-size must be between 1 and 20")
     if args.llm_concurrency < 1:
         parser.error("--llm-concurrency must be at least 1")
+    if args.max_llm_cost_usd <= 0:
+        parser.error("--max-llm-cost-usd must be positive")
     if args.skip_llm and args.mock_llm:
         parser.error("--skip-llm and --mock-llm cannot be used together")
+
+    configured_prices = pricing_for_model(args.model)
+    supplied_prices = (args.llm_input_cost_per_million, args.llm_output_cost_per_million)
+    if any(price is not None and price < 0 for price in supplied_prices):
+        parser.error("LLM token prices cannot be negative")
+    if configured_prices is None and not all(price is not None for price in supplied_prices):
+        parser.error(
+            "unknown --model pricing; provide both --llm-input-cost-per-million "
+            "and --llm-output-cost-per-million"
+        )
+    input_price, output_price = configured_prices or supplied_prices
 
     llm_config = LLMConfig(
         model=args.model,
         batch_size=args.llm_batch_size,
         concurrency=args.llm_concurrency,
+        max_estimated_run_cost_usd=args.max_llm_cost_usd,
+        input_cost_per_million_usd=float(input_price),
+        output_cost_per_million_usd=float(output_price),
     )
     try:
         annotator = None
         if args.mock_llm:
             annotator = MockSongAnnotator()
         elif not args.skip_llm:
+            print(
+                "LLM cost guard: conservative estimated spend is capped at "
+                f"${llm_config.max_estimated_run_cost_usd:.2f} for this run."
+            )
             annotator = OpenAISongAnnotator(llm_config)
 
         result = SongPreprocessingPipeline(
@@ -90,6 +133,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"LLM cached: {stats.llm_cached}")
         print(f"Final profiles: {stats.final_profiles}")
     print(f"Failed: {stats.failed}")
+    if isinstance(annotator, OpenAISongAnnotator):
+        print(
+            "Conservative API cost reserved: "
+            f"${annotator.reserved_cost_usd:.4f} "
+            f"(stop ceiling: ${llm_config.max_estimated_run_cost_usd:.2f}; "
+            "actual provider charge is normally lower)"
+        )
     print("\nOutput:")
     if result.output_path:
         print(result.output_path)

@@ -69,6 +69,30 @@ Recent IDs are most-recent first:
 npm run select-song -- --scenario dancingGrowing --recent ID1,ID2,ID3
 ```
 
+## Matching versus guiding the room
+
+The target generator has three deterministic modes. They all use the same song
+ranker, BPM continuity rules, and repetition protection:
+
+- `match` mirrors present crowd energy and groove with no intentional BPM push;
+- `guide` applies the case-based DJ interventions below and is the default;
+- `blend` interpolates every musical target and BPM preference between those two.
+
+`guidanceStrength` is meaningful in blend mode: `0` is identical to matching, `1`
+is identical to guiding, and `0.5` splits the difference. This makes DJ influence a
+continuous, inspectable control instead of two unrelated algorithms.
+
+```bash
+npm run select-song -- --scenario dancingGrowing --mode match
+npm run select-song -- --scenario dancingGrowing --mode guide
+npm run select-song -- --scenario dancingGrowing --mode blend --guidance-strength 0.35
+```
+
+Matching directly mirrors crowd `energy`; it derives song danceability from crowd
+rhythm and infers socialness/intensity from the available crowd measurements. Valence
+stays neutral because CrowdState has no mood/positivity sensor. Guiding still handles
+trajectory, saturation, and room-state cases explicitly.
+
 ## DJ policy
 
 `lib/dj/policy.js` deliberately transforms crowd measurements into musical intent;
@@ -143,11 +167,12 @@ curl localhost:3000/api/dj/scenarios
 
 curl -X POST localhost:3000/api/dj/select \
   -H 'Content-Type: application/json' \
-  -d '{"scenario":"dancingGrowing","currentSongId":"example-pulse-rising","recentSongIds":[],"useAI":false}'
+  -d '{"scenario":"dancingGrowing","selectionMode":"blend","guidanceStrength":0.35,"currentSongId":"example-pulse-rising","recentSongIds":[],"useAI":false}'
 ```
 
 A caller may provide `crowdState` instead of `scenario`. `useAI` defaults to false.
-The endpoint recommends a track but deliberately does not start playback.
+`selectionMode` defaults to `guide`; `guidanceStrength` defaults to `0.5` and is used
+only by `blend`. The endpoint recommends a track but deliberately does not start playback.
 
 To prevent anyone who can reach the public tunnel from spending API credits, HTTP AI
 selection additionally requires a server-side `DJ_AI_TOKEN` and matching

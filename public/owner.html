@@ -61,6 +61,8 @@
   .primary:hover,.primary:active{filter:brightness(1.08)}
   .ghost{background:none;border:1px solid var(--rule);color:var(--muted);flex:1}
   .ghost:hover,.ghost:active{color:var(--ink);border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+  button:disabled:hover{filter:none;color:var(--muted);border-color:var(--rule)}
   .msg{margin-top:14px;font-family:var(--mono);font-size:13px;line-height:1.4;min-height:1.2em}
   .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
   .hidden{display:none!important}
@@ -107,6 +109,7 @@
       <button class="ghost" id="btnSignup" type="button">Sign up</button>
     </div>
     <div class="msg" id="authMsg"></div>
+    <div class="msg" id="authHint"></div>
   </section>
 
   <!-- Dashboard -->
@@ -115,10 +118,16 @@
     <h1>Owner dashboard</h1>
     <p class="who">Signed in as <b id="who"></b></p>
     <div class="actions">
-      <button class="primary" id="btnNew" type="button">Create new venue</button>
+      <button class="primary" id="btnDash" type="button">Live dashboard</button>
+      <button class="ghost" id="btnNew" type="button">Create new venue</button>
       <button class="ghost" id="btnLogout" type="button">Log out</button>
     </div>
     <div id="venueList" class="vlist"></div>
+    <div id="unclaimedSec" class="hidden" style="margin-top:22px">
+      <div class="lab">Unclaimed venues</div>
+      <p class="sub" style="margin:6px 0 10px;font-size:12px">Nobody owns these. Claim one and it's yours to edit, delete and see in your dashboard list.</p>
+      <div id="unclaimedList" class="vlist"></div>
+    </div>
     <div class="msg" id="dashMsg"></div>
   </section>
 </main>
@@ -127,10 +136,70 @@
 const $ = s => document.querySelector(s);
 let sb = null;
 let accessToken = null;
+let busy = false;
+
+// Where to go after sign-in. Same-origin paths only — a next of
+// "https://evil.example" or "//evil.example" must never be followed.
+const nextParam = (() => {
+  const n = new URLSearchParams(location.search).get('next') || '';
+  return /^\/(?!\/)/.test(n) ? n : '';
+})();
+function goNext() {
+  if (!nextParam) return false;
+  location.replace(nextParam);
+  return true;
+}
+
+// A paused Supabase project (free tier sleeps) or a wrong URL makes the client
+// hang with no rejection, so the button sits on "Signing in…" forever with an
+// empty console. Every call gets a deadline instead.
+const AUTH_TIMEOUT_MS = 15000;
+function withTimeout(promise, what) {
+  let t;
+  return Promise.race([
+    promise.finally(() => clearTimeout(t)),
+    new Promise((_, rej) => { t = setTimeout(() =>
+      rej(new Error(what + ' timed out after ' + (AUTH_TIMEOUT_MS / 1000) + 's. The Supabase project may be paused — open your project dashboard to wake it.')),
+      AUTH_TIMEOUT_MS); })
+  ]);
+}
 
 function setMsg(el, text, kind) {
   el.textContent = text || '';
   el.className = 'msg' + (kind ? ' ' + kind : '');
+}
+
+// Both auth buttons share this: nothing runs before init() succeeds, nothing
+// runs twice, and every failure lands on screen rather than in a dead promise.
+function guard(what, fn) {
+  return async () => {
+    if (busy) return;
+    if (!sb) {
+      setMsg($('#authMsg'), 'Owner accounts are off on this server — there is nothing to sign in to yet.', 'err');
+      return;
+    }
+    busy = true;
+    $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+    setMsg($('#authMsg'), what + '…');
+    try {
+      await fn();
+    } catch (e) {
+      console.warn('[owner] ' + what, e);
+      let m = e.message || (what + ' failed');
+      if (/failed to fetch|networkerror|load failed/i.test(m))
+        m = 'Could not reach Supabase. Check SUPABASE_URL in .env and that the project is awake.';
+      setMsg($('#authMsg'), m, 'err');
+    } finally {
+      busy = false;
+      $('#btnLogin').disabled = $('#btnSignup').disabled = false;
+    }
+  };
+}
+
+function authOff(reason, hint) {
+  $('#btnLogin').disabled = $('#btnSignup').disabled = true;
+  setMsg($('#authMsg'), reason, 'err');
+  setMsg($('#authHint'), hint || '');
 }
 
 async function authHeaders() {
@@ -139,24 +208,82 @@ async function authHeaders() {
   return h;
 }
 
+// Local mode: the Pulse server holds the accounts itself. Same five calls the
+// Supabase client exposes, backed by /auth/* — so the rest of the page cannot
+// tell the difference. The session is shared with the dashboard via
+// localStorage under the same key.
+const OWNER_LS = 'pulseOwnerSession';
+function localAdapter() {
+  const load = () => { try { return JSON.parse(localStorage.getItem(OWNER_LS) || 'null'); } catch { return null; } };
+  const save = s => s ? localStorage.setItem(OWNER_LS, JSON.stringify(s)) : localStorage.removeItem(OWNER_LS);
+  const asSession = s => ({ access_token: s.token, user: { id: s.userId, email: s.email } });
+  const call = async (path, body, token) => {
+    const r = await fetch(path, { method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+      body: body ? JSON.stringify(body) : undefined });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: { message: b.error || ('HTTP ' + r.status) } };
+    return { ok: b };
+  };
+  return { auth: {
+    async getSession() {
+      const s = load();
+      if (!s || !s.token) return { data: { session: null } };
+      const r = await fetch('/auth/me', { headers: { Authorization: 'Bearer ' + s.token } }).catch(() => null);
+      if (!r || !r.ok) { if (r) save(null); return { data: { session: null } }; }
+      return { data: { session: asSession(s) } };
+    },
+    onAuthStateChange() {},
+    async signInWithPassword({ email, password }) {
+      const r = await call('/auth/login', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signUp({ email, password }) {
+      const r = await call('/auth/signup', { email, password });
+      if (r.error) return r;
+      save({ token: r.ok.token, email: r.ok.email, userId: r.ok.userId });
+      return { data: { session: asSession(load()), user: { id: r.ok.userId, email: r.ok.email } } };
+    },
+    async signOut() {
+      const s = load();
+      if (s && s.token) await call('/auth/logout', null, s.token).catch(() => {});
+      save(null);
+    }
+  } };
+}
+
 async function init() {
-  const cfgRes = await fetch('/auth/config');
-  const cfg = await cfgRes.json().catch(() => ({}));
-  if (!cfgRes.ok || !cfg.url) {
-    setMsg($('#authMsg'),
-      cfg.error === 'auth not configured'
-        ? 'Server auth is off. Add SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY to .env and restart.'
-        : (cfg.error || 'Could not load auth config.'),
-      'err');
+  const cfgRes = await fetch('/auth/config').catch(() => null);
+  const cfg = cfgRes ? await cfgRes.json().catch(() => ({})) : {};
+  if (!cfgRes || (!cfgRes.ok && cfgRes.status !== 503)) {
+    authOff('Could not reach the server.', 'Start it with npm run dev, then reload.');
     return;
   }
-  sb = supabase.createClient(cfg.url, cfg.anonKey);
+  if (cfg.mode === 'off' || (!cfg.enabled && !cfg.url)) {
+    authOff('Owner accounts are off on this server (AUTH_MODE=off) — there is no account to create.',
+      'Venue create/edit/delete are open to everyone right now, so you can use the dashboard as-is.');
+    return;
+  }
+  setMsg($('#authHint'), '');
+  if (cfg.mode === 'local') {
+    sb = localAdapter();
+  } else {
+    if (typeof supabase === 'undefined') {
+      authOff('The Supabase library did not load (CDN blocked or offline).',
+              'Venue editing still works without an account — go to the dashboard.');
+      return;
+    }
+    sb = supabase.createClient(cfg.url, cfg.anonKey);
+  }
   sb.auth.onAuthStateChange((_event, session) => {
     accessToken = session ? session.access_token : null;
   });
-  const { data: { session } } = await sb.auth.getSession();
+  // getSession refreshes an expired token over the network, so it can stall too.
+  const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Restoring session');
   accessToken = session ? session.access_token : null;
-  if (session) showDash(session);
+  if (session) { if (goNext()) return; showDash(session); }
 }
 
 async function showDash(session) {
@@ -173,7 +300,9 @@ function showAuth() {
 }
 
 async function loadMyVenues() {
-  const res = await fetch('/api/me/venues', { headers: await authHeaders() });
+  const res = await fetch('/api/me/venues', { headers: await authHeaders() })
+    .catch(e => { setMsg($('#dashMsg'), 'Could not reach the server: ' + e.message, 'err'); return null; });
+  if (!res) return;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     setMsg($('#dashMsg'), body.error || 'Failed to load venues', 'err');
@@ -202,6 +331,29 @@ async function loadMyVenues() {
     const del = row.querySelector('[data-act="del"]');
     if (del && !del.disabled) del.addEventListener('click', () => deleteVenue(row.dataset.id, row));
   });
+
+  // ownerless venues — claimable here, invisible in the dashboard rail
+  const un = body.unclaimed || [];
+  $('#unclaimedSec').classList.toggle('hidden', !un.length);
+  $('#unclaimedList').innerHTML = un.map(v => `
+    <div class="vrow" data-id="${esc(v.id)}">
+      <div>
+        <div class="vn">${esc(v.name || v.id)}${v.active ? ' <span class="live">LIVE</span>' : ''}</div>
+        <div class="meta">${v.zones} zones · unclaimed</div>
+      </div>
+      <button type="button" data-act="claim">Claim</button>
+    </div>`).join('');
+  $('#unclaimedList').querySelectorAll('[data-act="claim"]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('.vrow').dataset.id;
+      btn.disabled = true;
+      const res = await fetch('/venues/' + encodeURIComponent(id) + '/claim',
+        { method: 'POST', headers: await authHeaders() });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg($('#dashMsg'), b.error || 'Claim failed', 'err'); btn.disabled = false; return; }
+      await loadMyVenues();                      // reload first — it clears the msg line
+      setMsg($('#dashMsg'), 'Claimed ' + id + ' — it\'s yours now.', 'ok');
+    }));
 }
 
 async function deleteVenue(id, row) {
@@ -225,51 +377,44 @@ function esc(s) {
   })[c]);
 }
 
-$('#btnLogin').addEventListener('click', async () => {
-  setMsg($('#authMsg'), 'Signing in…');
+$('#btnLogin').addEventListener('click', guard('Signing in', async () => {
   const email = $('#email').value.trim();
   const password = $('#password').value;
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    console.warn('[owner] login fail', error.message);
-    setMsg($('#authMsg'), error.message, 'err');
-    return;
-  }
+  if (!email || !password) throw new Error('Enter an email and password.');
+  const { data, error } = await withTimeout(
+    sb.auth.signInWithPassword({ email, password }), 'Sign in');
+  if (error) throw new Error(error.message);
   console.log('[owner] login ok', data.user && data.user.id);
   accessToken = data.session.access_token;
   setMsg($('#authMsg'), 'Signed in.', 'ok');
+  if (goNext()) return;
   showDash(data.session);
-});
+}));
 
-$('#btnSignup').addEventListener('click', async () => {
-  setMsg($('#authMsg'), 'Creating account…');
+$('#btnSignup').addEventListener('click', guard('Creating account', async () => {
   const email = $('#email').value.trim();
   const password = $('#password').value;
-  if (password.length < 6) {
-    setMsg($('#authMsg'), 'Password must be at least 6 characters.', 'err');
-    return;
-  }
-  const { data, error } = await sb.auth.signUp({ email, password });
-  if (error) {
-    console.warn('[owner] signup fail', error.message);
-    setMsg($('#authMsg'), error.message, 'err');
-    return;
-  }
+  if (!email) throw new Error('Enter an email address.');
+  if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+  const { data, error } = await withTimeout(sb.auth.signUp({ email, password }), 'Sign up');
+  if (error) throw new Error(error.message);
   // With "Confirm email" off, session is present immediately.
   if (data.session) {
     console.log('[owner] signup ok', data.user && data.user.id);
     accessToken = data.session.access_token;
     setMsg($('#authMsg'), 'Account created.', 'ok');
+    if (goNext()) return;
     showDash(data.session);
   } else {
     setMsg($('#authMsg'),
       'Account created — check email to confirm, or disable Confirm email in Supabase Auth settings.',
       'ok');
   }
-});
+}));
 
 $('#btnLogout').addEventListener('click', async () => {
-  await sb.auth.signOut();
+  try { await withTimeout(sb.auth.signOut(), 'Sign out'); }
+  catch (e) { console.warn('[owner] signout', e); }   // local state clears regardless
   accessToken = null;
   showAuth();
   setMsg($('#authMsg'), 'Signed out.', 'ok');
@@ -278,10 +423,13 @@ $('#btnLogout').addEventListener('click', async () => {
 $('#btnNew').addEventListener('click', () => {
   location.href = '/dashboard.html?edit=new';
 });
+$('#btnDash').addEventListener('click', () => {
+  location.href = '/dashboard.html';
+});
 
 init().catch(e => {
   console.error('[owner] init', e);
-  setMsg($('#authMsg'), e.message || 'Init failed', 'err');
+  authOff(e.message || 'Init failed', 'Venue editing still works without an account — go to the dashboard.');
 });
 </script>
 </body>

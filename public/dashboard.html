@@ -87,7 +87,10 @@
   .sw{width:15px;height:15px;border-radius:3px;transition:background-color .5s}
   .sws .lab{margin-left:auto;font-size:8.5px}
 
-  #legend{bottom:20px;left:22px;padding:13px 15px;display:flex;flex-direction:column;gap:7px}
+  /* decorative only — must never intercept clicks meant for the rail under
+     it, and on short windows it collides with the rail, so it bows out */
+  #legend{bottom:20px;left:22px;padding:13px 15px;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+  @media (max-height:900px){#legend{display:none}}
   .lg{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
   .lg i{width:14px;height:8px;border-radius:2px;display:block;flex:none}
 
@@ -97,7 +100,10 @@
     display:flex;flex-direction:column;gap:11px;max-height:calc(100% - 150px)}
   #leftrail .panel{position:static;width:100%}
   #venues{padding:13px 14px 12px;display:flex;flex-direction:column;min-height:0}
-  #venueList{overflow-y:auto;margin:7px -4px 0;padding:0 4px;min-height:0}
+  /* min-height matters: on a short window the flexbox otherwise squeezes the
+     list to 0px and the venue switcher silently disappears while its buttons
+     stay — it looks like there are no venues at all. Always show ~2 rows. */
+  #venueList{overflow-y:auto;margin:7px -4px 0;padding:0 4px;min-height:64px}
   .vrow{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:6px;cursor:pointer;
     border:1px solid transparent;transition:background-color .15s,border-color .15s}
   .vrow:hover{background:rgba(240,239,247,.05)}
@@ -166,6 +172,23 @@
   .meter i{display:block;height:100%;background:var(--accent)}
   .chip{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border:1px solid var(--rule);border-radius:3px;color:var(--muted)}
   .dim{color:var(--muted);font-size:11px}
+
+  /* account + QR modals */
+  #acctBtn{margin-left:10px;font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);background:none;border:1px solid var(--rule);
+    padding:8px 13px;border-radius:4px;cursor:pointer;display:none;max-width:190px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #acctBtn:hover{color:var(--ink);border-color:var(--accent)}
+  .modal-back{position:fixed;inset:0;z-index:60;background:rgba(4,5,12,.62);backdrop-filter:blur(5px);
+    display:none;place-items:center}
+  .modal-back.on{display:grid}
+  .modal{background:var(--glass);border:1px solid var(--rule);border-radius:10px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55);padding:22px 22px 18px;backdrop-filter:blur(18px)}
+  .msgline{font-family:var(--mono);font-size:11px;min-height:1.2em;margin-top:9px;line-height:1.4}
+  .msgline.err{color:var(--warn)} .msgline.ok{color:var(--ok)}
+  /* an account that owns no venues gets the Venues tab and nothing else */
+  body.noVenues nav button:not([data-v="venues"]){display:none}
+  body.noVenues #venueName,body.noVenues .hc{display:none}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
   /* ---- phone / narrow: don't break, stack chrome, scroll tables ---- */
@@ -227,9 +250,11 @@
     <button role="tab" data-v="map" aria-selected="true">Map</button>
     <button role="tab" data-v="people" aria-selected="false">People</button>
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
+    <button role="tab" data-v="data" aria-selected="false">Data</button>
+    <button role="tab" data-v="dj" aria-selected="false">DJ</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
-  <a href="/owner.html" id="ownerLink" style="margin-left:10px;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none">Owner</a>
+  <button id="acctBtn" type="button">Sign in</button>
 </header>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -256,7 +281,11 @@
     <div class="panel" id="venues">
       <div class="lab">Venue</div>
       <div id="venueList"></div>
+      <div id="liveNote" style="display:none;font-size:10px;line-height:1.5;color:var(--muted);margin-top:7px">LIVE is the running event — everyone sees it. Venues you create or claim appear here as yours.</div>
+      <div id="gpsWarn" style="display:none;font-size:10.5px;line-height:1.45;color:var(--warn);margin-top:8px"></div>
+      <button class="vbtn" id="qrBtn">Check-in QR</button>
       <button class="vbtn" id="newVenueBtn">+ New venue</button>
+      <a id="railOwner" href="/owner.html" style="display:none;margin-top:9px;text-align:center;font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:none">Owner page →</a>
     </div>
   </div>
 
@@ -275,6 +304,7 @@
     <div class="times"><span id="tNow">0:00</span><span id="tEnd">0:00</span></div>
     <div class="ctrls">
       <button class="rbtn" id="play" disabled aria-label="Play"><svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="load" id="djBtn" title="The crowd picks the next song">Auto-DJ</button>
       <button class="load" id="loadBtn">Load track</button>
       <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
     </div>
@@ -297,6 +327,88 @@
       <thead><tr><th>Zone</th><th>Type</th><th>People</th><th>Capacity</th><th>Movement</th></tr></thead>
       <tbody id="zoneRows"></tbody>
     </table>
+  </div>
+
+  <!-- The DJ decision, made visible. Host-only like every tab: the dashboard
+       is owner-gated and venue-less accounts see none of this. -->
+  <div class="sheet" id="sheet-dj">
+    <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:start;margin-bottom:22px">
+      <div class="panel" style="position:static;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="lab">Now playing</span>
+          <span style="flex:1"></span>
+          <button class="vbtn go" id="djToggle" style="margin:0;width:auto;padding:9px 16px">Start Auto-DJ</button>
+        </div>
+        <div style="font-size:17px;font-weight:600;margin-top:10px" id="djNowTitle">Nothing yet</div>
+        <div class="dim" id="djNowSub" style="margin-top:2px">Auto-DJ picks from the profiled library and lets the crowd choose what's next.</div>
+        <!-- the song meter: progress + the midpoint where the moment is taken -->
+        <div style="position:relative;height:8px;background:rgba(240,239,247,.10);border-radius:4px;margin-top:16px">
+          <div id="djMeterFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--accent);border-radius:4px"></div>
+          <div id="djMidMark" style="position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;background:var(--muted);opacity:.8"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span class="dim" id="djMeterT" style="font-family:var(--mono);font-size:10px">0:00 / 0:00</span>
+          <span class="dim" id="djMidLab" style="font-family:var(--mono);font-size:10px">▲ the moment — captured mid-song</span>
+        </div>
+        <div class="msgline" id="djStatus"></div>
+      </div>
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Next up — the crowd's pick</span>
+        <div style="font-size:17px;font-weight:600;margin-top:10px" id="djNextTitle">No decision yet</div>
+        <div class="dim" id="djNextSub" style="margin-top:2px">Appears when the moment is captured at mid-song.</div>
+        <div id="djIntent" style="font-size:12px;line-height:1.55;margin-top:12px;color:var(--ink)"></div>
+        <div class="dim" id="djPolicy" style="font-family:var(--mono);font-size:10.5px;margin-top:6px"></div>
+        <div class="dim" id="djLib" style="font-family:var(--mono);font-size:10.5px;margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="position:static;padding:16px 18px;margin-bottom:22px">
+      <span class="lab">The moment — factors that chose the song</span>
+      <div class="dim" id="djMomentSub" style="margin-top:4px">Left: the crowd as measured. Right: the target the policy asked for (line) vs what the chosen song delivers (bar).</div>
+      <canvas id="djMoment" style="width:100%;height:230px;display:block;margin-top:12px"></canvas>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:start">
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Candidates — score of the moment</span>
+        <div id="djCands" style="margin-top:12px"></div>
+      </div>
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Live crowd — average of everyone's sensors</span>
+        <div id="djTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px;margin-top:12px"></div>
+        <canvas id="djSpark" style="width:100%;height:110px;display:block;margin-top:14px"></canvas>
+        <div class="dim" id="djSparkLegend" style="font-family:var(--mono);font-size:10px;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The data-collection pipeline: raw sensor snapshots phones upload every
+       ~30s (accel x/y/z, orientation, mic level, GPS) into the SQLite store
+       the backend/ folder defined. This tab browses and exports it. -->
+  <div class="sheet" id="sheet-data">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+      <span class="lab">Sensor snapshots — raw readings collected from phones</span>
+      <span style="flex:1"></span>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/api/snapshots.csv">Export CSV</a>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/api/snapshots" target="_blank" rel="noopener">Raw JSON</a>
+      <a class="vbtn" style="width:auto;margin:0;text-decoration:none" href="/sensor-test" target="_blank" rel="noopener">Sensor test page</a>
+    </div>
+    <div id="dataTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;align-items:start">
+      <div style="min-width:0;overflow-x:auto">
+        <table>
+          <thead><tr><th>Captured</th><th>Person</th><th>Session</th><th>GPS</th><th>Fix</th><th>Readings</th></tr></thead>
+          <tbody id="snapRows"></tbody>
+        </table>
+        <div class="dim" id="dataEmpty" style="margin-top:14px"></div>
+      </div>
+      <div class="panel" style="position:static;padding:15px 17px">
+        <div class="lab">Snapshot detail</div>
+        <div class="dim" id="snapMeta" style="margin-top:8px;line-height:1.6">Click a snapshot to see its readings.</div>
+        <canvas id="snapChart" style="width:100%;height:180px;display:none;margin-top:12px"></canvas>
+        <div id="snapLegend" class="dim" style="display:none;margin-top:8px"></div>
+      </div>
+    </div>
   </div>
 
   <div class="sheet" id="sheet-venues">
@@ -337,7 +449,15 @@
 
       <div class="vsec">
         <span class="lab">2 · Where is it?</span>
-        <div class="vhint" style="margin:0">Two opposite corners of the site. Right-click the spot in Google Maps and paste, or stand there and capture.</div>
+        <div class="vfield">
+          <label>Address, place, or "lat, lon"</label>
+          <input class="vin" id="geoCenter" placeholder="STACKT Market, Toronto">
+        </div>
+        <div class="vrowin">
+          <button class="vbtn" id="geoCenterGo">Centre venue there</button>
+          <button class="vbtn" id="geoCenterHere" title="Stand near the middle of the venue and press this">I'm here now</button>
+        </div>
+        <div class="vhint" id="geoStatus" style="margin:0">One location is enough to place people. For metre accuracy, refine with the pins below.</div>
         <div id="pinList"></div>
         <div class="vprob" id="calProb"></div>
       </div>
@@ -400,10 +520,56 @@
         <div class="vprob" id="edProb"></div>
         <button class="vbtn" id="edSave">Save venue</button>
         <button class="vbtn go" id="edSaveGo">Save &amp; make active</button>
+        <button class="vbtn" id="edQr" style="display:none">Show check-in QR</button>
       </div>
     </div>
 
    </div>
+  </div>
+</div>
+
+<!-- Venue-owner sign in. Merged into the dashboard so saving a venue never
+     bounces you to another page. Attendees never see this — join.html has no
+     account anywhere near it. -->
+<div class="modal-back" id="acctModal">
+  <div class="modal" style="width:330px">
+    <div class="lab">Venue owner</div>
+    <h2 style="font-size:17px;margin:6px 0 4px">Sign in</h2>
+    <div class="vhint" id="acctWhy" style="margin:0 0 10px"></div>
+    <div id="acctForm" style="display:flex;flex-direction:column;gap:9px">
+      <div class="vfield"><label>Email</label><input class="vin" id="acctEmail" type="email" autocomplete="username" placeholder="you@example.com"></div>
+      <div class="vfield"><label>Password</label><input class="vin" id="acctPass" type="password" autocomplete="current-password" placeholder="6+ characters"></div>
+      <div class="vrowin">
+        <button class="vbtn go" id="acctLogin" type="button">Log in</button>
+        <button class="vbtn" id="acctSignup" type="button">Sign up</button>
+      </div>
+    </div>
+    <div id="acctSigned" style="display:none;flex-direction:column;gap:9px">
+      <div class="vhint" style="margin:0">Signed in as <b id="acctWho" style="color:var(--ink)"></b></div>
+      <button class="vbtn" id="acctOut" type="button">Sign out</button>
+    </div>
+    <div class="msgline" id="acctMsg"></div>
+    <button class="vbtn" id="acctCancel" type="button" style="margin-top:6px">Close</button>
+    <a href="/owner.html" style="display:block;margin-top:12px;font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-decoration:none">
+      Open the owner page → <span style="color:var(--muted);opacity:.7">manage all your venues in one place</span></a>
+  </div>
+</div>
+
+<!-- Check-in QR for any venue — the same code phones scan at the door. -->
+<div class="modal-back" id="qrModal">
+  <div class="modal" style="width:352px;text-align:center">
+    <div class="lab">Check-in QR</div>
+    <h2 id="qrVenueName" style="font-size:17px;margin:6px 0 3px"></h2>
+    <div class="vhint" id="qrNote" style="margin:0 0 12px"></div>
+    <div style="background:#fff;border-radius:10px;padding:12px;display:inline-block">
+      <img id="qrImg" alt="check-in QR code" style="width:236px;height:236px;display:block">
+    </div>
+    <div id="qrUrl" style="font-family:var(--mono);font-size:10.5px;color:var(--muted);word-break:break-all;margin-top:10px"></div>
+    <div class="vprob" id="qrWarn" style="margin-top:8px;text-align:left"></div>
+    <div class="vrowin" style="margin-top:13px">
+      <a class="vbtn" id="qrPoster" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;flex:1">Printable poster</a>
+      <button class="vbtn" id="qrClose" type="button" style="flex:1">Close</button>
+    </div>
   </div>
 </div>
 
@@ -419,34 +585,155 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,
 let venue=null, state=null, view='map';
 const smooth=new Map();
 
-/* ---- venue-owner auth (Supabase session shared with /owner.html) ----
-   Public map/metrics stay open. Only venue create/update/plan writes
-   send the Bearer token. Attendees never touch this. */
-let ownerSb=null, ownerToken=null, ownerAuthReady=null;
+/* ---- venue-owner auth, lives right here in the dashboard ----
+   The server picks the mode: 'local' (accounts on the Pulse server itself,
+   zero setup — the default), 'supabase' (hosted), or 'off' (writes open).
+   Public map/metrics stay open. Only venue create/update/delete/plan writes
+   send the Bearer token. Attendees never touch this. The local session is
+   shared with /owner.html via localStorage. */
+const OWNER_LS='pulseOwnerSession';
+let ownerMode='off', ownerSb=null, ownerToken=null, ownerEmail=null, ownerAuthReady=null;
+const ownerAuthOn=()=>ownerMode!=='off';
 function ownerHeaders(extra){
   const h=Object.assign({},extra||{});
   if(ownerToken) h.Authorization='Bearer '+ownerToken;
   return h;
 }
+function ownerStore(s){ try{ s?localStorage.setItem(OWNER_LS,JSON.stringify(s)):localStorage.removeItem(OWNER_LS); }catch(e){} }
+// A paused Supabase project never rejects — it just hangs. Every remote auth
+// call gets a deadline so the UI can say what happened.
+function withDeadline(p,what){ let t;
+  return Promise.race([
+    Promise.resolve(p).finally(()=>clearTimeout(t)),
+    new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error(what+' timed out after 15s — the auth service may be paused.')),15000); })
+  ]);
+}
 ownerAuthReady=(async()=>{
   try{
     const cfg=await fetch('/auth/config').then(r=>r.json());
-    if(!cfg.url||!cfg.anonKey){ console.log('[owner-auth] server auth off'); return false; }
-    ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
-    const {data:{session}}=await ownerSb.auth.getSession();
-    ownerToken=session?session.access_token:null;
-    ownerSb.auth.onAuthStateChange((_e,s)=>{ ownerToken=s?s.access_token:null; });
-    if(ownerToken) console.log('[owner-auth] session present');
-    else console.log('[owner-auth] no session — venue saves need /owner.html login');
-    return !!ownerToken;
-  }catch(e){ console.warn('[owner-auth]',e); return false; }
+    ownerMode=cfg.mode||(cfg.enabled?'supabase':'off');
+    if(ownerMode==='local'){
+      let s=null; try{ s=JSON.parse(localStorage.getItem(OWNER_LS)||'null'); }catch(e){}
+      if(s&&s.token){
+        const r=await fetch('/auth/me',{headers:{Authorization:'Bearer '+s.token}}).catch(()=>null);
+        if(r&&r.ok){ ownerToken=s.token; ownerEmail=s.email; }
+        else if(r) ownerStore(null);                     // token died server-side
+      }
+    } else if(ownerMode==='supabase'){
+      if(typeof supabase==='undefined'){ console.warn('[owner-auth] supabase lib blocked'); ownerMode='off'; return false; }
+      ownerSb=supabase.createClient(cfg.url,cfg.anonKey);
+      const {data:{session}}=await withDeadline(ownerSb.auth.getSession(),'Restoring session');
+      ownerToken=session?session.access_token:null;
+      ownerEmail=session&&session.user?session.user.email:null;
+      ownerSb.auth.onAuthStateChange((_e,s)=>{
+        ownerToken=s?s.access_token:null; ownerEmail=s&&s.user?s.user.email:null; renderAcct(); });
+    }
+    console.log('[owner-auth] mode',ownerMode,ownerToken?'— signed in as '+ownerEmail:'— signed out');
+  }catch(e){ console.warn('[owner-auth]',e); }
+  // The dashboard is the venue owner's tool, so signed-out visitors go to the
+  // sign-in page instead of a read-only view. Sign-in deliberately LANDS on
+  // the owner page (venues, claims, Live dashboard button) rather than
+  // bouncing straight back here. Front-door UX, not a security boundary —
+  // the state/socket APIs stay open, join.html stays anonymous, and
+  // AUTH_MODE=off keeps the dashboard open (there are no accounts then).
+  if(ownerAuthOn()&&!ownerToken){
+    location.replace('/owner.html');
+    return false;
+  }
+  renderAcct();
+  loadVenueList();          // the list is scoped by who's asking — refresh now that we know
+  return !!ownerToken;
 })();
+
+/* ---- account chip + modal ---- */
+function renderAcct(){
+  const b=$('#acctBtn');
+  // the stylesheet hides it by default, so showing needs an explicit value —
+  // display:'' only clears the inline style and the CSS rule wins again,
+  // which kept this button invisible for a whole evening
+  b.style.display=ownerAuthOn()?'inline-block':'none';
+  b.textContent=ownerToken?(ownerEmail||'Account'):'Sign in';
+  b.title=ownerToken?'Signed in as '+(ownerEmail||'?'):'Sign in to manage venues';
+  $('#railOwner').style.display=ownerAuthOn()?'block':'none';
+}
+let acctResolve=null, acctBusy=false;
+function setAcctMsg(t,k){ const el=$('#acctMsg'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }
+function renderAcctModal(){
+  const signed=!!ownerToken;
+  $('#acctForm').style.display=signed?'none':'flex';
+  $('#acctSigned').style.display=signed?'flex':'none';
+  $('#acctWho').textContent=ownerEmail||'';
+}
+function openAcct(why){
+  return new Promise(res=>{
+    acctResolve=res;
+    $('#acctWhy').textContent=why||'';
+    setAcctMsg('');
+    renderAcctModal();
+    $('#acctModal').classList.add('on');
+    if(!ownerToken) $('#acctEmail').focus();
+  });
+}
+function closeAcct(ok){
+  $('#acctModal').classList.remove('on');
+  const r=acctResolve; acctResolve=null;
+  if(r) r(!!ok);
+}
+async function acctAuth(kind){
+  if(acctBusy) return;
+  const email=$('#acctEmail').value.trim(), password=$('#acctPass').value;
+  if(!email){ setAcctMsg('Enter an email address.','err'); return; }
+  if(password.length<6){ setAcctMsg('Password must be at least 6 characters.','err'); return; }
+  acctBusy=true; $('#acctLogin').disabled=$('#acctSignup').disabled=true;
+  setAcctMsg(kind==='signup'?'Creating account…':'Signing in…');
+  try{
+    if(ownerMode==='local'){
+      const r=await fetch(kind==='signup'?'/auth/signup':'/auth/login',{method:'POST',
+        headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+      const b=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+      ownerToken=b.token; ownerEmail=b.email;
+      ownerStore({token:b.token,email:b.email,userId:b.userId});
+    }else{
+      const call=kind==='signup'?ownerSb.auth.signUp({email,password})
+                                :ownerSb.auth.signInWithPassword({email,password});
+      const {data,error}=await withDeadline(call,kind==='signup'?'Sign up':'Sign in');
+      if(error) throw new Error(error.message);
+      if(!data.session) throw new Error('Account created — confirm the email first, or turn off Confirm email in Supabase Auth settings.');
+      ownerToken=data.session.access_token;
+      ownerEmail=(data.user&&data.user.email)||email;
+    }
+    renderAcct(); renderAcctModal(); loadVenueList();
+    setAcctMsg(kind==='signup'?'Account created.':'Signed in.','ok');
+    setTimeout(()=>closeAcct(true),350);
+  }catch(e){
+    let m=e.message||'Failed';
+    if(/failed to fetch|networkerror|load failed/i.test(m)) m='Could not reach the server — is it running?';
+    setAcctMsg(m,'err');
+  }finally{
+    acctBusy=false; $('#acctLogin').disabled=$('#acctSignup').disabled=false;
+  }
+}
+$('#acctLogin').addEventListener('click',()=>acctAuth('login'));
+$('#acctSignup').addEventListener('click',()=>acctAuth('signup'));
+$('#acctPass').addEventListener('keydown',e=>{ if(e.key==='Enter') acctAuth('login'); });
+$('#acctOut').addEventListener('click',async()=>{
+  if(ownerMode==='local'){ fetch('/auth/logout',{method:'POST',headers:ownerHeaders()}).catch(()=>{}); ownerStore(null); }
+  else if(ownerSb){ try{ await withDeadline(ownerSb.auth.signOut(),'Sign out'); }catch(e){} }
+  ownerToken=null; ownerEmail=null;
+  // signed out of an owner-gated page → back to the sign-in page
+  location.replace('/owner.html');
+});
+$('#acctCancel').addEventListener('click',()=>closeAcct(false));
+$('#acctModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) closeAcct(false); });
+$('#acctBtn').addEventListener('click',()=>openAcct(''));
+
 async function requireOwnerSession(action){
   await ownerAuthReady;
   if(ownerToken) return true;
-  if(confirm((action||'Editing venues')+' needs a venue-owner login.\n\nOpen the owner page now?'))
-    location.href='/owner.html';
-  return false;
+  // Server auth off => the write routes are open; just proceed.
+  if(!ownerAuthOn()) return true;
+  return openAcct((action||'Editing venues')+' needs a venue-owner account. Sign up takes ten seconds.');
 }
 
 /* ==========================================================
@@ -494,6 +781,7 @@ let music={title:'—',artist:'',playing:false,position:0,duration:0};
 $('#loadBtn').addEventListener('click',()=>$('#file').click());
 $('#file').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f) return;
+  if(dj.on) djStop(true);                          // manual load takes the deck back
   deck.src=URL.createObjectURL(f);
   const nice=f.name.replace(/\.[^.]+$/,'').replace(/[_]+/g,' ').trim();
   const parts=nice.split(/\s+[-–]\s+/);
@@ -578,6 +866,7 @@ setInterval(()=>{
   $('#seekFill').style.width=(deck.currentTime/deck.duration*100)+'%';
   $('#tNow').textContent=fmt(deck.currentTime);
   $('#tEnd').textContent=fmt(deck.duration);
+  djTick(deck.currentTime,deck.duration);          // the mid-song moment capture
   pushMusic();
 },500);
 
@@ -839,26 +1128,390 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
   document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
   $('#sheet-people').classList.toggle('on',view==='people');
   $('#sheet-zones').classList.toggle('on',view==='zones');
+  $('#sheet-data').classList.toggle('on',view==='data');
+  $('#sheet-dj').classList.toggle('on',view==='dj');
   $('#sheet-venues').classList.toggle('on',view==='venues');
   ['#leftrail','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
   if(view==='map') fit();
   if(view==='people'&&state) renderPeople();
   if(view==='zones'&&state) renderZones();
+  if(view==='data') renderData();
+  if(view==='dj'){ renderDjLive(); renderDjDecision(); }
   if(view==='venues') vedFit();
 }));
 
+/* ================================================================ AUTO-DJ
+   The crowd chooses the next song. One tap starts it (browsers demand a
+   gesture before audio); from then on: play → capture THE MOMENT at the
+   song's midpoint (a real CrowdState built server-side from everyone's
+   sensors) → the collaborator's engine ranks the library → the pick queues →
+   plays when this song ends. Deterministic on purpose: a dead API can cost a
+   suggestion, never the playlist. */
+const dj={on:false,current:null,next:null,captured:false,recent:[],decision:null,live:null};
+
+function djStatus(t,k){ const el=$('#djStatus'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }
+
+async function djSelect(){
+  const r=await fetch('/api/dj/next',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({currentSongId:dj.current?dj.current.id:undefined,
+                         recentSongIds:dj.recent.slice(-8)})});
+  const b=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+  dj.decision=b;
+  renderDjDecision();
+  return b;
+}
+const djPlayable=b=>b.selected&&b.selected.audioUrl?b.selected:(b.candidates||[]).find(c=>c.audioUrl)||null;
+
+function djPlay(song){
+  dj.current=song; dj.captured=false; dj.next=null;
+  dj.recent.push(song.id); if(dj.recent.length>12) dj.recent.shift();
+  music.title=song.title; music.artist=song.artist; music.bpm=song.bpm; pushMusic();
+  $('#rTitle').textContent=song.title;
+  $('#rArtist').textContent=song.artist+' · '+song.bpm+' bpm · auto-DJ';
+  $('#djNowTitle').textContent=song.title;
+  $('#djNowSub').textContent=song.artist+' · '+song.bpm+' bpm · picked '+(dj.decision?dj.decision.selectionMethod:'deterministic');
+  deck.src=song.audioUrl;
+  $('#play').disabled=false;
+  deck.play().then(()=>djStatus('Auto-DJ on — the moment is captured at mid-song.','ok'))
+    .catch(e=>djStatus('The browser blocked autoplay — press play once: '+e.message,'err'));
+}
+
+async function djStart(){
+  djStatus('Reading the room…');
+  try{
+    const b=await djSelect();
+    const song=djPlayable(b);
+    if(!song){
+      djStatus(b.library&&b.library.example
+        ? 'No playable audio: the library is the fictional example set. Drop MP3s into songs/, run python preprocess_songs.py, restart.'
+        : 'No audio file matches any profiled song — file names in songs/ must contain the song title or id.','err');
+      return;
+    }
+    dj.on=true;
+    $('#djToggle').textContent='Stop Auto-DJ';
+    $('#djBtn').textContent='Auto-DJ ● on';
+    djPlay(song);
+  }catch(e){ djStatus(e.message,'err'); }
+}
+function djStop(silent){
+  dj.on=false;
+  $('#djToggle').textContent='Start Auto-DJ';
+  $('#djBtn').textContent='Auto-DJ';
+  if(!silent){ deck.pause(); djStatus('Auto-DJ off — deck is yours.',''); }
+}
+$('#djToggle').addEventListener('click',()=>dj.on?djStop():djStart());
+$('#djBtn').addEventListener('click',()=>{ if(!dj.on&&view!=='dj') document.querySelector('nav button[data-v="dj"]').click(); dj.on?djStop():djStart(); });
+
+// called every 500ms with the deck's position — split out so the capture
+// logic is testable without faking a media element
+function djTick(pos,dur){
+  if(dur){
+    $('#djMeterFill').style.width=(pos/dur*100)+'%';
+    $('#djMeterT').textContent=fmt(pos)+' / '+fmt(dur);
+  }
+  if(!dj.on||!dur||dj.captured||pos<dur/2) return;
+  dj.captured=true;
+  $('#djMidMark').style.background='var(--accent)';
+  $('#djMidLab').textContent='▲ moment captured ✓';
+  djSelect().then(b=>{
+    dj.next=djPlayable(b);
+    if(dj.next) djStatus('Next up: '+dj.next.title+' — plays when this one ends.','ok');
+  }).catch(e=>djStatus('Capture failed ('+e.message+') — will retry at song end.','err'));
+}
+function djOnEnded(){
+  if(!dj.on) return;
+  $('#djMidMark').style.background='var(--muted)';
+  $('#djMidLab').textContent='▲ the moment — captured mid-song';
+  if(dj.next){ djPlay(dj.next); return; }
+  djSelect().then(b=>{ const s=djPlayable(b); if(s) djPlay(s); else djStop(); })
+    .catch(e=>{ djStatus(e.message,'err'); djStop(); });
+}
+deck.addEventListener('ended',djOnEnded);
+
+/* ---- DJ tab rendering ---- */
+const DJ_CROWD_DIMS=[['energy','energy'],['rhythm','rhythm'],['clustering','cluster'],['volume','volume'],['mobility','mobility']];
+const DJ_SONG_DIMS=['energy','danceability','socialness','intensity','valence'];
+
+function renderDjDecision(){
+  const b=dj.decision;
+  if(b&&b.selected&&b.selected.id){
+    $('#djNextTitle').textContent=b.selected.title;
+    $('#djNextSub').textContent=b.selected.artist+' · '+b.selected.bpm+' bpm · score '
+      +b.selected.score.toFixed(3)+(b.selected.audioUrl?'':' · no audio file');
+    $('#djIntent').textContent='“'+b.target.intention+'”';
+    $('#djPolicy').textContent='policy: '+b.target.policyCase+' · mode: '+b.target.selectionMode
+      +(b.target.bpmTarget?' · bpm target '+Math.round(b.target.bpmTarget)+' ('+Math.round(b.target.bpmMin)+'–'+Math.round(b.target.bpmMax)+')':'');
+    $('#djLib').textContent='library: '+b.library.count+' songs, '+b.library.playable+' playable'
+      +(b.library.example?' · FICTIONAL EXAMPLE SET — add real songs + profiles':'');
+  }
+  drawDjMoment();
+  renderDjCands();
+}
+
+function drawDjMoment(){
+  const cvs=$('#djMoment'), dpr=devicePixelRatio||1;
+  const w=cvs.clientWidth||700, h=230;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  const a=accentNow(), a2=accent2Now();
+  const b=dj.decision;
+  const cs=b?b.crowdState:(dj.live?dj.live.crowdState:null);
+  if(!cs){ c.fillStyle='rgba(240,239,247,.4)'; c.font='11px "IBM Plex Mono",monospace';
+           c.fillText('waiting for crowd data…',10,20); return; }
+  const dim=!b;                                    // live preview until a capture exists
+  const half=w/2, baseY=h-34, barMax=h-78;
+  const bar=(x,bw,v,color)=>{ const bh=Math.max(2,v*barMax); c.fillStyle=color; c.fillRect(x,baseY-bh,bw,bh); };
+  const label=(x,t,y)=>{ c.fillStyle='rgba(240,239,247,.55)'; c.font='9px "IBM Plex Mono",monospace'; c.textAlign='center'; c.fillText(t,x,y); };
+
+  // left: the crowd, with trend arrows
+  c.textAlign='left'; c.fillStyle='rgba(240,239,247,.7)'; c.font='600 10px "IBM Plex Mono",monospace';
+  c.fillText(dim?'CROWD (live preview)':'CROWD AT THE MOMENT',8,16);
+  const lw=(half-40)/5;
+  DJ_CROWD_DIMS.forEach(([k,short],i)=>{
+    const x=14+i*lw, bw=lw*0.52, v=cs[k];
+    bar(x,bw,v,dim?rgba(a,.35):rgba(a,.85));
+    const tr=cs[k+'Trend'];
+    const arrow=tr>0.55?'▲':tr<0.40?'▼':'—';
+    c.fillStyle=tr>0.55?'#3ECF8E':tr<0.40?'#E85D5D':'rgba(240,239,247,.45)';
+    c.font='10px "IBM Plex Mono",monospace'; c.textAlign='center';
+    c.fillText(arrow,x+bw/2,baseY-Math.max(2,v*barMax)-8);
+    label(x+bw/2,short,baseY+12);
+    label(x+bw/2,v.toFixed(2),baseY+23);
+  });
+
+  // divider
+  c.strokeStyle='rgba(240,239,247,.12)'; c.beginPath(); c.moveTo(half,8); c.lineTo(half,h-8); c.stroke();
+
+  // right: target line vs the chosen song's bars
+  c.textAlign='left'; c.fillStyle='rgba(240,239,247,.7)'; c.font='600 10px "IBM Plex Mono",monospace';
+  c.fillText('TARGET (line) vs CHOSEN SONG (bar)',half+10,16);
+  const rw=(half-50)/5;
+  DJ_SONG_DIMS.forEach((k,i)=>{
+    const x=half+18+i*rw, bw=rw*0.52;
+    const sv=b&&b.selected?b.selected[k]:null;
+    const tv=b?b.target[k]:null;
+    if(sv!=null) bar(x,bw,sv,rgba(a2,.8));
+    if(tv!=null){
+      const ty=baseY-tv*barMax;
+      c.strokeStyle=rgb(a); c.lineWidth=2;
+      c.beginPath(); c.moveTo(x-4,ty); c.lineTo(x+bw+4,ty); c.stroke();
+    }
+    label(x+bw/2,k.slice(0,6),baseY+12);
+    if(sv!=null) label(x+bw/2,sv.toFixed(2),baseY+23);
+  });
+  if(!b){ c.fillStyle='rgba(240,239,247,.45)'; c.font='10px "IBM Plex Mono",monospace';
+          c.fillText('no capture yet — start Auto-DJ',half+10,34); }
+  c.textAlign='left';
+}
+
+function renderDjCands(){
+  const b=dj.decision;
+  if(!b){ $('#djCands').innerHTML='<div class="dim">No ranking yet — the first capture fills this in.</div>'; return; }
+  const max=Math.max(...b.candidates.map(c=>c.score),0.0001);
+  $('#djCands').innerHTML=b.candidates.map((c,i)=>{
+    const sel=c.id===b.selected.id;
+    return `<div title="${esc((c.reasons||[]).join(' · '))}" style="display:flex;align-items:center;gap:9px;padding:5px 0;${sel?'':'opacity:.75'}">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:16px">${i+1}</span>
+      <span style="font-size:12px;${sel?'font-weight:600':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:38%">${esc(c.title)} <span class="dim">· ${esc(c.artist)}</span></span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:52px">${c.bpm} bpm</span>
+      <span style="flex:1;height:7px;background:rgba(240,239,247,.08);border-radius:3px;position:relative">
+        <span style="position:absolute;left:0;top:0;bottom:0;width:${Math.round(c.score/max*100)}%;background:${sel?'var(--accent)':'rgba(240,239,247,.28)'};border-radius:3px"></span>
+      </span>
+      <span style="font-family:var(--mono);font-size:10.5px;width:46px;text-align:right;${sel?'color:var(--accent)':''}">${c.score.toFixed(3)}</span>
+    </div>`;
+  }).join('')
+  +`<div class="dim" style="margin-top:9px;font-size:11px">why the pick: ${esc((b.selected.reasons||[]).join(' · ')||'highest score')}</div>`;
+}
+
+async function renderDjLive(){
+  let b=null;
+  try{ b=await fetch('/api/dj/crowdstate').then(r=>r.json()); }catch(e){ return; }
+  dj.live=b;
+  const L=b.live;
+  const tiles=[
+    ['In venue',L.count],
+    ['Avg movement',L.avgEnergy.toFixed(2)],
+    ['Avg heart',L.avgHr?L.avgHr+' bpm':'—'],
+    ['Steps/min ea.',L.stepsPerMin],
+    ['Avg steps',L.avgSteps.toLocaleString()],
+    ['Located',L.located],
+    ['Sync',L.sync.toFixed(2)],
+    ['Arousal',L.arousal.toFixed(2)],
+    ['Room volume',b.crowdState.volume.toFixed(2)]
+  ];
+  $('#djTiles').innerHTML=tiles.map(([l,v])=>
+    `<div style="border:1px solid var(--rule);border-radius:7px;padding:9px 11px">
+      <span class="lab" style="font-size:8.5px">${l}</span>
+      <b style="display:block;font-family:var(--mono);font-size:16px;font-weight:500;margin-top:4px">${v}</b>
+    </div>`).join('');
+  // sparkline of the five dims the DJ actually decides on
+  const cvs=$('#djSpark'), dpr=devicePixelRatio||1;
+  const w=cvs.clientWidth||400, h=110;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  const a=accentNow(), a2=accent2Now();
+  const series=[['energy',rgb(a)],['rhythm',rgb(a2)],['volume','#F0A93B'],['mobility','#3ECF8E'],['clustering','rgba(240,239,247,.45)']];
+  const hist=b.history||[];
+  if(hist.length>1){
+    series.forEach(([k,color])=>{
+      c.beginPath();
+      hist.forEach((p,i)=>{ const x=i/(hist.length-1)*w, y=h-3-p[k]*(h-8); i?c.lineTo(x,y):c.moveTo(x,y); });
+      c.strokeStyle=color; c.lineWidth=1.3; c.stroke();
+    });
+  }
+  $('#djSparkLegend').innerHTML=series.map(([k,color])=>`<span style="color:${color}">━ ${k}</span>`).join(' &nbsp;')
+    +` &nbsp;<span class="dim">· volume from ${esc(b.sources.volumeFrom)}</span>`;
+  if(!dj.decision) drawDjMoment();                 // live preview until first capture
+}
+setInterval(()=>{ if(view==='dj') renderDjLive(); },2000);
+
+/* ============================================================== DATA TAB
+   Browses the sensor-snapshot store. session_id is the phone's anonymous
+   pulse id, which is also its live person id — so a session maps back to a
+   name only while that person is checked in, and the stored rows themselves
+   stay anonymous. */
+let snapSel=null;
+const fmtBytes=b=>b>1e6?(b/1e6).toFixed(1)+' MB':Math.round((b||0)/1024)+' KB';
+async function renderData(){
+  let sum=null;
+  try{ sum=await fetch('/api/data/summary').then(r=>r.json()); }catch(e){}
+  if(!sum||!sum.available){
+    $('#dataTiles').innerHTML='';
+    $('#snapRows').innerHTML='';
+    $('#dataEmpty').textContent='Snapshot store is unavailable on this server — check the server log for [data].';
+    return;
+  }
+  const tiles=[['Snapshots',(sum.snapshots||0).toLocaleString()],
+    ['Readings',(sum.readings||0).toLocaleString()],
+    ['Phones seen',sum.sessions||0],
+    ['Newest',sum.newest?new Date(sum.newest).toLocaleTimeString():'—'],
+    ['Database',fmtBytes(sum.bytes)]];
+  $('#dataTiles').innerHTML=tiles.map(([l,v])=>
+    `<div class="panel" style="position:static;padding:12px 14px"><span class="lab">${l}</span>
+     <b style="display:block;font-family:var(--mono);font-size:19px;font-weight:500;margin-top:6px">${v}</b></div>`).join('');
+
+  let list=null;
+  try{ list=await fetch('/api/snapshots?limit=120').then(r=>r.json()); }catch(e){ return; }
+  const snaps=list.snapshots||[];
+  $('#dataEmpty').textContent=snaps.length?''
+    :'No snapshots yet. Phones start uploading automatically once someone checks in and enables movement — first one lands within seconds.';
+  const nameOf=sid=>{ const p=state&&state.people.find(p=>p.id===sid); return p?p.name:''; };
+  $('#snapRows').innerHTML=snaps.map(s=>{
+    const t=new Date(s.captured_at);
+    const nm=nameOf(s.session_id);
+    return `<tr data-id="${esc(s.snapshot_id)}" style="cursor:pointer${s.snapshot_id===snapSel?';background:rgba(240,239,247,.05)':''}">
+      <td class="n">${isNaN(t)?esc(String(s.captured_at).slice(0,19)):t.toLocaleTimeString()}</td>
+      <td>${nm?esc(nm):'<span class="dim">—</span>'}</td>
+      <td class="n" style="font-size:11px">${esc(s.session_id)}</td>
+      <td class="n" style="font-size:11px">${s.lat!=null?s.lat.toFixed(5)+', '+s.lng.toFixed(5):'<span class="dim">—</span>'}</td>
+      <td class="n">${s.gps_accuracy!=null?'±'+Math.round(s.gps_accuracy)+'m':'<span class="dim">—</span>'}</td>
+      <td class="n">${s.reading_count}</td></tr>`;
+  }).join('');
+  $('#snapRows').querySelectorAll('tr').forEach(r=>
+    r.addEventListener('click',()=>openSnap(r.dataset.id)));
+}
+
+async function openSnap(id){
+  snapSel=id;
+  let d=null;
+  try{ d=await fetch('/api/snapshots/'+encodeURIComponent(id)).then(r=>r.json()); }catch(e){}
+  if(!d||!d.snapshot) return;
+  const s=d.snapshot, rs=d.readings||[];
+  $('#snapMeta').innerHTML=
+    `<b style="color:var(--ink);font-family:var(--mono);font-size:11px">${esc(s.session_id)}</b><br>`+
+    `${esc(String(s.captured_at).replace('T',' ').slice(0,19))} · ${rs.length} readings over ${(s.duration_ms/1000).toFixed(1)}s<br>`+
+    (s.lat!=null?`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · ±${Math.round(s.gps_accuracy||0)}m`:'no GPS fix in this capture');
+  $('#snapChart').style.display='block';
+  $('#snapLegend').style.display='block';
+  drawSnapChart($('#snapChart'),rs);
+  renderData();                        // move the row highlight
+}
+
+function drawSnapChart(cvs,rs){
+  const dpr=devicePixelRatio||1, w=cvs.clientWidth||300, h=180;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  if(!rs.length){ $('#snapLegend').textContent='This snapshot has no readings.'; return; }
+  const a=accentNow(), a2=accent2Now();
+  const mags=rs.map(r=>Math.hypot(r.accel_x,r.accel_y,r.accel_z));
+  const auds=rs.map(r=>r.audio_level);
+  const maxT=Math.max(rs[rs.length-1].offset_ms,1);
+  c.strokeStyle='rgba(240,239,247,.12)'; c.lineWidth=1;
+  c.strokeRect(.5,.5,w-1,h-1);
+  const line=(vals,color,maxV)=>{
+    c.beginPath();
+    vals.forEach((v,i)=>{
+      const x=rs[i].offset_ms/maxT*(w-8)+4;
+      const y=h-8-(v/maxV)*(h-24);
+      i?c.lineTo(x,y):c.moveTo(x,y);
+    });
+    c.strokeStyle=color; c.lineWidth=1.4; c.stroke();
+  };
+  line(mags,rgb(a),Math.max(...mags,12));
+  line(auds,rgb(a2),Math.max(...auds,0.05));
+  $('#snapLegend').innerHTML=
+    `<span style="color:${rgb(a)}">━</span> accel magnitude, peak ${Math.max(...mags).toFixed(1)} m/s² &nbsp;&nbsp;`+
+    `<span style="color:${rgb(a2)}">━</span> audio level, peak ${Math.max(...auds).toFixed(3)}`;
+}
+// keep the tab live while it's open
+setInterval(()=>{ if(view==='data') renderData(); },10000);
+
 /* ========================================================= VENUE SWITCHER */
 async function loadVenueList(){
-  try{ venueIndex=await fetch('/venues').then(r=>r.json()); }catch(e){ return; }
+  // the token scopes the list: your venues + the live one + unclaimed seeds
+  try{ venueIndex=await fetch('/venues',{headers:ownerHeaders()}).then(r=>r.json()); }catch(e){ return; }
   $('#venueList').innerHTML=venueIndex.venues.map(v=>{
     const sel=(previewId||venueIndex.active)===v.id;
-    return `<div class="vrow${sel?' sel':''}" data-id="${v.id}">
+    return `<div class="vrow${sel?' sel':''}" data-id="${v.id}" ${v.unclaimed?'title="Unclaimed — the first account to save it owns it"':''}>
       <span class="vn">${esc(v.name)}</span>
-      ${v.id===venueIndex.active?'<span class="live">LIVE</span>':`<span class="vz">${v.zones}z</span>`}
+      ${v.id===venueIndex.active?'<span class="live">LIVE</span>'
+        :`<span class="vz">${v.unclaimed?'open':v.zones+'z'}</span>`}
     </div>`;
   }).join('');
   $('#venueList').querySelectorAll('.vrow').forEach(r=>
     r.addEventListener('click',()=>previewVenue(r.dataset.id)));
+
+  // A LIVE venue you don't own still appears — it's the running event, shown
+  // to everyone. Without this line, it reads as "someone else's venue leaked
+  // into my list".
+  const liveRow=venueIndex.venues.find(v=>v.id===venueIndex.active);
+  $('#liveNote').style.display =
+    (ownerAuthOn()&&ownerToken&&liveRow&&!liveRow.mine) ? 'block' : 'none';
+  applyOwnerScope();
+
+  // An uncalibrated venue silently rejects every GPS fix and pins everyone to
+  // their check-in zone. That looks identical to "nobody is moving", so say it
+  // out loud rather than leaving it to be discovered in the room.
+  const live=venueIndex.venues.find(v=>v.id===venueIndex.active);
+  const warn=$('#gpsWarn');
+  if(live&&!live.calibrated){
+    warn.style.display='block';
+    warn.innerHTML='⚠ GPS is off — this venue has no location yet, so phones stay in their check-in zone. Venues tab → "Where is it?" → type the address.';
+  } else warn.style.display='none';
+}
+
+/* ---- restricted mode ----
+   An account that owns no venues gets no live dashboard: someone else's (or
+   the seed) event is none of its business. Only the Venues tab exists, opened
+   on a blank editor — build or claim a venue and the rest unlocks. Recomputed
+   on every list refresh, so the first successful save lifts it immediately. */
+let scopeRestricted=null;
+function applyOwnerScope(){
+  const mine=(venueIndex.venues||[]).filter(v=>v.mine).length;
+  const restricted=ownerAuthOn()&&!!ownerToken&&mine===0;
+  // one class carries the whole restriction (tabs + header) — a single
+  // source of truth that can't end up half-applied
+  document.body.classList.toggle('noVenues',restricted);
+  if(restricted&&view!=='venues')
+    document.querySelector('nav button[data-v="venues"]').click();
+  if(restricted){
+    // a loaded venue that isn't theirs never belongs in a restricted editor —
+    // swap to a blank one. An unsaved draft (edId null) is never touched.
+    if(!ed||(edId&&!(venueIndex.venues||[]).some(v=>v.id===edId&&v.mine))) vedNew();
+  }
+  scopeRestricted=restricted;
 }
 
 async function previewVenue(id){
@@ -890,6 +1543,41 @@ $('#newVenueBtn').addEventListener('click',async()=>{
 });
 loadVenueList();
 
+/* ---- check-in QR ----
+   The QR itself is generated by the server per venue, so a freshly saved venue
+   has a code the moment it exists. The two ways a QR silently fails — encoding
+   localhost, or plain http — are told to your face here, same as /qr does. */
+async function showQr(id){
+  if(!id){ return; }
+  const v=venueIndex.venues.find(x=>x.id===id);
+  $('#qrVenueName').textContent=v?v.name:id;
+  $('#qrNote').textContent = id===venueIndex.active
+    ? 'This venue is LIVE — scans join it right now.'
+    : 'Scans always join the LIVE venue. Make this one active before the event.';
+  $('#qrImg').src='/qr/venue/'+encodeURIComponent(id)+'.svg?t='+Date.now();
+  $('#qrPoster').href='/qr?v='+encodeURIComponent(id);
+  // The server knows the address phones can actually reach (PUBLIC_URL — set
+  // automatically by npm run dev's tunnel). location.origin only knows how
+  // this browser got here, which is often localhost even when a tunnel is up.
+  let info=null;
+  try{ info=await fetch('/public-url').then(r=>r.json()); }catch(e){}
+  const origin=info?info.origin:location.origin;
+  $('#qrUrl').textContent=origin+'/join.html?v='+encodeURIComponent(id);
+  $('#qrWarn').textContent = info ? (info.problem||'')
+    : /^(localhost|127\.|\[::1\]|::1)/.test(location.hostname)
+      ? 'You are on localhost — phones scanning this get nothing. Run npm run dev to start the tunnel.'
+      : '';
+  $('#qrModal').classList.add('on');
+}
+$('#qrBtn').addEventListener('click',()=>showQr(previewId||venueIndex.active));
+$('#qrClose').addEventListener('click',()=>$('#qrModal').classList.remove('on'));
+$('#qrModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) $('#qrModal').classList.remove('on'); });
+addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if($('#qrModal').classList.contains('on')) $('#qrModal').classList.remove('on');
+  else if($('#acctModal').classList.contains('on')) closeAcct(false);
+});
+
 // Deep-link from /owner.html — ?edit=new or ?edit=<venueId>
 (async()=>{
   const edit=new URLSearchParams(location.search).get('edit');
@@ -918,12 +1606,21 @@ function vedNew(){
   ed={name:'',subtitle:'',aspect:1.6,outline:RECT.map(p=>p.slice()),zones:[],showPlan:true,
       geo:{calibrated:false,origin:{lat:0,lon:0},spanX:100,spanY:62.5,bearing:0}};
   edId=null; edPlan=null; edSel=-1; edPins=[null,null];
+  $('#edQr').style.display='none';
   syncFormFromEd(); vedFit();
 }
 
 async function vedLoad(id){
   const v=await fetch('/venues/'+id).then(r=>r.json());
+  // The default loader races the restricted-mode blanking: its fetch can
+  // resolve AFTER vedNew() ran and overwrite the blank editor with the live
+  // venue. In restricted mode a non-mine venue never loads.
+  if(scopeRestricted===true&&!(venueIndex.venues||[]).some(x=>x.id===id&&x.mine)){
+    if(!ed) vedNew();
+    return;
+  }
   ed=JSON.parse(JSON.stringify(v)); edId=id; edSel=-1; edPins=[null,null];
+  $('#edQr').style.display='';
   edPlan=null;
   const img=new Image();
   img.onload=()=>{ edPlan=img; vedDraw(); };
@@ -1245,14 +1942,26 @@ async function runDetect(){
   $('#detAgain').disabled=true;
   try{
     const r=await fetch('/detect',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({image:shrinkForAI(edPlan,1152)})});
+      body:JSON.stringify({image:shrinkForAI(edPlan,1152),aspect:ed.aspect})});
     const b=await r.json();
     if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
     if(b.name&&!$('#edName').value){ $('#edName').value=b.name; ed.name=b.name; }
+
+    // Size and rotation can be read off the drawing; absolute position can't,
+    // unless an address was printed on it. Report that in section 2 rather
+    // than with the zone count — it's the answer to "where is it", and burying
+    // it under the floor plan meant nobody saw it.
+    if(b.geo&&b.geo.usable) ed.geo={...b.geo};
     applyDetection(b.zones,b.outline,`read by ${esc(b.model)}`);
+    pinsFromGeo(); renderPins(); showGeoStatus(b.geo);
   }catch(e){
-    // never leave the user stuck: fall back to the local reader and say why
-    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(e.message)}</span> — fell back to the local reader.`);
+    // never leave the user stuck: fall back to the local reader and say why.
+    // "Failed to fetch" is the browser's name for "the server never answered" —
+    // usually a restart mid-request (node --watch does this on every file save).
+    const msg=/failed to fetch|networkerror|load failed/i.test(e.message)
+      ? 'could not reach the server — it may have just restarted; press "Find zones again"'
+      : e.message;
+    runLocal(`<span style="color:var(--warn)">AI failed: ${esc(msg)}</span> — fell back to the local reader.`);
   }finally{ $('#detAgain').disabled=false; }
 }
 
@@ -1585,9 +2294,146 @@ function capturePin(i,btn){
            btn.textContent='Capture GPS here'; btn.disabled=false; },
   {enableHighAccuracy:true,maximumAge:0,timeout:20000});
 }
+// Project the estimated anchor back out to the two pins, so they show real
+// coordinates to correct instead of empty boxes. Deliberately does NOT call
+// solveGeo — that would stamp calibrated:true on the model's guess. The flag
+// flips only when you edit a pin yourself.
+// What the drawing gave us, and what it therefore still needs. Size and
+// rotation come off a scale bar and a north arrow; position only comes off a
+// printed address. Saying which is which is the difference between "nothing
+// happened" and "it did its half".
+function showGeoStatus(g){
+  const el=$('#geoStatus');
+  if(!g||!g.usable){
+    el.innerHTML='Nothing on the plan located it. Type the address above — one location is enough.';
+    return;
+  }
+  const bits=[`<span class="vok">Read from the plan:</span> ${esc(g.from.join('; '))}.`];
+  if(g.origin&&g.origin.lat){
+    bits.push(`Pins are pre-filled — <b>check them</b>. An address locates the site to within tens of metres, which is wider than a zone.`
+              +geoCheckLink(g));
+  } else if(g.spanX){
+    // one coordinate is enough once size and rotation are known
+    bits.push(`Size is known, so <b>one corner is enough</b> — fill in either pin and it will solve.`);
+  }
+  el.innerHTML=bits.join('<br>');
+}
+
+// Project the estimated anchor back out to the two pins, so they show real
+// coordinates to correct instead of empty boxes. Deliberately does NOT call
+// solveGeo — that would stamp calibrated:true on the model's guess. The flag
+// flips only when you edit a pin yourself.
+function pinsFromGeo(){
+  const g=ed.geo;
+  if(!g||!g.origin||!g.origin.lat) return;
+  const b=g.bearing*Math.PI/180;
+  edPins.forEach(p=>{
+    if(!p) return;
+    const px=p.x*g.spanX, py=p.y*g.spanY;
+    p.lat=+(g.origin.lat+(px*Math.cos(b)-py*Math.sin(b))/M_DEG).toFixed(7);
+    p.lon=+(g.origin.lon+(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(g.origin.lat)))).toFixed(7);
+    p.acc=null;
+  });
+}
+
+// Two coordinates determine everything. But if the model already read the
+// scale bar, size and rotation are known and ONE coordinate is enough to pin
+// the rest down — which halves the manual work on any plan carrying a scale.
+function solveFromOnePin(){
+  const p=edPins.find(p=>p&&p.lat!=null);
+  const g=ed.geo;
+  if(!p||!g||!g.estimated||!(g.spanX>0)) return false;
+  const b=g.bearing*Math.PI/180;
+  const px=p.x*g.spanX, py=p.y*g.spanY;
+  ed.geo={calibrated:true,
+    origin:{lat:+(p.lat-(px*Math.cos(b)-py*Math.sin(b))/M_DEG).toFixed(7),
+            lon:+(p.lon-(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(p.lat)))).toFixed(7)},
+    spanX:g.spanX,spanY:g.spanY,bearing:g.bearing};
+  $('#calProb').innerHTML=`<span class="vok">Placed from one corner</span> using the size and rotation read off the plan `
+    +`(${g.spanX} × ${g.spanY} m, bearing ${g.bearing}°). Fill in the other pin to solve it from scratch instead.`
+    +geoCheckLink(ed.geo);
+  return true;
+}
+
+// The only honest way to check a calibration without walking the site: project
+// the centre of the map back to a real coordinate and look at it on a map. If
+// the pin lands on the building, the anchor is right. If it lands in a river,
+// the pins were swapped or the bearing is wrong.
+function geoCheckLink(g){
+  if(!g||!g.origin||!g.origin.lat) return '';
+  const b=g.bearing*Math.PI/180, px=0.5*g.spanX, py=0.5*g.spanY;
+  const lat=g.origin.lat+(px*Math.cos(b)-py*Math.sin(b))/M_DEG;
+  const lon=g.origin.lon+(px*Math.sin(b)+py*Math.cos(b))/(M_DEG*Math.cos(rd(g.origin.lat)));
+  return `<br><a href="https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lon.toFixed(6)}"
+     target="_blank" rel="noopener" style="color:var(--accent2)">Check it on Google Maps →</a>
+     <span style="color:var(--muted)">the pin should land on your venue</span>`;
+}
+
+/* ---- one-location placement ----
+   The user asked for "just centred at one location". One point can't give
+   scale or rotation, so those come from whatever is already known (a scale
+   bar the AI read, a previous calibration) or a 120 m default. Good enough to
+   put dots on the right block; the outline rejection keeps a wrong guess
+   fail-safe, because off-site fixes are dropped rather than scattered. */
+function setCenterGeo(lat,lon,label){
+  const g=ed.geo||{};
+  const spanX=(g.spanX>10&&g.spanX<4000)?+(+g.spanX).toFixed(1):120;
+  const bearing=(typeof g.bearing==='number'&&isFinite(g.bearing))?g.bearing:0;
+  const spanY=+(spanX/ed.aspect).toFixed(1);
+  const b=rd(bearing), hx=0.5*spanX, hy=0.5*spanY;
+  ed.geo={calibrated:true,centered:true,
+    origin:{lat:+(lat-(hx*Math.cos(b)-hy*Math.sin(b))/M_DEG).toFixed(7),
+            lon:+(lon-(hx*Math.sin(b)+hy*Math.cos(b))/(M_DEG*Math.cos(rd(lat)))).toFixed(7)},
+    spanX,spanY,bearing};
+  pinsFromGeo(); renderPins();
+  $('#calProb').innerHTML=`<span class="vok">Centred on ${esc(label||lat.toFixed(5)+', '+lon.toFixed(5))}</span>`
+    +` — assuming the site is ${spanX} m wide. Save the venue to apply.`
+    +geoCheckLink(ed.geo);
+  vedDraw();
+}
+// Stricter than the pin parser: the whole string must be two numbers, so a
+// street address like "28 Bathurst St Unit 5" never reads as lat 28, lon 5.
+function parseLLStrict(s){
+  const m=String(s).trim().match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+  if(!m) return null;
+  const lat=+m[1],lon=+m[2];
+  return (Math.abs(lat)<=90&&Math.abs(lon)<=180)?{lat,lon}:null;
+}
+$('#geoCenterGo').addEventListener('click',async()=>{
+  const q=$('#geoCenter').value.trim();
+  if(!q){ $('#calProb').textContent='Type an address or paste coordinates first.'; return; }
+  const at=q.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);          // a pasted maps URL
+  const ll=at?{lat:+at[1],lon:+at[2]}:parseLLStrict(q);
+  if(ll){ setCenterGeo(ll.lat,ll.lon); return; }
+  $('#calProb').textContent='Looking up "'+q.slice(0,48)+'"…';
+  $('#geoCenterGo').disabled=true;
+  try{
+    const r=await fetch('/geocode?q='+encodeURIComponent(q));
+    const b=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+    setCenterGeo(b.lat,b.lon,b.display||q);
+  }catch(e){
+    $('#calProb').textContent=/failed to fetch/i.test(e.message)
+      ? 'Could not reach the server for the lookup — paste coordinates instead.' : e.message;
+  }finally{ $('#geoCenterGo').disabled=false; }
+});
+$('#geoCenterHere').addEventListener('click',()=>{
+  if(!navigator.geolocation){ $('#calProb').textContent='No location support in this browser.'; return; }
+  $('#calProb').textContent='Getting your position…';
+  navigator.geolocation.getCurrentPosition(
+    p=>setCenterGeo(+p.coords.latitude.toFixed(7),+p.coords.longitude.toFixed(7),
+                    'your position (±'+Math.round(p.coords.accuracy)+' m)'),
+    err=>{ $('#calProb').textContent=err.code===1?'Location permission denied.'
+      :'No fix. On a laptop indoors this often fails — type the address instead.'; },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0});
+});
+
 function solveGeo(){
   const [A,B]=edPins;
-  if(!A||!B||A.lat==null||B.lat==null){ $('#calProb').textContent=''; return; }
+  if(!A||!B||A.lat==null||B.lat==null){
+    if(solveFromOnePin()) return;
+    $('#calProb').textContent=''; return;
+  }
   const dE=(B.lon-A.lon)*M_DEG*Math.cos(rd(A.lat)), dN=(B.lat-A.lat)*M_DEG;
   const u=B.x-A.x, v=(B.y-A.y)/ed.aspect;
   const R=Math.hypot(u,v), D=Math.hypot(dE,dN);
@@ -1601,21 +2447,34 @@ function solveGeo(){
   ed.geo={calibrated:true,origin:{lat:+lat0.toFixed(7),lon:+lon0.toFixed(7)},
           spanX:+spanX.toFixed(1),spanY:+(spanX/ed.aspect).toFixed(1),bearing:+bearing.toFixed(2)};
   $('#calProb').innerHTML=`<span class="vok">Solved: ${ed.geo.spanX} × ${ed.geo.spanY} m, bearing ${ed.geo.bearing}°</span>`
-    +((spanX<15||spanX>2000)?'<br>That site size looks wrong — check the pins.':'');
+    +((spanX<15||spanX>2000)?'<br>That site size looks wrong — check the pins.':'')
+    +geoCheckLink(ed.geo);
 }
 
 /* ---- save ---- */
-async function edSaveVenue(activate){
+async function edSaveVenue(activate,retried){
   if(!(await requireOwnerSession('Saving a venue'))) return;
   ed.name=$('#edName').value.trim(); ed.subtitle=$('#edSub').value.trim();
   if(!ed.name){ $('#edProb').textContent='Give the venue a name first.'; return; }
   $('#edProb').textContent='';
-  const r=await fetch('/venues',{method:'POST',headers:ownerHeaders({'content-type':'application/json'}),
-                                 body:JSON.stringify(ed)});
-  const body=await r.json();
+  let r;
+  try{
+    r=await fetch('/venues',{method:'POST',headers:ownerHeaders({'content-type':'application/json'}),
+                             body:JSON.stringify(ed)});
+  }catch(e){ $('#edProb').textContent='Could not reach the server — is it running?'; return; }
+  const body=await r.json().catch(()=>({}));
   if(!r.ok){
-    if(r.status===401||r.status===403) $('#edProb').textContent=body.error||'Not allowed — log in at /owner.html';
-    else $('#edProb').textContent=(body.problems||[body.error]).join('\n');
+    // an expired session shouldn't cost the work in the editor: sign in again
+    // right here and retry the same save once
+    if(r.status===401&&!retried){
+      ownerToken=null; ownerEmail=null; ownerStore(null); renderAcct();
+      if(await requireOwnerSession('Your session expired. Saving this venue'))
+        return edSaveVenue(activate,true);
+      $('#edProb').textContent='Not saved — sign in and press Save again.';
+      return;
+    }
+    if(r.status===401||r.status===403) $('#edProb').textContent=body.error||'Not allowed — this venue belongs to another account.';
+    else $('#edProb').textContent=(body.problems||[body.error||('HTTP '+r.status)]).join('\n');
     return;
   }
   edId=body.id;
@@ -1625,11 +2484,13 @@ async function edSaveVenue(activate){
     if(!pr.ok){ const pb=await pr.json().catch(()=>({})); $('#edProb').textContent=pb.error||'Plan upload failed'; return; }
   }
   $('#edProb').innerHTML='<span class="vok">Saved as '+esc(edId)+'</span>';
+  $('#edQr').style.display='';
   if(activate){ await fetch('/venues/'+edId+'/activate',{method:'POST'}); previewId=null; $('#previewBar').classList.remove('on'); }
   loadVenueList();
 }
 $('#edSave').addEventListener('click',()=>edSaveVenue(false));
 $('#edSaveGo').addEventListener('click',()=>edSaveVenue(true));
+$('#edQr').addEventListener('click',()=>showQr(edId));
 
 /* ---- crowd settings ---- */
 $('#cwLiv').addEventListener('input',()=>$('#cwLivV').textContent=(+$('#cwLiv').value).toFixed(2));
