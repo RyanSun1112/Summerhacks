@@ -186,6 +186,9 @@
     box-shadow:0 18px 50px rgba(0,0,0,.55);padding:22px 22px 18px;backdrop-filter:blur(18px)}
   .msgline{font-family:var(--mono);font-size:11px;min-height:1.2em;margin-top:9px;line-height:1.4}
   .msgline.err{color:var(--warn)} .msgline.ok{color:var(--ok)}
+  /* an account that owns no venues gets the Venues tab and nothing else */
+  body.noVenues nav button:not([data-v="venues"]){display:none}
+  body.noVenues #venueName,body.noVenues .hc{display:none}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -1144,6 +1147,7 @@ async function loadVenueList(){
   const liveRow=venueIndex.venues.find(v=>v.id===venueIndex.active);
   $('#liveNote').style.display =
     (ownerAuthOn()&&ownerToken&&liveRow&&!liveRow.mine) ? 'block' : 'none';
+  applyOwnerScope();
 
   // An uncalibrated venue silently rejects every GPS fix and pins everyone to
   // their check-in zone. That looks identical to "nobody is moving", so say it
@@ -1154,6 +1158,28 @@ async function loadVenueList(){
     warn.style.display='block';
     warn.innerHTML='⚠ GPS is off — this venue has no location yet, so phones stay in their check-in zone. Venues tab → "Where is it?" → type the address.';
   } else warn.style.display='none';
+}
+
+/* ---- restricted mode ----
+   An account that owns no venues gets no live dashboard: someone else's (or
+   the seed) event is none of its business. Only the Venues tab exists, opened
+   on a blank editor — build or claim a venue and the rest unlocks. Recomputed
+   on every list refresh, so the first successful save lifts it immediately. */
+let scopeRestricted=null;
+function applyOwnerScope(){
+  const mine=(venueIndex.venues||[]).filter(v=>v.mine).length;
+  const restricted=ownerAuthOn()&&!!ownerToken&&mine===0;
+  // one class carries the whole restriction (tabs + header) — a single
+  // source of truth that can't end up half-applied
+  document.body.classList.toggle('noVenues',restricted);
+  if(restricted&&view!=='venues')
+    document.querySelector('nav button[data-v="venues"]').click();
+  if(restricted){
+    // a loaded venue that isn't theirs never belongs in a restricted editor —
+    // swap to a blank one. An unsaved draft (edId null) is never touched.
+    if(!ed||(edId&&!(venueIndex.venues||[]).some(v=>v.id===edId&&v.mine))) vedNew();
+  }
+  scopeRestricted=restricted;
 }
 
 async function previewVenue(id){
@@ -1254,6 +1280,13 @@ function vedNew(){
 
 async function vedLoad(id){
   const v=await fetch('/venues/'+id).then(r=>r.json());
+  // The default loader races the restricted-mode blanking: its fetch can
+  // resolve AFTER vedNew() ran and overwrite the blank editor with the live
+  // venue. In restricted mode a non-mine venue never loads.
+  if(scopeRestricted===true&&!(venueIndex.venues||[]).some(x=>x.id===id&&x.mine)){
+    if(!ed) vedNew();
+    return;
+  }
   ed=JSON.parse(JSON.stringify(v)); edId=id; edSel=-1; edPins=[null,null];
   $('#edQr').style.display='';
   edPlan=null;
