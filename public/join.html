@@ -209,11 +209,15 @@
           <div class="rt" id="rTitle">Nothing playing</div>
           <div class="ra" id="rArtist">Waiting for the host</div>
         </div>
+        <button id="phonePlay" type="button" title="Play the DJ's music on this phone, synced to the room"
+          style="flex:none;min-height:40px;padding:8px 13px;border-radius:8px;cursor:pointer;background:none;border:1px solid var(--rule);color:var(--muted);font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">🔊 Play here</button>
         <span class="rstate" id="rState">IDLE</span>
       </div>
+      <div class="hint hidden" id="phonePlayNote" style="margin:6px 0 0;text-align:left"></div>
     </div>
   </div>
 </section>
+<audio id="phoneDeck" preload="auto"></audio>
 
 </div>
 <script src="/socket.io/socket.io.js"></script>
@@ -306,9 +310,55 @@ socket.on('music:frame',f=>{
   if(f.beat>0.9) beatFlash=1;
 });
 socket.on('music:state',m=>{
+  lastMusic=m;
   $('#rTitle').textContent=m.title||'Nothing playing';
   $('#rArtist').textContent=m.artist||'Waiting for the host';
   $('#rState').textContent=m.playing?'ON AIR':'PAUSED';
+  if(phoneAudio) syncPhoneAudio(m);
+});
+
+/* ---------------- the DJ's music, on this phone ----------------
+   Opt-in per phone (browsers demand the tap anyway): streams the same
+   server-hosted file the host deck is playing and chases the host's
+   position — the state broadcast carries it every 500ms, and anything more
+   than ~1.2s adrift snaps back. Only auto-DJ songs can play here; a track
+   the host loaded from their own disk never leaves their machine. */
+const pdeck=$('#phoneDeck');
+let phoneAudio=false, lastMusic=null;
+const phoneNote=t=>{ const el=$('#phonePlayNote'); el.textContent=t||''; el.classList.toggle('hidden',!t); };
+function syncPhoneAudio(m){
+  if(!m||!m.src){
+    pdeck.pause();
+    phoneNote(m&&m.playing?'The host is playing a local file — that audio only exists in the room.':'');
+    return;
+  }
+  phoneNote('');
+  if(pdeck.getAttribute('data-src')!==m.src){
+    pdeck.setAttribute('data-src',m.src);
+    pdeck.src=m.src;
+  }
+  if(m.playing){
+    if(pdeck.paused) pdeck.play().catch(()=>{});
+    // chase the host: small lead compensates the broadcast lag
+    if(m.duration&&Math.abs(pdeck.currentTime-m.position)>1.2)
+      pdeck.currentTime=Math.min(Math.max(0,m.position+0.25),Math.max(0,m.duration-0.5));
+  } else if(!pdeck.paused) pdeck.pause();
+}
+$('#phonePlay').addEventListener('click',()=>{
+  phoneAudio=!phoneAudio;
+  const b=$('#phonePlay');
+  if(phoneAudio){
+    b.textContent='🔇 Mute';
+    b.style.color='var(--ink)'; b.style.borderColor='var(--accent)';
+    pdeck.volume=0.9;
+    // inside the tap, so autoplay is allowed from here on
+    if(lastMusic) syncPhoneAudio(lastMusic); else pdeck.play().catch(()=>{});
+  }else{
+    b.textContent='🔊 Play here';
+    b.style.color=''; b.style.borderColor='';
+    pdeck.pause();
+    phoneNote('');
+  }
 });
 
 /* ---------------- check in ---------------- */

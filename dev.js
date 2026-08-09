@@ -54,7 +54,18 @@ function startServer(publicUrl) {
   const env = { ...process.env };
   if (publicUrl) env.PUBLIC_URL = publicUrl;
   srv = spawn(process.execPath, ['--watch', 'server.js'], { cwd: __dirname, env, stdio: 'inherit' });
-  srv.on('exit', code => { if (tun) try { tun.kill(); } catch {} process.exit(code == null ? 0 : code); });
+  srv.on('exit', code => {
+    if (restarting) { restarting = false; return; } // deliberate — a new server is coming
+    if (tun) try { tun.kill(); } catch {}
+    process.exit(code == null ? 0 : code);
+  });
+}
+// The server's PUBLIC_URL is baked in at spawn, so a changed tunnel URL means
+// a server restart — the only way QR codes stay truthful.
+let restarting = false;
+function restartServer(publicUrl) {
+  if (srv) { restarting = true; try { srv.kill(); } catch {} }
+  setTimeout(() => startServer(publicUrl), 1200);   // let the port free up
 }
 function shutdown() {
   if (tun) try { tun.kill(); } catch {}
@@ -81,44 +92,103 @@ process.on('SIGTERM', shutdown);
     return startServer();
   }
 
-  console.log('[dev] starting cloudflared quick tunnel…');
-  tun = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`]);
-  let buf = '', started = false;
-  // keep the tail of cloudflared's own output, so a failure names its cause
-  // (rate-limited, DNS blocked, no network) instead of just "no URL"
+  // Quick tunnels are not stable: cloudflared can lose its edge connection
+  // and re-register under a NEW random hostname — the process lives on while
+  // the old name goes NXDOMAIN and every open tab and printed QR dies. So:
+  // watch for new URLs forever, restart the server on a change (PUBLIC_URL
+  // is baked in at spawn), and respawn the tunnel if it exits.
+  let started = false, currentUrl = null, tunRespawns = 0;
   const tail = [];
   const keepTail = d => String(d).split(/\r?\n/).forEach(l => {
     if (l.trim()) { tail.push(l.trim().slice(0, 160)); if (tail.length > 6) tail.shift(); }
   });
+  const explain = () => { if (tail.length) { console.log('[dev] cloudflared said:'); tail.forEach(l => console.log('        ' + l)); } };
+  const banner = url => {
+    console.log(`\n[dev] tunnel up:  ${url}`);
+    console.log(`[dev] dashboard:  ${url}/dashboard.html`);
+    console.log(`[dev] QR poster:  ${url}/qr`);
+    console.log('[dev] (the URL is random — it changes on restart AND on tunnel reconnect; reprint posters after)\n');
+  };
   const begin = url => {
     if (started) return;
     started = true;
-    if (url) {
-      console.log(`\n[dev] tunnel up:  ${url}`);
-      console.log(`[dev] dashboard:  ${url}/dashboard.html`);
-      console.log(`[dev] QR poster:  ${url}/qr`);
-      console.log('[dev] (the URL is random and changes when dev.js restarts — reprint posters after)\n');
-    }
+    currentUrl = url;
+    if (url) banner(url);
     startServer(url);
   };
-  const onData = d => {
-    buf += d; keepTail(d);
-    const m = buf.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-    if (m) begin(m[0]);
-  };
-  tun.stdout.on('data', onData);
-  tun.stderr.on('data', onData);
-  const explain = () => { if (tail.length) { console.log('[dev] cloudflared said:'); tail.forEach(l => console.log('        ' + l)); } };
-  tun.on('exit', code => {
-    if (!started) {
-      console.log(`[dev] tunnel died before giving a URL (exit ${code}) — starting without it.`);
-      explain();
-      begin(null);
-    } else if (srv) {
-      console.log('[dev] tunnel exited — QR codes now point at a dead host. Restart dev.js.');
-      explain();
+
+  function startTunnel() {
+    console.log('[dev] starting cloudflared quick tunnel…');
+    // --protocol http2 is load-bearing: cloudflared defaults to QUIC (UDP),
+    // and networks that blackhole UDP produce tunnels that REGISTER but never
+    // serve — hostname resolves, page shows Cloudflare 1033/530, everything
+    // local looks healthy. One full day was lost to this. TCP always works.
+    tun = spawn(bin, ['tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', `http://localhost:${PORT}`]);
+    let buf = '';
+    const onData = d => {
+      buf = (buf + d).slice(-4096); keepTail(d);
+      const m = buf.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/g);
+      if (!m) return;
+      const url = m[m.length - 1];
+      if (!started) return begin(url);
+      if (url !== currentUrl) {
+        currentUrl = url;
+        console.log('\n[dev] ⚠ TUNNEL URL CHANGED — cloudflared reconnected and was issued a new hostname.');
+        console.log('[dev] Old tabs and printed QR codes are DEAD. The new address:');
+        banner(url);
+        console.log('[dev] restarting the server so QR codes encode the new URL…');
+        restartServer(url);
+      }
+    };
+    tun.stdout.on('data', onData);
+    tun.stderr.on('data', onData);
+    tun.on('exit', code => {
+      if (!started) {
+        console.log(`[dev] tunnel died before giving a URL (exit ${code}) — starting without it.`);
+        explain();
+        begin(null);
+        return;
+      }
+      if (!srv) return;
+      if (tunRespawns++ < 8) {
+        console.log(`[dev] tunnel exited (code ${code}) — starting a fresh one…`);
+        explain();
+        setTimeout(startTunnel, 2500);
+      } else {
+        console.log('[dev] the tunnel keeps dying — giving up on it. QR codes are stale until dev.js restarts.');
+        explain();
+      }
+    });
+  }
+  startTunnel();
+
+  // Zombie watch. A connector can lose the edge and retry forever without
+  // exiting or minting a new URL — pages serve 1033/530 while everything
+  // local looks healthy. So probe our own public URL from here: sustained
+  // failure kills the tunnel process, which flows into the normal respawn
+  // path and a fresh hostname. Patience rules matter — a new tunnel can take
+  // a couple of minutes to become reachable, and a flapping edge must not
+  // cause endless hostname churn.
+  let wdUrl = null, wdFails = 0, wdHealthy = false;
+  setInterval(async () => {
+    if (!currentUrl || !tun) return;
+    if (wdUrl !== currentUrl) { wdUrl = currentUrl; wdFails = 0; wdHealthy = false; }
+    let ok = false;
+    try { ok = (await fetch(currentUrl + '/api/health', { signal: AbortSignal.timeout(15000) })).ok; } catch {}
+    if (ok) {
+      if (!wdHealthy) console.log('[dev] tunnel confirmed reachable from the public internet ✓');
+      wdHealthy = true; wdFails = 0; tunRespawns = 0;
+      return;
     }
-  });
+    wdFails++;
+    const limit = wdHealthy ? 4 : 7;               // ~3 min once healthy, ~5 min from cold
+    if (wdFails >= limit) {
+      console.log(`[dev] ⚠ tunnel unreachable from the internet (${wdFails} consecutive checks${wdHealthy ? '' : ' since start'}) — recycling it for a fresh hostname…`);
+      try { tun.kill(); } catch {}
+      wdFails = 0; wdHealthy = false;
+    }
+  }, 45000);
+
   // no URL after 25s (offline, blocked, rate-limited) → run anyway
   setTimeout(() => {
     if (!started) {

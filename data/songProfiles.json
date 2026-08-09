@@ -49,7 +49,8 @@
         "zeroCrossingRateMean": 0.086655,
         "dynamicRange": 0.102928
       }
-    }
+    },
+    "audioFile": "4T Thieves - Dimension X (remix).mp3"
   },
   {
     "id": "local-1ee0a289813d",
@@ -99,7 +100,8 @@
         "zeroCrossingRateMean": 0.14207,
         "dynamicRange": 0.37549
       }
-    }
+    },
+    "audioFile": "4T Thieves - Distant Reality.mp3"
   },
   {
     "id": "local-fc51a7d2fb61",
@@ -149,7 +151,8 @@
         "zeroCrossingRateMean": 0.051438,
         "dynamicRange": 0.265959
       }
-    }
+    },
+    "audioFile": "4t Thieves - Inside Out.mp3"
   },
   {
     "id": "local-38d53af40c60",
@@ -201,7 +204,8 @@
         "zeroCrossingRateMean": 0.102288,
         "dynamicRange": 0.140867
       }
-    }
+    },
+    "audioFile": "4T Thieves - mists of time ambient.mp3"
   },
   {
     "id": "local-c512eb496ccf",
@@ -253,7 +257,8 @@
         "zeroCrossingRateMean": 0.081187,
         "dynamicRange": 0.284076
       }
-    }
+    },
+    "audioFile": "4T Thieves - mists of time.mp3"
   },
   {
     "id": "local-92cbd2d73ccf",
@@ -303,7 +308,8 @@
         "zeroCrossingRateMean": 0.051694,
         "dynamicRange": 0.19754
       }
-    }
+    },
+    "audioFile": "4T Thieves - The Abyss.mp3"
   },
   {
     "id": "local-39e11d0b3493",
@@ -355,7 +361,8 @@
         "zeroCrossingRateMean": 0.089297,
         "dynamicRange": 0.095908
       }
-    }
+    },
+    "audioFile": "4T Thieves - The Beginning.mp3"
   },
   {
     "id": "local-4dfde075e803",
@@ -407,7 +414,8 @@
         "zeroCrossingRateMean": 0.086047,
         "dynamicRange": 0.330899
       }
-    }
+    },
+    "audioFile": "Aaron goldbody vs. Luke the wizard - lazy crates.mp3"
   },
   {
     "id": "local-64c942339d13",
@@ -458,107 +466,8 @@
         "zeroCrossingRateMean": 0.072302,
         "dynamicRange": 0.321239
       }
-    }
-  },
-  {
-    "id": "local-f9160dde1a2f",
-    "title": "tmp",
-    "artist": "aaron jasinski",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 103.359,
-    "energy": 0.775757,
-    "danceability": 0.576923,
-    "valence": 0.454545,
-    "socialness": 0.428571,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.561749,
-      "onsetStrengthMean": 0.530063,
-      "onsetRate": 0.716008,
-      "spectralBrightness": 0.950716,
-      "dynamicRange": 0.599981
     },
-    "raw": {
-      "llm": {
-        "songId": "local-f9160dde1a2f",
-        "energy": 70,
-        "danceability": 55,
-        "valence": 45,
-        "socialness": 50,
-        "intensity": 60,
-        "description": "Mid-tempo (≈103 BPM) but loud and bright (rmsMean 0.189, spectralCentroid high) with active onsets and wide bandwidth. Forceful and attention-grabbing — strong energy and intensity, moderately danceable but less background-friendly."
-      },
-      "audio": {
-        "bpm": 103.359375,
-        "durationSeconds": 222.376054,
-        "beatCount": 383,
-        "rmsMean": 0.189044,
-        "rmsMedian": 0.183895,
-        "rmsP95": 0.400559,
-        "rmsMax": 0.510866,
-        "onsetStrengthMean": 1.835685,
-        "onsetStrengthMedian": 0.792777,
-        "onsetStrengthP95": 7.182905,
-        "onsetRate": 5.441233,
-        "spectralCentroidMean": 3572.951083,
-        "spectralBandwidthMean": 3090.658171,
-        "spectralRolloffMean": 6864.437549,
-        "zeroCrossingRateMean": 0.182526,
-        "dynamicRange": 0.341922
-      }
-    }
-  },
-  {
-    "id": "local-40f9ec9e16ff",
-    "title": "tmp",
-    "artist": "aaron jasinski",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.253782,
-    "danceability": 0.448718,
-    "valence": 0.545455,
-    "socialness": 0.714286,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.064521,
-      "onsetStrengthMean": 0.29729,
-      "onsetRate": 0.325596,
-      "spectralBrightness": 0.203338,
-      "dynamicRange": 0.072933
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-40f9ec9e16ff",
-        "energy": 40,
-        "danceability": 45,
-        "valence": 50,
-        "socialness": 70,
-        "intensity": 30,
-        "description": "Moderate tempo (≈117 BPM) but low loudness (rmsMean 0.053), low onset rate/strength — subdued, relaxed track. Works well as background music; not very commanding or aggressively rhythmic."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 276.069297,
-        "beatCount": 542,
-        "rmsMean": 0.053534,
-        "rmsMedian": 0.041558,
-        "rmsP95": 0.114162,
-        "rmsMax": 0.144003,
-        "onsetStrengthMean": 1.147221,
-        "onsetStrengthMedian": 0.595566,
-        "onsetStrengthP95": 4.581823,
-        "onsetRate": 2.571818,
-        "spectralCentroidMean": 990.622543,
-        "spectralBandwidthMean": 1726.961017,
-        "spectralRolloffMean": 1642.86387,
-        "zeroCrossingRateMean": 0.028651,
-        "dynamicRange": 0.104266
-      }
-    }
+    "audioFile": "Aaron goldbody vs. Luke the wizard - white sparkling lady.mp3"
   },
   {
     "id": "local-17ac63bb3649",
@@ -608,7 +517,8 @@
         "zeroCrossingRateMean": 0.077637,
         "dynamicRange": 0.376353
       }
-    }
+    },
+    "audioFile": "Aereal - direct medic.mp3"
   },
   {
     "id": "local-4fcda022d199",
@@ -658,7 +568,8 @@
         "zeroCrossingRateMean": 0.096785,
         "dynamicRange": 0.198281
       }
-    }
+    },
+    "audioFile": "Aereal - move moment.mp3"
   },
   {
     "id": "local-1959fbc5c721",
@@ -708,7 +619,8 @@
         "zeroCrossingRateMean": 0.038175,
         "dynamicRange": 0.159568
       }
-    }
+    },
+    "audioFile": "Aleksi Eeben - Ground Expansion.mp3"
   },
   {
     "id": "local-d33704e9932b",
@@ -758,7 +670,8 @@
         "zeroCrossingRateMean": 0.109239,
         "dynamicRange": 0.102487
       }
-    }
+    },
+    "audioFile": "Aleksi Eeben - Invitation.mp3"
   },
   {
     "id": "local-31a2342acb4b",
@@ -808,7 +721,8 @@
         "zeroCrossingRateMean": 0.049243,
         "dynamicRange": 0.244923
       }
-    }
+    },
+    "audioFile": "Aleksi Eeben - Medium Tale.mp3"
   },
   {
     "id": "local-db87416320b5",
@@ -858,7 +772,8 @@
         "zeroCrossingRateMean": 0.037457,
         "dynamicRange": 0.217733
       }
-    }
+    },
+    "audioFile": "Aleksi Eeben - Minor Tale.mp3"
   },
   {
     "id": "local-3e2dbc1e7f2a",
@@ -908,7 +823,8 @@
         "zeroCrossingRateMean": 0.073461,
         "dynamicRange": 0.315171
       }
-    }
+    },
+    "audioFile": "Aleksi Eeben - Three Times the Music Part 1- Clockwork.mp3"
   },
   {
     "id": "local-2ed8360639fa",
@@ -958,207 +874,8 @@
         "zeroCrossingRateMean": 0.081562,
         "dynamicRange": 0.198605
       }
-    }
-  },
-  {
-    "id": "local-0e0f78df0531",
-    "title": "tmp",
-    "artist": "alpha conspiracy",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.87562,
-    "danceability": 0.897436,
-    "valence": 0.909091,
-    "socialness": 0.142857,
-    "intensity": 0.882353,
-    "normalizedAudio": {
-      "rmsMean": 0.641754,
-      "onsetStrengthMean": 0.317556,
-      "onsetRate": 0.471514,
-      "spectralBrightness": 0.848319,
-      "dynamicRange": 0.333035
     },
-    "raw": {
-      "llm": {
-        "songId": "local-0e0f78df0531",
-        "energy": 85,
-        "danceability": 80,
-        "valence": 70,
-        "socialness": 30,
-        "intensity": 85,
-        "description": "Fast (~136 BPM), high RMS and very bright/hard spectral content (high centroid/rolloff and ZCR) — loud, aggressive and highly attention-grabbing; excellent for peak dance moments, poor for quiet social settings."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 214.034286,
-        "beatCount": 471,
-        "rmsMean": 0.210847,
-        "rmsMedian": 0.224967,
-        "rmsP95": 0.327584,
-        "rmsMax": 0.394638,
-        "onsetStrengthMean": 1.207161,
-        "onsetStrengthMedian": 0.84191,
-        "onsetStrengthP95": 3.318106,
-        "onsetRate": 3.644276,
-        "spectralCentroidMean": 3219.150495,
-        "spectralBandwidthMean": 2691.26157,
-        "spectralRolloffMean": 6496.966604,
-        "zeroCrossingRateMean": 0.191721,
-        "dynamicRange": 0.221551
-      }
-    }
-  },
-  {
-    "id": "local-d6e88493cd11",
-    "title": "tmp",
-    "artist": "alpha conspiracy",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.909397,
-    "danceability": 0.833333,
-    "valence": 0.363636,
-    "socialness": 0.257143,
-    "intensity": 0.764706,
-    "normalizedAudio": {
-      "rmsMean": 0.531988,
-      "onsetStrengthMean": 0.620214,
-      "onsetRate": 0.825929,
-      "spectralBrightness": 0.859094,
-      "dynamicRange": 0.415652
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-d6e88493cd11",
-        "energy": 82,
-        "danceability": 75,
-        "valence": 40,
-        "socialness": 38,
-        "intensity": 75,
-        "description": "Fast (~136 BPM), strong transient/onset activity and relatively high RMS and spectral centroid — driving, high-energy electronic track with a clear beat and pulsing momentum. Danceable groove but somewhat intense and attention-demanding; emotionally more neutral-to-dark than bright."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 286.280272,
-        "beatCount": 640,
-        "rmsMean": 0.180933,
-        "rmsMedian": 0.179659,
-        "rmsP95": 0.328942,
-        "rmsMax": 0.42231,
-        "onsetStrengthMean": 2.102324,
-        "onsetStrengthMedian": 0.842085,
-        "onsetStrengthP95": 8.328698,
-        "onsetRate": 6.249121,
-        "spectralCentroidMean": 3256.382439,
-        "spectralBandwidthMean": 2941.694311,
-        "spectralRolloffMean": 6877.44661,
-        "zeroCrossingRateMean": 0.159442,
-        "dynamicRange": 0.258804
-      }
-    }
-  },
-  {
-    "id": "local-a951080968b0",
-    "title": "polaris",
-    "artist": "audio cephlon",
-    "album": "flotilla",
-    "year": null,
-    "genres": [],
-    "bpm": 89.103,
-    "energy": 0.475525,
-    "danceability": 0.615385,
-    "valence": 0.545455,
-    "socialness": 0.742857,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.422394,
-      "onsetStrengthMean": 0.286679,
-      "onsetRate": 0.263951,
-      "spectralBrightness": 0.559223,
-      "dynamicRange": 0.650882
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-a951080968b0",
-        "energy": 54,
-        "danceability": 58,
-        "valence": 50,
-        "socialness": 72,
-        "intensity": 45,
-        "description": "Slower (~89 BPM), moderate RMS and lower onset rate — relaxed electronic/ambient leaning. Pleasant, middle-of-the-road valence with steady pulse that supports background socializing; moderately danceable but not commanding."
-      },
-      "audio": {
-        "bpm": 89.102909,
-        "durationSeconds": 286.019048,
-        "beatCount": 363,
-        "rmsMean": 0.151065,
-        "rmsMedian": 0.125407,
-        "rmsP95": 0.382183,
-        "rmsMax": 0.690281,
-        "onsetStrengthMean": 1.115836,
-        "onsetStrengthMedian": 0.83543,
-        "onsetStrengthP95": 2.89292,
-        "onsetRate": 2.11874,
-        "spectralCentroidMean": 2220.27103,
-        "spectralBandwidthMean": 2409.64726,
-        "spectralRolloffMean": 4769.454155,
-        "zeroCrossingRateMean": 0.102823,
-        "dynamicRange": 0.364874
-      }
-    }
-  },
-  {
-    "id": "local-72acfaedb9b5",
-    "title": "wrapped in nori",
-    "artist": "audio cephlon",
-    "album": "flotilla",
-    "year": null,
-    "genres": [],
-    "bpm": 99.384,
-    "energy": 0.594606,
-    "danceability": 0.717949,
-    "valence": 0.509091,
-    "socialness": 0.571429,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.369739,
-      "onsetStrengthMean": 0.419778,
-      "onsetRate": 0.376044,
-      "spectralBrightness": 0.685964,
-      "dynamicRange": 0.832044
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-72acfaedb9b5",
-        "energy": 63,
-        "danceability": 66,
-        "valence": 48,
-        "socialness": 60,
-        "intensity": 55,
-        "description": "Midtempo (~99 BPM) with noticeable onsets and mid spectral brightness — groovy electronic track with a clear rhythmic drive. Suitable for light dancing and social settings; slightly more energetic and texturally active than purely background music."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 260.314558,
-        "beatCount": 344,
-        "rmsMean": 0.136715,
-        "rmsMedian": 0.084808,
-        "rmsP95": 0.456193,
-        "rmsMax": 0.581646,
-        "onsetStrengthMean": 1.509499,
-        "onsetStrengthMedian": 0.786464,
-        "onsetStrengthP95": 5.742862,
-        "onsetRate": 2.942594,
-        "spectralCentroidMean": 2658.183395,
-        "spectralBandwidthMean": 2551.874563,
-        "spectralRolloffMean": 5303.846316,
-        "zeroCrossingRateMean": 0.153597,
-        "dynamicRange": 0.446564
-      }
-    }
+    "audioFile": "Aleksi Eeben - Three Times the Music Part 2- Ocean.mp3"
   },
   {
     "id": "local-b9c8dd5709bf",
@@ -1210,7 +927,8 @@
         "zeroCrossingRateMean": 0.08406,
         "dynamicRange": 0.245163
       }
-    }
+    },
+    "audioFile": "Bad loop - Don't ever let go.mp3"
   },
   {
     "id": "local-7b6b14ef807e",
@@ -1262,7 +980,8 @@
         "zeroCrossingRateMean": 0.038737,
         "dynamicRange": 0.220829
       }
-    }
+    },
+    "audioFile": "Bad loop - favourite things.mp3"
   },
   {
     "id": "local-986205ae3e44",
@@ -1314,7 +1033,8 @@
         "zeroCrossingRateMean": 0.086122,
         "dynamicRange": 0.222728
       }
-    }
+    },
+    "audioFile": "Bad loop - lumme.mp3"
   },
   {
     "id": "local-989400a219f4",
@@ -1366,7 +1086,8 @@
         "zeroCrossingRateMean": 0.066839,
         "dynamicRange": 0.161397
       }
-    }
+    },
+    "audioFile": "Bad loop - Your blue eyes.mp3"
   },
   {
     "id": "local-9fc67bb30c7f",
@@ -1418,7 +1139,8 @@
         "zeroCrossingRateMean": 0.085028,
         "dynamicRange": 0.286247
       }
-    }
+    },
+    "audioFile": "Beak - Baileyi.mp3"
   },
   {
     "id": "local-aa2f51db593f",
@@ -1470,7 +1192,8 @@
         "zeroCrossingRateMean": 0.142704,
         "dynamicRange": 0.287147
       }
-    }
+    },
+    "audioFile": "Beak - Context Clues.mp3"
   },
   {
     "id": "local-e08b2e5467d8",
@@ -1522,7 +1245,8 @@
         "zeroCrossingRateMean": 0.142784,
         "dynamicRange": 0.227639
       }
-    }
+    },
+    "audioFile": "Beak - how a hot air balloon works.mp3"
   },
   {
     "id": "local-737bdcad1214",
@@ -1574,7 +1298,8 @@
         "zeroCrossingRateMean": 0.125694,
         "dynamicRange": 0.379999
       }
-    }
+    },
+    "audioFile": "Beak - i saw two of me.mp3"
   },
   {
     "id": "local-e18e83cc5cfb",
@@ -1626,7 +1351,8 @@
         "zeroCrossingRateMean": 0.110804,
         "dynamicRange": 0.270978
       }
-    }
+    },
+    "audioFile": "Beak - Teach Texas Manners.mp3"
   },
   {
     "id": "local-85119986c1c3",
@@ -1678,7 +1404,8 @@
         "zeroCrossingRateMean": 0.027176,
         "dynamicRange": 0.306044
       }
-    }
+    },
+    "audioFile": "Beak - The Maker.mp3"
   },
   {
     "id": "local-4393dbf3d14b",
@@ -1730,7 +1457,8 @@
         "zeroCrossingRateMean": 0.109637,
         "dynamicRange": 0.282519
       }
-    }
+    },
+    "audioFile": "Blamstrain - goodbye p10.mp3"
   },
   {
     "id": "local-af77aff4622e",
@@ -1782,7 +1510,8 @@
         "zeroCrossingRateMean": 0.09475,
         "dynamicRange": 0.129536
       }
-    }
+    },
+    "audioFile": "Blamstrain - hello a16.mp3"
   },
   {
     "id": "local-2735e9221488",
@@ -1831,7 +1560,8 @@
         "zeroCrossingRateMean": 0.127217,
         "dynamicRange": 0.318589
       }
-    }
+    },
+    "audioFile": "Blamstrain - linja (final-).mp3"
   },
   {
     "id": "local-145f11b515a2",
@@ -1881,7 +1611,8 @@
         "zeroCrossingRateMean": 0.031383,
         "dynamicRange": 0.162226
       }
-    }
+    },
+    "audioFile": "Bliss - Things Will Eventually Make Sense.mp3"
   },
   {
     "id": "local-82f6c7464ab2",
@@ -1931,107 +1662,8 @@
         "zeroCrossingRateMean": 0.04798,
         "dynamicRange": 0.213951
       }
-    }
-  },
-  {
-    "id": "local-c6a394e7295f",
-    "title": "tmp",
-    "artist": "cheju",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 99.384,
-    "energy": 0.459176,
-    "danceability": 0.641026,
-    "valence": 0.545455,
-    "socialness": 0.642857,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0.3436,
-      "onsetStrengthMean": 0.416582,
-      "onsetRate": 0.480189,
-      "spectralBrightness": 0.47109,
-      "dynamicRange": 0.365165
     },
-    "raw": {
-      "llm": {
-        "songId": "local-c6a394e7295f",
-        "energy": 50,
-        "danceability": 60,
-        "valence": 50,
-        "socialness": 65,
-        "intensity": 50,
-        "description": "Midtempo (~99 BPM) with reasonable onset strength and mid spectral centroid — balanced downtempo electronic feel. Has a steady groove that can invite movement without being overly demanding; neutral valence and moderate intensity."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 299.620136,
-        "beatCount": 398,
-        "rmsMean": 0.129591,
-        "rmsMedian": 0.121455,
-        "rmsP95": 0.269522,
-        "rmsMax": 0.331169,
-        "onsetStrengthMean": 1.500048,
-        "onsetStrengthMedian": 0.840939,
-        "onsetStrengthP95": 5.502607,
-        "onsetRate": 3.708028,
-        "spectralCentroidMean": 1915.754419,
-        "spectralBandwidthMean": 2349.089405,
-        "spectralRolloffMean": 4197.551189,
-        "zeroCrossingRateMean": 0.070996,
-        "dynamicRange": 0.236039
-      }
-    }
-  },
-  {
-    "id": "local-2b57bc99ae64",
-    "title": "tmp",
-    "artist": "cheju",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 112.347,
-    "energy": 0.193675,
-    "danceability": 0.384615,
-    "valence": 0.454545,
-    "socialness": 0.785714,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.110982,
-      "onsetStrengthMean": 0.348423,
-      "onsetRate": 0.327528,
-      "spectralBrightness": 0.576532,
-      "dynamicRange": 0.1797
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-2b57bc99ae64",
-        "energy": 30,
-        "danceability": 40,
-        "valence": 45,
-        "socialness": 75,
-        "intensity": 25,
-        "description": "Moderate tempo (~112 BPM) but very low RMS mean and low dynamic range — intimate, quiet production. Minimal, subtle rhythmic cues make it unobtrusive and well-suited to social/background contexts; low forcefulness."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 290.021587,
-        "beatCount": 348,
-        "rmsMean": 0.066196,
-        "rmsMedian": 0.0507,
-        "rmsP95": 0.175777,
-        "rmsMax": 0.261337,
-        "onsetStrengthMean": 1.298456,
-        "onsetStrengthMedian": 0.757377,
-        "onsetStrengthP95": 4.816559,
-        "onsetRate": 2.586014,
-        "spectralCentroidMean": 2280.076949,
-        "spectralBandwidthMean": 2358.714905,
-        "spectralRolloffMean": 4831.084709,
-        "zeroCrossingRateMean": 0.099264,
-        "dynamicRange": 0.152409
-      }
-    }
+    "audioFile": "Bliss - You Have Something In Your Scowl.mp3"
   },
   {
     "id": "local-401b059c52eb",
@@ -2081,7 +1713,8 @@
         "zeroCrossingRateMean": 0.065002,
         "dynamicRange": 0.109513
       }
-    }
+    },
+    "audioFile": "Chromatic Flights - Found Glow.mp3"
   },
   {
     "id": "local-55e5fd49f32e",
@@ -2131,7 +1764,8 @@
         "zeroCrossingRateMean": 0.058639,
         "dynamicRange": 0.175578
       }
-    }
+    },
+    "audioFile": "Chromatic Flights - Moon Heated.mp3"
   },
   {
     "id": "local-bae38ad8ab8f",
@@ -2183,7 +1817,8 @@
         "zeroCrossingRateMean": 0.055063,
         "dynamicRange": 0.092702
       }
-    }
+    },
+    "audioFile": "Chromatic Flights - Trip to Wipilon.mp3"
   },
   {
     "id": "local-6ac6af94cd50",
@@ -2235,7 +1870,8 @@
         "zeroCrossingRateMean": 0.059053,
         "dynamicRange": 0.522298
       }
-    }
+    },
+    "audioFile": "Chromatic Flights - What Came To Life When The Toy Store Closed.mp3"
   },
   {
     "id": "local-e2967d85f63b",
@@ -2287,7 +1923,8 @@
         "zeroCrossingRateMean": 0.034529,
         "dynamicRange": 0.242344
       }
-    }
+    },
+    "audioFile": "Ckid - down with ghosts.mp3"
   },
   {
     "id": "local-0ddd5371717a",
@@ -2339,7 +1976,8 @@
         "zeroCrossingRateMean": 0.03754,
         "dynamicRange": 0.155083
       }
-    }
+    },
+    "audioFile": "Ckid - from a to z.mp3"
   },
   {
     "id": "local-3601c551a72c",
@@ -2391,7 +2029,8 @@
         "zeroCrossingRateMean": 0.112169,
         "dynamicRange": 0.3734
       }
-    }
+    },
+    "audioFile": "Coax - 1984.mp3"
   },
   {
     "id": "local-e3805d5bad73",
@@ -2443,7 +2082,8 @@
         "zeroCrossingRateMean": 0.074659,
         "dynamicRange": 0.416687
       }
-    }
+    },
+    "audioFile": "Coax - Balloon Funk 1.mp3"
   },
   {
     "id": "local-26c67c2d0eb0",
@@ -2495,7 +2135,8 @@
         "zeroCrossingRateMean": 0.096953,
         "dynamicRange": 0.215033
       }
-    }
+    },
+    "audioFile": "Coax - Byzantum.mp3"
   },
   {
     "id": "local-16bfbf4f8778",
@@ -2547,7 +2188,8 @@
         "zeroCrossingRateMean": 0.082543,
         "dynamicRange": 0.42804
       }
-    }
+    },
+    "audioFile": "Coax - Gion.mp3"
   },
   {
     "id": "local-20c8ec4e5b2a",
@@ -2599,7 +2241,8 @@
         "zeroCrossingRateMean": 0.180498,
         "dynamicRange": 0.19694
       }
-    }
+    },
+    "audioFile": "Corporal Sluts - Die elektronische Liebe.mp3"
   },
   {
     "id": "local-b4870965d399",
@@ -2651,7 +2294,8 @@
         "zeroCrossingRateMean": 0.04283,
         "dynamicRange": 0.118563
       }
-    }
+    },
+    "audioFile": "Crud featuring E. Grundstrom - here is where wisdom comes in.mp3"
   },
   {
     "id": "local-15427a7d9aeb",
@@ -2701,7 +2345,8 @@
         "zeroCrossingRateMean": 0.127856,
         "dynamicRange": 0.201983
       }
-    }
+    },
+    "audioFile": "Dead Eros - when we are home.mp3"
   },
   {
     "id": "local-5ec33469dacc",
@@ -2751,7 +2396,8 @@
         "zeroCrossingRateMean": 0.129512,
         "dynamicRange": 0.429199
       }
-    }
+    },
+    "audioFile": "Dead Eros - when we are scared.mp3"
   },
   {
     "id": "local-8a0488c8127c",
@@ -2803,7 +2449,8 @@
         "zeroCrossingRateMean": 0.101575,
         "dynamicRange": 0.312649
       }
-    }
+    },
+    "audioFile": "DiE - 2d life.mp3"
   },
   {
     "id": "local-06e554150d37",
@@ -2855,207 +2502,8 @@
         "zeroCrossingRateMean": 0.115276,
         "dynamicRange": 0.320712
       }
-    }
-  },
-  {
-    "id": "local-9af6674411c8",
-    "title": "ghostmachine",
-    "artist": "dorothy's magic bag",
-    "album": "ghostmachine and other machines",
-    "year": null,
-    "genres": [],
-    "bpm": 112.347,
-    "energy": 0.539775,
-    "danceability": 0.448718,
-    "valence": 0.363636,
-    "socialness": 0.428571,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0.282904,
-      "onsetStrengthMean": 0.62341,
-      "onsetRate": 0.608426,
-      "spectralBrightness": 0.463937,
-      "dynamicRange": 0.422959
     },
-    "raw": {
-      "llm": {
-        "songId": "local-9af6674411c8",
-        "energy": 55,
-        "danceability": 45,
-        "valence": 40,
-        "socialness": 50,
-        "intensity": 50,
-        "description": "Moderate tempo (~112 BPM), moderate loudness (rmsMean 0.113) and varied transients (onsetStrengthMean 2.11) — somewhat quirky/medium-energy electronic, attention-moderate."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 164.7122,
-        "beatCount": 312,
-        "rmsMean": 0.11305,
-        "rmsMedian": 0.094323,
-        "rmsP95": 0.290803,
-        "rmsMax": 0.368872,
-        "onsetStrengthMean": 2.111776,
-        "onsetStrengthMedian": 0.52162,
-        "onsetStrengthP95": 10.64983,
-        "onsetRate": 4.650536,
-        "spectralCentroidMean": 1891.040218,
-        "spectralBandwidthMean": 1792.148282,
-        "spectralRolloffMean": 3689.541641,
-        "zeroCrossingRateMean": 0.092701,
-        "dynamicRange": 0.262099
-      }
-    }
-  },
-  {
-    "id": "local-479ef5398690",
-    "title": "lime",
-    "artist": "dorothy's magic bag",
-    "album": "cats in my head",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.640323,
-    "danceability": 0.666667,
-    "valence": 0.727273,
-    "socialness": 0.642857,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.543224,
-      "onsetStrengthMean": 0.699365,
-      "onsetRate": 0.640116,
-      "spectralBrightness": 0.260479,
-      "dynamicRange": 0.645438
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-479ef5398690",
-        "energy": 60,
-        "danceability": 62,
-        "valence": 60,
-        "socialness": 65,
-        "intensity": 45,
-        "description": "≈117 BPM with higher RMS (0.184) and pronounced transients; warmer/low-mid spectral centroid (~1188 Hz). Feels groovy and friendly, works well for social settings and light dancing."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 248.185034,
-        "beatCount": 476,
-        "rmsMean": 0.183995,
-        "rmsMedian": 0.153627,
-        "rmsP95": 0.403471,
-        "rmsMax": 0.567311,
-        "onsetStrengthMean": 2.336427,
-        "onsetStrengthMedian": 0.445412,
-        "onsetStrengthP95": 12.04919,
-        "onsetRate": 4.883453,
-        "spectralCentroidMean": 1188.056447,
-        "spectralBandwidthMean": 1669.714208,
-        "spectralRolloffMean": 2349.098406,
-        "zeroCrossingRateMean": 0.038782,
-        "dynamicRange": 0.362419
-      }
-    }
-  },
-  {
-    "id": "local-7b1b7c5a2244",
-    "title": "mango",
-    "artist": "dorothy's magic bag",
-    "album": "ghostmachine and other machines",
-    "year": null,
-    "genres": [],
-    "bpm": 95.703,
-    "energy": 0.554267,
-    "danceability": 0.384615,
-    "valence": 0.636364,
-    "socialness": 0.714286,
-    "intensity": 0.352941,
-    "normalizedAudio": {
-      "rmsMean": 0.220934,
-      "onsetStrengthMean": 0.949162,
-      "onsetRate": 0.743365,
-      "spectralBrightness": 0.734264,
-      "dynamicRange": 0.208051
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-7b1b7c5a2244",
-        "energy": 50,
-        "danceability": 40,
-        "valence": 55,
-        "socialness": 70,
-        "intensity": 40,
-        "description": "Laid-back slower tempo (~96 BPM) with low average loudness (rmsMean 0.096) but frequent strong transients (onsetStrengthMean 3.08). Relaxed and social-friendly rather than high-energy dance music."
-      },
-      "audio": {
-        "bpm": 95.703125,
-        "durationSeconds": 377.859773,
-        "beatCount": 583,
-        "rmsMean": 0.096161,
-        "rmsMedian": 0.096886,
-        "rmsP95": 0.190404,
-        "rmsMax": 0.366969,
-        "onsetStrengthMean": 3.075243,
-        "onsetStrengthMedian": 0.57712,
-        "onsetStrengthP95": 15.012147,
-        "onsetRate": 5.642305,
-        "spectralCentroidMean": 2825.069922,
-        "spectralBandwidthMean": 2747.168736,
-        "spectralRolloffMean": 5852.59269,
-        "zeroCrossingRateMean": 0.103816,
-        "dynamicRange": 0.165193
-      }
-    }
-  },
-  {
-    "id": "local-ea511200f864",
-    "title": "the worm",
-    "artist": "dorothy's magic bag",
-    "album": "cats in my head",
-    "year": null,
-    "genres": [],
-    "bpm": 129.199,
-    "energy": 0.143612,
-    "danceability": 0.192308,
-    "valence": 0.454545,
-    "socialness": 0.785714,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.19811,
-      "onsetStrengthMean": 0.196546,
-      "onsetRate": 0.17314,
-      "spectralBrightness": 0.144975,
-      "dynamicRange": 0.261994
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-ea511200f864",
-        "energy": 30,
-        "danceability": 25,
-        "valence": 45,
-        "socialness": 75,
-        "intensity": 25,
-        "description": "Moderately fast tempo (~129 BPM) but very low loudness (rmsMean 0.090), low spectral centroid (~789 Hz) and sparse onsets — mellow, unobtrusive and well suited as background/social music."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 258.387302,
-        "beatCount": 526,
-        "rmsMean": 0.089941,
-        "rmsMedian": 0.077939,
-        "rmsP95": 0.201594,
-        "rmsMax": 0.286607,
-        "onsetStrengthMean": 0.849252,
-        "onsetStrengthMedian": 0.684444,
-        "onsetStrengthP95": 1.878678,
-        "onsetRate": 1.45131,
-        "spectralCentroidMean": 788.969179,
-        "spectralBandwidthMean": 900.917604,
-        "spectralRolloffMean": 1315.879375,
-        "zeroCrossingRateMean": 0.046069,
-        "dynamicRange": 0.189517
-      }
-    }
+    "audioFile": "DiE - kahvi-#030 - DiE - Strangest thing.mp3"
   },
   {
     "id": "local-a34602c7478a",
@@ -3107,7 +2555,8 @@
         "zeroCrossingRateMean": 0.063143,
         "dynamicRange": 0.153985
       }
-    }
+    },
+    "audioFile": "Epoq - esrever.mp3"
   },
   {
     "id": "local-6b39ff62a2da",
@@ -3157,7 +2606,8 @@
         "zeroCrossingRateMean": 0.037223,
         "dynamicRange": 0.16527
       }
-    }
+    },
+    "audioFile": "Epoq - Green Wet Green.mp3"
   },
   {
     "id": "local-d19ca71b6b3e",
@@ -3207,7 +2657,8 @@
         "zeroCrossingRateMean": 0.04169,
         "dynamicRange": 0.109487
       }
-    }
+    },
+    "audioFile": "Epoq - Lepidoptera.mp3"
   },
   {
     "id": "local-4dc61567e3f1",
@@ -3257,7 +2708,8 @@
         "zeroCrossingRateMean": 0.099646,
         "dynamicRange": 0.185634
       }
-    }
+    },
+    "audioFile": "Esem - Awedisco.mp3"
   },
   {
     "id": "local-7893ba775f97",
@@ -3309,7 +2761,8 @@
         "zeroCrossingRateMean": 0.09047,
         "dynamicRange": 0.223652
       }
-    }
+    },
+    "audioFile": "Esem - instlr.mp3"
   },
   {
     "id": "local-3a3a75dbabf5",
@@ -3361,7 +2814,8 @@
         "zeroCrossingRateMean": 0.034648,
         "dynamicRange": 0.228676
       }
-    }
+    },
+    "audioFile": "Esem - nips.mp3"
   },
   {
     "id": "local-f5287541cccb",
@@ -3411,7 +2865,8 @@
         "zeroCrossingRateMean": 0.052516,
         "dynamicRange": 0.320482
       }
-    }
+    },
+    "audioFile": "Flutterspot - Daily sway of everything (that you touch).mp3"
   },
   {
     "id": "local-39e98e5e7f7d",
@@ -3463,7 +2918,8 @@
         "zeroCrossingRateMean": 0.092613,
         "dynamicRange": 0.153071
       }
-    }
+    },
+    "audioFile": "Flutterspot - Small, brightly coloured, highly arboreal.mp3"
   },
   {
     "id": "local-0799b2741ec3",
@@ -3515,7 +2971,8 @@
         "zeroCrossingRateMean": 0.043323,
         "dynamicRange": 0.16461
       }
-    }
+    },
+    "audioFile": "Flutterspot - Softening distortions.mp3"
   },
   {
     "id": "local-7d7cc592c67c",
@@ -3565,7 +3022,8 @@
         "zeroCrossingRateMean": 0.080984,
         "dynamicRange": 0.281913
       }
-    }
+    },
+    "audioFile": "Flutterspot - World end ballad.mp3"
   },
   {
     "id": "local-80d14d30fac9",
@@ -3617,7 +3075,8 @@
         "zeroCrossingRateMean": 0.032808,
         "dynamicRange": 0.309245
       }
-    }
+    },
+    "audioFile": "General Fuzz - eye heart knot.mp3"
   },
   {
     "id": "local-9739bb81ee9c",
@@ -3669,7 +3128,8 @@
         "zeroCrossingRateMean": 0.038415,
         "dynamicRange": 0.234106
       }
-    }
+    },
+    "audioFile": "General Fuzz - four prophets.mp3"
   },
   {
     "id": "local-9054bd62a814",
@@ -3719,7 +3179,8 @@
         "zeroCrossingRateMean": 0.08072,
         "dynamicRange": 0.377146
       }
-    }
+    },
+    "audioFile": "Gschmidt - head for the hills.mp3"
   },
   {
     "id": "local-2fbbb1560a00",
@@ -3769,7 +3230,8 @@
         "zeroCrossingRateMean": 0.071748,
         "dynamicRange": 0.340775
       }
-    }
+    },
+    "audioFile": "Gschmidt - roz8.mp3"
   },
   {
     "id": "local-1b19018bd9f4",
@@ -3819,7 +3281,8 @@
         "zeroCrossingRateMean": 0.059902,
         "dynamicRange": 0.232302
       }
-    }
+    },
+    "audioFile": "Ilkae - ampersand.mp3"
   },
   {
     "id": "local-4fed9083f31c",
@@ -3869,7 +3332,8 @@
         "zeroCrossingRateMean": 0.068686,
         "dynamicRange": 0.310972
       }
-    }
+    },
+    "audioFile": "Ilkae - the lockpick almanac.mp3"
   },
   {
     "id": "local-c314917e9b57",
@@ -3919,7 +3383,8 @@
         "zeroCrossingRateMean": 0.045197,
         "dynamicRange": 0.213392
       }
-    }
+    },
+    "audioFile": "Izmar - Funky Sitar.mp3"
   },
   {
     "id": "local-fbf5e369af06",
@@ -3969,7 +3434,8 @@
         "zeroCrossingRateMean": 0.060568,
         "dynamicRange": 0.156496
       }
-    }
+    },
+    "audioFile": "Izmar - ippeoppe.mp3"
   },
   {
     "id": "local-0f83a927d567",
@@ -4019,7 +3485,8 @@
         "zeroCrossingRateMean": 0.064246,
         "dynamicRange": 0.11558
       }
-    }
+    },
+    "audioFile": "Izmar - ohmygod.mp3"
   },
   {
     "id": "local-ff2dcdd3506e",
@@ -4069,7 +3536,8 @@
         "zeroCrossingRateMean": 0.071325,
         "dynamicRange": 0.216689
       }
-    }
+    },
+    "audioFile": "Izmar - one eight.mp3"
   },
   {
     "id": "local-4c4946fda1b9",
@@ -4119,7 +3587,8 @@
         "zeroCrossingRateMean": 0.059026,
         "dynamicRange": 0.272771
       }
-    }
+    },
+    "audioFile": "Izmar - Opening.mp3"
   },
   {
     "id": "local-f76f9630d8c6",
@@ -4169,419 +3638,8 @@
         "zeroCrossingRateMean": 0.044598,
         "dynamicRange": 0.26065
       }
-    }
-  },
-  {
-    "id": "local-f14c272b68b6",
-    "title": "days of the departed",
-    "artist": "jan morgenstern",
-    "album": "deceptions",
-    "year": null,
-    "genres": [],
-    "bpm": 92.285,
-    "energy": 0.364927,
-    "danceability": 0.333333,
-    "valence": 0.181818,
-    "socialness": 0.428571,
-    "intensity": 0.329412,
-    "normalizedAudio": {
-      "rmsMean": 0.25194,
-      "onsetStrengthMean": 0.423332,
-      "onsetRate": 0.648592,
-      "spectralBrightness": 0.480677,
-      "dynamicRange": 0.208635
     },
-    "raw": {
-      "llm": {
-        "songId": "local-f14c272b68b6",
-        "energy": 40,
-        "danceability": 36,
-        "valence": 30,
-        "socialness": 50,
-        "intensity": 38,
-        "description": "≈92 BPM, low RMS and narrow dynamic range, higher zero-crossing — subdued, darker tonality and sparse energy; not strongly danceable, more contemplative/atmospheric with modest social suitability."
-      },
-      "audio": {
-        "bpm": 92.285156,
-        "durationSeconds": 363.544671,
-        "beatCount": 416,
-        "rmsMean": 0.104611,
-        "rmsMedian": 0.113686,
-        "rmsP95": 0.187641,
-        "rmsMax": 0.287612,
-        "onsetStrengthMean": 1.520012,
-        "onsetStrengthMedian": 0.68732,
-        "onsetStrengthP95": 6.313885,
-        "onsetRate": 4.945747,
-        "spectralCentroidMean": 1948.879879,
-        "spectralBandwidthMean": 2370.328867,
-        "spectralRolloffMean": 4319.40555,
-        "zeroCrossingRateMean": 0.075486,
-        "dynamicRange": 0.165457
-      }
-    }
-  },
-  {
-    "id": "local-ee6b7aeaaa69",
-    "title": "turnkey life",
-    "artist": "jan morgenstern",
-    "album": "deceptions",
-    "year": null,
-    "genres": [],
-    "bpm": 123.047,
-    "energy": 0.672718,
-    "danceability": 0.666667,
-    "valence": 0.472727,
-    "socialness": 0.542857,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.366523,
-      "onsetStrengthMean": 0.420072,
-      "onsetRate": 0.82205,
-      "spectralBrightness": 0.556703,
-      "dynamicRange": 0.317571
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-ee6b7aeaaa69",
-        "energy": 66,
-        "danceability": 62,
-        "valence": 46,
-        "socialness": 58,
-        "intensity": 60,
-        "description": "≈123 BPM with high beatCount and elevated onsetRate, moderate RMS — upbeat pulse and drive, fairly danceable and propulsive; tonal brightness and louder peaks add presence without being overtly aggressive."
-      },
-      "audio": {
-        "bpm": 123.046875,
-        "durationSeconds": 333.889887,
-        "beatCount": 641,
-        "rmsMean": 0.135838,
-        "rmsMedian": 0.129591,
-        "rmsP95": 0.252546,
-        "rmsMax": 0.443479,
-        "onsetStrengthMean": 1.51037,
-        "onsetStrengthMedian": 0.704629,
-        "onsetStrengthP95": 5.75126,
-        "onsetRate": 6.220614,
-        "spectralCentroidMean": 2211.565613,
-        "spectralBandwidthMean": 2463.075586,
-        "spectralRolloffMean": 4759.044537,
-        "zeroCrossingRateMean": 0.085826,
-        "dynamicRange": 0.214578
-      }
-    }
-  },
-  {
-    "id": "local-995763526cb8",
-    "title": "Nautilus",
-    "artist": "Abyssal Plains",
-    "album": "Pictures in Sound",
-    "year": 2008,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 103.359,
-    "energy": 0.27987,
-    "danceability": 0.282051,
-    "valence": 0.363636,
-    "socialness": 0.742857,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.138232,
-      "onsetStrengthMean": 0.4719,
-      "onsetRate": 0.478352,
-      "spectralBrightness": 0.358724,
-      "dynamicRange": 0.153055
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-995763526cb8",
-        "energy": 36,
-        "danceability": 32,
-        "valence": 40,
-        "socialness": 72,
-        "intensity": 30,
-        "description": "≈103 BPM but very low RMS and narrow dynamic range, darker spectral centroid — restrained, ambient-leaning electronic; not demanding, good as unobtrusive social/background music rather than a dance focus."
-      },
-      "audio": {
-        "bpm": 103.359375,
-        "durationSeconds": 338.337959,
-        "beatCount": 500,
-        "rmsMean": 0.073622,
-        "rmsMedian": 0.072635,
-        "rmsP95": 0.157687,
-        "rmsMax": 0.204519,
-        "onsetStrengthMean": 1.663658,
-        "onsetStrengthMedian": 0.692519,
-        "onsetStrengthP95": 7.764583,
-        "onsetRate": 3.694531,
-        "spectralCentroidMean": 1527.510745,
-        "spectralBandwidthMean": 1714.114532,
-        "spectralRolloffMean": 2927.64747,
-        "zeroCrossingRateMean": 0.072519,
-        "dynamicRange": 0.140394
-      }
-    }
-  },
-  {
-    "id": "local-5a704cd806b9",
-    "title": "Coed Andred",
-    "artist": "Abyssal Plains",
-    "album": "Pictures in Sound",
-    "year": 2008,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 135.999,
-    "energy": 0.725594,
-    "danceability": 0.769231,
-    "valence": 0.636364,
-    "socialness": 0.485714,
-    "intensity": 0.682353,
-    "normalizedAudio": {
-      "rmsMean": 0.420028,
-      "onsetStrengthMean": 0.46259,
-      "onsetRate": 0.588082,
-      "spectralBrightness": 0.359022,
-      "dynamicRange": 0.422188
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-5a704cd806b9",
-        "energy": 74,
-        "danceability": 70,
-        "valence": 55,
-        "socialness": 54,
-        "intensity": 68,
-        "description": "≈136 BPM, solid RMS and high peak levels with lively onsetStrength — upbeat, energetic electronic track with strong rhythmic drive and higher tempo that invites dancing; fairly forceful presence that can dominate small-group conversation."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 220.839184,
-        "beatCount": 421,
-        "rmsMean": 0.15042,
-        "rmsMedian": 0.151842,
-        "rmsP95": 0.285303,
-        "rmsMax": 0.40949,
-        "onsetStrengthMean": 1.636124,
-        "onsetStrengthMedian": 0.566745,
-        "onsetStrengthP95": 7.647007,
-        "onsetRate": 4.501013,
-        "spectralCentroidMean": 1528.538385,
-        "spectralBandwidthMean": 1693.204496,
-        "spectralRolloffMean": 2976.251596,
-        "zeroCrossingRateMean": 0.06805,
-        "dynamicRange": 0.261752
-      }
-    }
-  },
-  {
-    "id": "local-2d144e523e0e",
-    "title": "moderate views",
-    "artist": "younnat",
-    "album": "radiovision",
-    "year": 2008,
-    "genres": [
-      "chill"
-    ],
-    "bpm": 117.454,
-    "energy": 0.656429,
-    "danceability": 0.641026,
-    "valence": 0.581818,
-    "socialness": 0.571429,
-    "intensity": 0.564706,
-    "normalizedAudio": {
-      "rmsMean": 0.515733,
-      "onsetStrengthMean": 0.546908,
-      "onsetRate": 0.636253,
-      "spectralBrightness": 0.595717,
-      "dynamicRange": 0.377142
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-2d144e523e0e",
-        "energy": 62,
-        "danceability": 60,
-        "valence": 52,
-        "socialness": 60,
-        "intensity": 58,
-        "description": "≈117 BPM, moderate-to-high RMS, broad spectral content and long duration — warm, mid-tempo chill-electronic with clear rhythmic elements; danceable groove but generally relaxed enough for social contexts."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 388.04898,
-        "beatCount": 719,
-        "rmsMean": 0.176503,
-        "rmsMedian": 0.167553,
-        "rmsP95": 0.315744,
-        "rmsMax": 0.464758,
-        "onsetStrengthMean": 1.885509,
-        "onsetStrengthMedian": 0.88157,
-        "onsetStrengthP95": 7.817935,
-        "onsetRate": 4.855057,
-        "spectralCentroidMean": 2346.365707,
-        "spectralBandwidthMean": 2611.393849,
-        "spectralRolloffMean": 5121.018198,
-        "zeroCrossingRateMean": 0.089678,
-        "dynamicRange": 0.24144
-      }
-    }
-  },
-  {
-    "id": "local-c25d3df11978",
-    "title": "ronin on air",
-    "artist": "younnat",
-    "album": "radiovision",
-    "year": 2008,
-    "genres": [
-      "chill"
-    ],
-    "bpm": 143.555,
-    "energy": 0.723538,
-    "danceability": 0.794872,
-    "valence": 0.690909,
-    "socialness": 0.457143,
-    "intensity": 0.658824,
-    "normalizedAudio": {
-      "rmsMean": 0.645682,
-      "onsetStrengthMean": 0.37734,
-      "onsetRate": 0.666226,
-      "spectralBrightness": 0.28751,
-      "dynamicRange": 0.404313
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-c25d3df11978",
-        "energy": 70,
-        "danceability": 72,
-        "valence": 58,
-        "socialness": 52,
-        "intensity": 66,
-        "description": "≈144 BPM, highest RMS mean in batch and good onsetRate — brisk, punchy track with strong beat clarity and groove that encourages sustained movement; energetic and somewhat commanding, less suited for quiet conversation."
-      },
-      "audio": {
-        "bpm": 143.554688,
-        "durationSeconds": 180.48,
-        "beatCount": 420,
-        "rmsMean": 0.211918,
-        "rmsMedian": 0.217645,
-        "rmsP95": 0.334316,
-        "rmsMax": 0.473742,
-        "onsetStrengthMean": 1.383982,
-        "onsetStrengthMedian": 0.878932,
-        "onsetStrengthP95": 4.424644,
-        "onsetRate": 5.075355,
-        "spectralCentroidMean": 1281.454075,
-        "spectralBandwidthMean": 1622.288764,
-        "spectralRolloffMean": 2676.390433,
-        "zeroCrossingRateMean": 0.045607,
-        "dynamicRange": 0.253691
-      }
-    }
-  },
-  {
-    "id": "local-177cd2b40d9a",
-    "title": "Another World part 1",
-    "artist": "Ambientium",
-    "album": "Fractal Philosophy",
-    "year": 2009,
-    "genres": [
-      "Ambient"
-    ],
-    "bpm": 135.999,
-    "energy": 0.433067,
-    "danceability": 0.25641,
-    "valence": 0.509091,
-    "socialness": 0.685714,
-    "intensity": 0.376471,
-    "normalizedAudio": {
-      "rmsMean": 0.292012,
-      "onsetStrengthMean": 0.434469,
-      "onsetRate": 0.602081,
-      "spectralBrightness": 0.873164,
-      "dynamicRange": 0.333302
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-177cd2b40d9a",
-        "energy": 44,
-        "danceability": 30,
-        "valence": 48,
-        "socialness": 68,
-        "intensity": 42,
-        "description": "≈136 BPM but ambient genre, varied RMS with low median and high spectral centroid — spacious, textural piece: not rhythmically driving despite tempo; pleasant background presence and well-suited to social/ambient settings rather than dancing."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 448.966531,
-        "beatCount": 1011,
-        "rmsMean": 0.115532,
-        "rmsMedian": 0.086116,
-        "rmsP95": 0.254009,
-        "rmsMax": 0.411056,
-        "onsetStrengthMean": 1.55295,
-        "onsetStrengthMedian": 0.995975,
-        "onsetStrengthP95": 5.334956,
-        "onsetRate": 4.603907,
-        "spectralCentroidMean": 3304.995458,
-        "spectralBandwidthMean": 2853.345594,
-        "spectralRolloffMean": 6572.192847,
-        "zeroCrossingRateMean": 0.174163,
-        "dynamicRange": 0.221671
-      }
-    }
-  },
-  {
-    "id": "local-1d0b1029bae5",
-    "title": "Another World part 2",
-    "artist": "Ambientium",
-    "album": "Fractal Philosophy",
-    "year": 2009,
-    "genres": [
-      "Ambient"
-    ],
-    "bpm": 99.384,
-    "energy": 0.389189,
-    "danceability": 0.307692,
-    "valence": 0.4,
-    "socialness": 0.714286,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0.353978,
-      "onsetStrengthMean": 0.360266,
-      "onsetRate": 0.272797,
-      "spectralBrightness": 0.496544,
-      "dynamicRange": 0.705316
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-1d0b1029bae5",
-        "energy": 46,
-        "danceability": 34,
-        "valence": 42,
-        "socialness": 70,
-        "intensity": 50,
-        "description": "≈99 BPM ambient track with moderate RMS peaks and large dynamic range — restrained but occasionally dramatic peaks; more atmospheric than danceable, comfortable as background music for social environments."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 198.739592,
-        "beatCount": 325,
-        "rmsMean": 0.13242,
-        "rmsMedian": 0.107177,
-        "rmsP95": 0.419643,
-        "rmsMax": 0.55314,
-        "onsetStrengthMean": 1.333481,
-        "onsetStrengthMedian": 0.659357,
-        "onsetStrengthP95": 5.834131,
-        "onsetRate": 2.183762,
-        "spectralCentroidMean": 2003.702256,
-        "spectralBandwidthMean": 2012.753333,
-        "spectralRolloffMean": 3986.034877,
-        "zeroCrossingRateMean": 0.101245,
-        "dynamicRange": 0.38942
-      }
-    }
+    "audioFile": "Izmar - walking.mp3"
   },
   {
     "id": "local-223808dcecbb",
@@ -4633,107 +3691,8 @@
         "zeroCrossingRateMean": 0.070097,
         "dynamicRange": 0.211966
       }
-    }
-  },
-  {
-    "id": "local-ead1c8695fe3",
-    "title": "tmp",
-    "artist": "kilowatts",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.756103,
-    "danceability": 0.833333,
-    "valence": 0.727273,
-    "socialness": 0.428571,
-    "intensity": 0.647059,
-    "normalizedAudio": {
-      "rmsMean": 0.4444,
-      "onsetStrengthMean": 0.500308,
-      "onsetRate": 0.530409,
-      "spectralBrightness": 0.646964,
-      "dynamicRange": 0.40477
     },
-    "raw": {
-      "llm": {
-        "songId": "local-ead1c8695fe3",
-        "energy": 75,
-        "danceability": 75,
-        "valence": 60,
-        "socialness": 50,
-        "intensity": 65,
-        "description": "Up-tempo (≈136 BPM), higher spectral centroid and above-average RMS/onset strength → energetic, bright electronic track with clear rhythmic drive. Suits dancing; still reasonably usable in social settings at moderate volume."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 377.470839,
-        "beatCount": 774,
-        "rmsMean": 0.157063,
-        "rmsMedian": 0.177771,
-        "rmsP95": 0.278828,
-        "rmsMax": 0.394564,
-        "onsetStrengthMean": 1.747681,
-        "onsetStrengthMedian": 0.799551,
-        "onsetStrengthP95": 6.814383,
-        "onsetRate": 4.077136,
-        "spectralCentroidMean": 2523.432625,
-        "spectralBandwidthMean": 2560.458926,
-        "spectralRolloffMean": 5431.979304,
-        "zeroCrossingRateMean": 0.1198,
-        "dynamicRange": 0.253898
-      }
-    }
-  },
-  {
-    "id": "local-3ccb6957198f",
-    "title": "tmp",
-    "artist": "kilowatts",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 129.199,
-    "energy": 0.943689,
-    "danceability": 0.961538,
-    "valence": 0.818182,
-    "socialness": 0.285714,
-    "intensity": 0.764706,
-    "normalizedAudio": {
-      "rmsMean": 0.560132,
-      "onsetStrengthMean": 0.88172,
-      "onsetRate": 0.894704,
-      "spectralBrightness": 0.650237,
-      "dynamicRange": 0.43
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-3ccb6957198f",
-        "energy": 82,
-        "danceability": 85,
-        "valence": 65,
-        "socialness": 40,
-        "intensity": 75,
-        "description": "Strong onset activity, high RMS and onset rate plus punchy dynamics → very energetic, dance-forward track. Bright spectral profile and pronounced transients make it commanding on the floor but more attention-demanding for casual mingling."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 395.582404,
-        "beatCount": 838,
-        "rmsMean": 0.188603,
-        "rmsMedian": 0.201628,
-        "rmsP95": 0.318446,
-        "rmsMax": 0.466416,
-        "onsetStrengthMean": 2.875773,
-        "onsetStrengthMedian": 0.525529,
-        "onsetStrengthP95": 12.295104,
-        "onsetRate": 6.754598,
-        "spectralCentroidMean": 2534.742138,
-        "spectralBandwidthMean": 2736.635779,
-        "spectralRolloffMean": 5692.61955,
-        "zeroCrossingRateMean": 0.095518,
-        "dynamicRange": 0.265274
-      }
-    }
+    "audioFile": "Kenny Beltrey - hydrate (the beach).mp3"
   },
   {
     "id": "local-b2877ed6bd48",
@@ -4785,7 +3744,8 @@
         "zeroCrossingRateMean": 0.091232,
         "dynamicRange": 0.176969
       }
-    }
+    },
+    "audioFile": "Kplecraft - rupa.mp3"
   },
   {
     "id": "local-dedcfea15441",
@@ -4837,7 +3797,8 @@
         "zeroCrossingRateMean": 0.095179,
         "dynamicRange": 0.158763
       }
-    }
+    },
+    "audioFile": "Kplecraft - symmetric ido.mp3"
   },
   {
     "id": "local-0ed85dfedc8f",
@@ -4889,7 +3850,8 @@
         "zeroCrossingRateMean": 0.047116,
         "dynamicRange": 0.203775
       }
-    }
+    },
+    "audioFile": "Lackluster - 07-10-99.mp3"
   },
   {
     "id": "local-56f38b33a183",
@@ -4941,7 +3903,8 @@
         "zeroCrossingRateMean": 0.097976,
         "dynamicRange": 0.243015
       }
-    }
+    },
+    "audioFile": "Lackluster - 1. plip (01-10-00).mp3"
   },
   {
     "id": "local-66d6c1b04819",
@@ -4991,7 +3954,8 @@
         "zeroCrossingRateMean": 0.062181,
         "dynamicRange": 0.27678
       }
-    }
+    },
+    "audioFile": "Lackluster - Ambling On (ll030503).mp3"
   },
   {
     "id": "local-0369eef8218e",
@@ -5041,7 +4005,8 @@
         "zeroCrossingRateMean": 0.056757,
         "dynamicRange": 0.267665
       }
-    }
+    },
+    "audioFile": "Lackluster - Cut2 (ll150603).mp3"
   },
   {
     "id": "local-5665e17153d7",
@@ -5093,7 +4058,8 @@
         "zeroCrossingRateMean": 0.029782,
         "dynamicRange": 0.134097
       }
-    }
+    },
+    "audioFile": "Lackluster - gobblad.mp3"
   },
   {
     "id": "local-bf58e444717b",
@@ -5145,157 +4111,8 @@
         "zeroCrossingRateMean": 0.079637,
         "dynamicRange": 0.121642
       }
-    }
-  },
-  {
-    "id": "local-ba8bfa6a2545",
-    "title": "last song for the night",
-    "artist": "lackluster",
-    "album": "last song for the night",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.285904,
-    "danceability": 0.320513,
-    "valence": 0.545455,
-    "socialness": 0.857143,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.462017,
-      "onsetStrengthMean": 0.206873,
-      "onsetRate": 0.204519,
-      "spectralBrightness": 0.24773,
-      "dynamicRange": 0.285869
     },
-    "raw": {
-      "llm": {
-        "songId": "local-ba8bfa6a2545",
-        "energy": 38,
-        "danceability": 35,
-        "valence": 50,
-        "socialness": 80,
-        "intensity": 25,
-        "description": "Mid-tempo (~117 BPM) with lower onset rate and relatively low RMS → calm, subdued. High dynamic range and low zero-crossing rate favor conversational/social contexts; not demanding or intense."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 434.61805,
-        "beatCount": 830,
-        "rmsMean": 0.161864,
-        "rmsMedian": 0.158,
-        "rmsP95": 0.28247,
-        "rmsMax": 0.334433,
-        "onsetStrengthMean": 0.879797,
-        "onsetStrengthMedian": 0.626036,
-        "onsetStrengthP95": 2.465007,
-        "onsetRate": 1.681937,
-        "spectralCentroidMean": 1144.004131,
-        "spectralBandwidthMean": 1654.132903,
-        "spectralRolloffMean": 2275.711459,
-        "zeroCrossingRateMean": 0.043635,
-        "dynamicRange": 0.200283
-      }
-    }
-  },
-  {
-    "id": "local-f0116dd16ecc",
-    "title": "from the sky",
-    "artist": "liquid stranger",
-    "album": "subsonic soil",
-    "year": null,
-    "genres": [],
-    "bpm": 99.384,
-    "energy": 0.709212,
-    "danceability": 0.641026,
-    "valence": 0.272727,
-    "socialness": 0.285714,
-    "intensity": 0.823529,
-    "normalizedAudio": {
-      "rmsMean": 0.187378,
-      "onsetStrengthMean": 0.423546,
-      "onsetRate": 0.612315,
-      "spectralBrightness": 0.674631,
-      "dynamicRange": 0.215931
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-f0116dd16ecc",
-        "energy": 75,
-        "danceability": 60,
-        "valence": 35,
-        "socialness": 40,
-        "intensity": 80,
-        "description": "Liquid Stranger piece: low BPM (~99) but high onset strength/rate and high spectral centroid → punchy, bass/impact-focused; forceful and intense with darker tonality, moderately danceable but not ideal for casual socializing."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 226.538231,
-        "beatCount": 358,
-        "rmsMean": 0.087016,
-        "rmsMedian": 0.075336,
-        "rmsP95": 0.187631,
-        "rmsMax": 0.238045,
-        "onsetStrengthMean": 1.520643,
-        "onsetStrengthMedian": 0.887145,
-        "onsetStrengthP95": 5.171607,
-        "onsetRate": 4.679122,
-        "spectralCentroidMean": 2619.025614,
-        "spectralBandwidthMean": 2577.550744,
-        "spectralRolloffMean": 5542.275055,
-        "zeroCrossingRateMean": 0.126914,
-        "dynamicRange": 0.168746
-      }
-    }
-  },
-  {
-    "id": "local-3cd764f09c86",
-    "title": "knot",
-    "artist": "liquid stranger",
-    "album": "subsonic soil",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.608088,
-    "danceability": 0.576923,
-    "valence": 0.181818,
-    "socialness": 0.214286,
-    "intensity": 0.8,
-    "normalizedAudio": {
-      "rmsMean": 0.096898,
-      "onsetStrengthMean": 0.3893,
-      "onsetRate": 0.560794,
-      "spectralBrightness": 0.315811,
-      "dynamicRange": 0.183794
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-3cd764f09c86",
-        "energy": 70,
-        "danceability": 55,
-        "valence": 30,
-        "socialness": 35,
-        "intensity": 78,
-        "description": "High onset activity and pronounced transients with mid-high spectral content → energetic and aggressive electronic/dub-style track. Darker valence and high intensity make it better for focused listening or dance than mingling."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 322.523719,
-        "beatCount": 606,
-        "rmsMean": 0.062357,
-        "rmsMedian": 0.050652,
-        "rmsP95": 0.166004,
-        "rmsMax": 0.22009,
-        "onsetStrengthMean": 1.419356,
-        "onsetStrengthMedian": 0.68672,
-        "onsetStrengthP95": 5.771431,
-        "onsetRate": 4.300459,
-        "spectralCentroidMean": 1379.236637,
-        "spectralBandwidthMean": 1709.513356,
-        "spectralRolloffMean": 2776.621278,
-        "zeroCrossingRateMean": 0.048071,
-        "dynamicRange": 0.154255
-      }
-    }
+    "audioFile": "Lackluster - happyarpeg.mp3"
   },
   {
     "id": "local-47e4ae7a590a",
@@ -5347,7 +4164,8 @@
         "zeroCrossingRateMean": 0.116903,
         "dynamicRange": 0.219094
       }
-    }
+    },
+    "audioFile": "Machinae Supremacy - FanVaCoolt (men om nÃÂÃÂ¥nting).mp3"
   },
   {
     "id": "local-77e621e563b8",
@@ -5399,107 +4217,8 @@
         "zeroCrossingRateMean": 0.140979,
         "dynamicRange": 0.258805
       }
-    }
-  },
-  {
-    "id": "local-2ec5e1de97c7",
-    "title": "tmp",
-    "artist": "mikael fyrek",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 95.703,
-    "energy": 0.559557,
-    "danceability": 0.576923,
-    "valence": 0.545455,
-    "socialness": 0.571429,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.366369,
-      "onsetStrengthMean": 0.306964,
-      "onsetRate": 0.593835,
-      "spectralBrightness": 0.405678,
-      "dynamicRange": 0.46632
     },
-    "raw": {
-      "llm": {
-        "songId": "local-2ec5e1de97c7",
-        "energy": 60,
-        "danceability": 55,
-        "valence": 50,
-        "socialness": 60,
-        "intensity": 55,
-        "description": "Mid-tempo (~95 BPM) electronic with moderate RMS, high onset rate and broad spectrum → moderately energetic and rhythmic. Balanced valence and dynamic range make it suitable for light dancing or active social backgrounds."
-      },
-      "audio": {
-        "bpm": 95.703125,
-        "durationSeconds": 332.577959,
-        "beatCount": 491,
-        "rmsMean": 0.135797,
-        "rmsMedian": 0.100635,
-        "rmsP95": 0.320459,
-        "rmsMax": 0.620046,
-        "onsetStrengthMean": 1.175833,
-        "onsetStrengthMedian": 0.931432,
-        "onsetStrengthP95": 3.221976,
-        "onsetRate": 4.543296,
-        "spectralCentroidMean": 1689.745142,
-        "spectralBandwidthMean": 1882.664754,
-        "spectralRolloffMean": 3441.552496,
-        "zeroCrossingRateMean": 0.072486,
-        "dynamicRange": 0.281652
-      }
-    }
-  },
-  {
-    "id": "local-f690262bf973",
-    "title": "tmp",
-    "artist": "mikael fyrek",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 172.266,
-    "energy": 0.73553,
-    "danceability": 0.769231,
-    "valence": 0.636364,
-    "socialness": 0.357143,
-    "intensity": 0.705882,
-    "normalizedAudio": {
-      "rmsMean": 0.259063,
-      "onsetStrengthMean": 0.367451,
-      "onsetRate": 0.579451,
-      "spectralBrightness": 0.269745,
-      "dynamicRange": 0.2329
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-f690262bf973",
-        "energy": 80,
-        "danceability": 70,
-        "valence": 55,
-        "socialness": 45,
-        "intensity": 70,
-        "description": "High tempo (~172 BPM) with active onsets and clear rhythmic drive → very energetic and danceable. Brightness and tempo create an upbeat feel; still fairly intense so less ideal for quiet mingling."
-      },
-      "audio": {
-        "bpm": 172.265625,
-        "durationSeconds": 288.445533,
-        "beatCount": 805,
-        "rmsMean": 0.106552,
-        "rmsMedian": 0.099814,
-        "rmsP95": 0.219593,
-        "rmsMax": 0.344149,
-        "onsetStrengthMean": 1.354732,
-        "onsetStrengthMedian": 0.713098,
-        "onsetStrengthP95": 5.349019,
-        "onsetRate": 4.43758,
-        "spectralCentroidMean": 1220.069774,
-        "spectralBandwidthMean": 1292.694125,
-        "spectralRolloffMean": 2278.551931,
-        "zeroCrossingRateMean": 0.07203,
-        "dynamicRange": 0.176398
-      }
-    }
+    "audioFile": "Machinae Supremacy - Theme from Jets'N'Guns.mp3"
   },
   {
     "id": "local-11809f3b92b9",
@@ -5551,7 +4270,8 @@
         "zeroCrossingRateMean": 0.04326,
         "dynamicRange": 0.231261
       }
-    }
+    },
+    "audioFile": "Mindflower - breakntwo men.mp3"
   },
   {
     "id": "local-3dc2e8f189c1",
@@ -5603,310 +4323,8 @@
         "zeroCrossingRateMean": 0.039891,
         "dynamicRange": 0.285972
       }
-    }
-  },
-  {
-    "id": "local-75c8b7059931",
-    "title": "gobblad",
-    "artist": "distance/lackluster",
-    "album": "http://www.mono211.com",
-    "year": 1999,
-    "genres": [
-      "Techno"
-    ],
-    "bpm": 123.047,
-    "energy": 0.574807,
-    "danceability": 0.705128,
-    "valence": 0.363636,
-    "socialness": 0.428571,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.121783,
-      "onsetStrengthMean": 0.272,
-      "onsetRate": 0.488688,
-      "spectralBrightness": 0.099637,
-      "dynamicRange": 0.13909
     },
-    "raw": {
-      "llm": {
-        "songId": "local-75c8b7059931",
-        "energy": 70,
-        "danceability": 65,
-        "valence": 40,
-        "socialness": 50,
-        "intensity": 60,
-        "description": "1999 Techno at ~123 BPM with steady mid RMS and moderate onset activity — driving and club-ready but darker/industrial in tone; solid groove, moderate demand for attention."
-      },
-      "audio": {
-        "bpm": 123.046875,
-        "durationSeconds": 293.064898,
-        "beatCount": 523,
-        "rmsMean": 0.069139,
-        "rmsMedian": 0.053153,
-        "rmsP95": 0.152234,
-        "rmsMax": 0.241239,
-        "onsetStrengthMean": 1.07242,
-        "onsetStrengthMedian": 0.451911,
-        "onsetStrengthP95": 4.690339,
-        "onsetRate": 3.770496,
-        "spectralCentroidMean": 632.316607,
-        "spectralBandwidthMean": 781.618279,
-        "spectralRolloffMean": 1279.113551,
-        "zeroCrossingRateMean": 0.029782,
-        "dynamicRange": 0.134097
-      }
-    }
-  },
-  {
-    "id": "local-da56a1484990",
-    "title": "european",
-    "artist": "toby1",
-    "album": "http://www.monotonik.com",
-    "genres": [],
-    "bpm": 143.555,
-    "energy": 0.455843,
-    "danceability": 0.769231,
-    "valence": 0.454545,
-    "socialness": 0.5,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0,
-      "onsetStrengthMean": 0.293006,
-      "onsetRate": 0.371019,
-      "spectralBrightness": 0.35683,
-      "dynamicRange": 0.048492
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-da56a1484990",
-        "energy": 60,
-        "danceability": 70,
-        "valence": 45,
-        "socialness": 55,
-        "intensity": 50,
-        "description": "Fast (~144 BPM) electronic piece with low overall loudness but bright/high spectral content — crisp, rhythmic and danceable though somewhat lightweight in perceived power; neutral-to-slightly-dark mood."
-      },
-      "audio": {
-        "bpm": 143.554688,
-        "durationSeconds": 342.778776,
-        "beatCount": 767,
-        "rmsMean": 0.03595,
-        "rmsMedian": 0.025131,
-        "rmsP95": 0.103115,
-        "rmsMax": 0.423034,
-        "onsetStrengthMean": 1.134549,
-        "onsetStrengthMedian": 0.69413,
-        "onsetStrengthP95": 3.892272,
-        "onsetRate": 2.905664,
-        "spectralCentroidMean": 1520.967469,
-        "spectralBandwidthMean": 1943.52112,
-        "spectralRolloffMean": 2989.859656,
-        "zeroCrossingRateMean": 0.060051,
-        "dynamicRange": 0.093245
-      }
-    }
-  },
-  {
-    "id": "local-fa37bf9289ba",
-    "title": "homely",
-    "artist": "toby1",
-    "album": "http://www.monotonik.com",
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.655888,
-    "danceability": 0.794872,
-    "valence": 0.545455,
-    "socialness": 0.428571,
-    "intensity": 0.682353,
-    "normalizedAudio": {
-      "rmsMean": 0.270657,
-      "onsetStrengthMean": 0.363192,
-      "onsetRate": 0.299895,
-      "spectralBrightness": 0.33666,
-      "dynamicRange": 0.17634
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-fa37bf9289ba",
-        "energy": 75,
-        "danceability": 72,
-        "valence": 50,
-        "socialness": 50,
-        "intensity": 68,
-        "description": "Mid‑to‑up tempo (~136 BPM) electronic track with higher RMS and clear onsets — energetic and good for sustained movement; punchy and moderately intense with a balanced emotional tone."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 304.248163,
-        "beatCount": 676,
-        "rmsMean": 0.109712,
-        "rmsMedian": 0.126139,
-        "rmsP95": 0.187503,
-        "rmsMax": 0.279336,
-        "onsetStrengthMean": 1.342137,
-        "onsetStrengthMedian": 0.877268,
-        "onsetStrengthP95": 4.179384,
-        "onsetRate": 2.382923,
-        "spectralCentroidMean": 1451.273506,
-        "spectralBandwidthMean": 2038.278233,
-        "spectralRolloffMean": 2803.659859,
-        "zeroCrossingRateMean": 0.049612,
-        "dynamicRange": 0.150894
-      }
-    }
-  },
-  {
-    "id": "local-40c4e118ebb3",
-    "title": "the force may be with you",
-    "artist": "idmonster",
-    "album": "http://www.monotonik.com",
-    "year": 2001,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.515198,
-    "danceability": 0.576923,
-    "valence": 0.454545,
-    "socialness": 0.642857,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.477541,
-      "onsetStrengthMean": 0.202085,
-      "onsetRate": 0.339502,
-      "spectralBrightness": 0.097062,
-      "dynamicRange": 0.291441
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-40c4e118ebb3",
-        "energy": 60,
-        "danceability": 55,
-        "valence": 45,
-        "socialness": 65,
-        "intensity": 55,
-        "description": "~117 BPM, warmer/lower spectral centroid and relatively high RMS — moderately energetic and accessible, more supportive of conversation/social settings than peak dance-floor use; subtle rather than aggressive."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 232.982676,
-        "beatCount": 456,
-        "rmsMean": 0.166095,
-        "rmsMedian": 0.158446,
-        "rmsP95": 0.292703,
-        "rmsMax": 0.418152,
-        "onsetStrengthMean": 0.865635,
-        "onsetStrengthMedian": 0.639535,
-        "onsetStrengthP95": 2.347229,
-        "onsetRate": 2.674019,
-        "spectralCentroidMean": 623.420268,
-        "spectralBandwidthMean": 740.778309,
-        "spectralRolloffMean": 975.931163,
-        "zeroCrossingRateMean": 0.039382,
-        "dynamicRange": 0.202795
-      }
-    }
-  },
-  {
-    "id": "local-3d198ad0211a",
-    "title": "sous l'eau a pied",
-    "artist": "jiva",
-    "album": "www.mono211.com/monotonik",
-    "year": 1999,
-    "genres": [
-      "Polka"
-    ],
-    "bpm": 99.384,
-    "energy": 0.676801,
-    "danceability": 0.641026,
-    "valence": 0.727273,
-    "socialness": 0.714286,
-    "intensity": 0.564706,
-    "normalizedAudio": {
-      "rmsMean": 0.478864,
-      "onsetStrengthMean": 0.42658,
-      "onsetRate": 0.747765,
-      "spectralBrightness": 0.107391,
-      "dynamicRange": 0.24698
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-3d198ad0211a",
-        "energy": 68,
-        "danceability": 60,
-        "valence": 60,
-        "socialness": 70,
-        "intensity": 58,
-        "description": "Polka-tagged, ~99 BPM with high onset rate and lively transients — playful and upbeat, easygoing for social environments and encourages movement but not overwhelmingly intense."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 226.093605,
-        "beatCount": 333,
-        "rmsMean": 0.166455,
-        "rmsMedian": 0.167287,
-        "rmsP95": 0.268051,
-        "rmsMax": 0.374266,
-        "onsetStrengthMean": 1.529617,
-        "onsetStrengthMedian": 0.305926,
-        "onsetStrengthP95": 7.340765,
-        "onsetRate": 5.674641,
-        "spectralCentroidMean": 659.10716,
-        "spectralBandwidthMean": 939.208984,
-        "spectralRolloffMean": 1158.392571,
-        "zeroCrossingRateMean": 0.035095,
-        "dynamicRange": 0.182747
-      }
-    }
-  },
-  {
-    "id": "local-3c51c609832d",
-    "title": "autumn week",
-    "artist": "pretty boy crossover",
-    "album": "http://www.monotonik.com :)",
-    "genres": [
-      "Freestyle"
-    ],
-    "bpm": 129.199,
-    "energy": 0.746723,
-    "danceability": 0.833333,
-    "valence": 0.636364,
-    "socialness": 0.5,
-    "intensity": 0.729412,
-    "normalizedAudio": {
-      "rmsMean": 0.189159,
-      "onsetStrengthMean": 0.520937,
-      "onsetRate": 0.711352,
-      "spectralBrightness": 0.395352,
-      "dynamicRange": 0.266503
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-3c51c609832d",
-        "energy": 78,
-        "danceability": 75,
-        "valence": 55,
-        "socialness": 55,
-        "intensity": 72,
-        "description": "~129 BPM, pronounced high-frequency content and active onsets — bright, propulsive and danceable; attention-grabbing enough for the floor while still usable in social contexts at moderate volumes."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 365.635918,
-        "beatCount": 683,
-        "rmsMean": 0.087501,
-        "rmsMedian": 0.075427,
-        "rmsP95": 0.218157,
-        "rmsMax": 0.33237,
-        "onsetStrengthMean": 1.808694,
-        "onsetStrengthMedian": 0.753002,
-        "onsetStrengthP95": 7.342085,
-        "onsetRate": 5.407018,
-        "spectralCentroidMean": 1654.066705,
-        "spectralBandwidthMean": 2255.237481,
-        "spectralRolloffMean": 3668.72273,
-        "zeroCrossingRateMean": 0.045203,
-        "dynamicRange": 0.19155
-      }
-    }
+    "audioFile": "Mindflower - calm.mp3"
   },
   {
     "id": "local-90568eca231e",
@@ -5958,7 +4376,8 @@
         "zeroCrossingRateMean": 0.046899,
         "dynamicRange": 0.327866
       }
-    }
+    },
+    "audioFile": "Morning papers vs Lizardking - tell me colours.mp3"
   },
   {
     "id": "local-85dfdb8157e6",
@@ -6008,7 +4427,8 @@
         "zeroCrossingRateMean": 0.09118,
         "dynamicRange": 0.165574
       }
-    }
+    },
+    "audioFile": "Northbound - Little Thieves.mp3"
   },
   {
     "id": "local-ed21f2b65029",
@@ -6058,7 +4478,8 @@
         "zeroCrossingRateMean": 0.073976,
         "dynamicRange": 0.287494
       }
-    }
+    },
+    "audioFile": "Northbound - Torches.mp3"
   },
   {
     "id": "local-4094143c3d44",
@@ -6110,7 +4531,8 @@
         "zeroCrossingRateMean": 0.085417,
         "dynamicRange": 0.140396
       }
-    }
+    },
+    "audioFile": "Planet Boelex - paprikas from deep.mp3"
   },
   {
     "id": "local-3d509e53d8a8",
@@ -6162,7 +4584,8 @@
         "zeroCrossingRateMean": 0.042771,
         "dynamicRange": 0.135463
       }
-    }
+    },
+    "audioFile": "Planet Boelex - shower curtain.mp3"
   },
   {
     "id": "local-e030c9abafa8",
@@ -6214,7 +4637,8 @@
         "zeroCrossingRateMean": 0.042985,
         "dynamicRange": 0.143797
       }
-    }
+    },
+    "audioFile": "Planet Boelex - stuck tight.mp3"
   },
   {
     "id": "local-67e4ce6e8954",
@@ -6266,7 +4690,8 @@
         "zeroCrossingRateMean": 0.035507,
         "dynamicRange": 0.280996
       }
-    }
+    },
+    "audioFile": "Planet Boelex - windbreak.mp3"
   },
   {
     "id": "local-a39aa53abafc",
@@ -6316,7 +4741,8 @@
         "zeroCrossingRateMean": 0.114469,
         "dynamicRange": 0.213251
       }
-    }
+    },
+    "audioFile": "Pliant - Boss.mp3"
   },
   {
     "id": "local-17e1acbd0fc3",
@@ -6368,7 +4794,8 @@
         "zeroCrossingRateMean": 0.063778,
         "dynamicRange": 0.179301
       }
-    }
+    },
+    "audioFile": "Project 5am - Angelou.mp3"
   },
   {
     "id": "local-96ec55e25db7",
@@ -6420,7 +4847,8 @@
         "zeroCrossingRateMean": 0.059577,
         "dynamicRange": 0.241501
       }
-    }
+    },
+    "audioFile": "Project 5am - Polar Stratospheric Clouds.mp3"
   },
   {
     "id": "local-8122c5f9e9c9",
@@ -6470,7 +4898,8 @@
         "zeroCrossingRateMean": 0.091628,
         "dynamicRange": 0.142429
       }
-    }
+    },
+    "audioFile": "Prook - six.mp3"
   },
   {
     "id": "local-b6bc507057eb",
@@ -6522,7 +4951,8 @@
         "zeroCrossingRateMean": 0.090738,
         "dynamicRange": 0.191702
       }
-    }
+    },
+    "audioFile": "Pupuguru - kekkonen.mp3"
   },
   {
     "id": "local-4cae67eaccbd",
@@ -6574,7 +5004,8 @@
         "zeroCrossingRateMean": 0.071903,
         "dynamicRange": 0.17966
       }
-    }
+    },
+    "audioFile": "Qeshi - Islanddryad.mp3"
   },
   {
     "id": "local-480a5e3704ef",
@@ -6626,107 +5057,8 @@
         "zeroCrossingRateMean": 0.186522,
         "dynamicRange": 0.149701
       }
-    }
-  },
-  {
-    "id": "local-5c61c3835f03",
-    "title": "light control [leverkuhn static mix]",
-    "artist": "randomajestiq / leverkuhn",
-    "album": "light control mix ep",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.719966,
-    "danceability": 0.769231,
-    "valence": 0.454545,
-    "socialness": 0.571429,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.510649,
-      "onsetStrengthMean": 0.549989,
-      "onsetRate": 0.999638,
-      "spectralBrightness": 0.40385,
-      "dynamicRange": 0.483208
     },
-    "raw": {
-      "llm": {
-        "songId": "local-5c61c3835f03",
-        "energy": 65,
-        "danceability": 70,
-        "valence": 45,
-        "socialness": 60,
-        "intensity": 55,
-        "description": "117 BPM minimal/tech mix with steady high onset rate and moderate RMS — perceptible drive and momentum but not maximal loudness. Good sustained groove for dancing, slightly moody in tone; works reasonably well as background for social settings while still having some presence."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 309.865941,
-        "beatCount": 599,
-        "rmsMean": 0.175118,
-        "rmsMedian": 0.157437,
-        "rmsP95": 0.325131,
-        "rmsMax": 0.386724,
-        "onsetStrengthMean": 1.894622,
-        "onsetStrengthMedian": 0.684735,
-        "onsetStrengthP95": 7.163991,
-        "onsetRate": 7.525835,
-        "spectralCentroidMean": 1683.430492,
-        "spectralBandwidthMean": 2308.557469,
-        "spectralRolloffMean": 3744.926569,
-        "zeroCrossingRateMean": 0.050869,
-        "dynamicRange": 0.289267
-      }
-    }
-  },
-  {
-    "id": "local-78cd340c5dda",
-    "title": "light control [raimo lo-fi minimal tech mix]",
-    "artist": "randomajestiq / raimo",
-    "album": "light control mix ep",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.859078,
-    "danceability": 0.833333,
-    "valence": 0.363636,
-    "socialness": 0.428571,
-    "intensity": 0.647059,
-    "normalizedAudio": {
-      "rmsMean": 0.787591,
-      "onsetStrengthMean": 0.760711,
-      "onsetRate": 0.862863,
-      "spectralBrightness": 0.509164,
-      "dynamicRange": 0.452296
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-78cd340c5dda",
-        "energy": 72,
-        "danceability": 75,
-        "valence": 40,
-        "socialness": 50,
-        "intensity": 65,
-        "description": "117 BPM lo‑fi/minimal tech mix with higher RMS and stronger onset peaks — punchier and more propulsive than the static mix. Strong danceability and higher perceived energy; darker valence and somewhat attention‑demanding, so less purely social."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 303.960816,
-        "beatCount": 606,
-        "rmsMean": 0.250593,
-        "rmsMedian": 0.276271,
-        "rmsP95": 0.375656,
-        "rmsMax": 0.41655,
-        "onsetStrengthMean": 2.517868,
-        "onsetStrengthMedian": 1.051143,
-        "onsetStrengthP95": 9.949894,
-        "onsetRate": 6.520577,
-        "spectralCentroidMean": 2047.307168,
-        "spectralBandwidthMean": 2554.836415,
-        "spectralRolloffMean": 4683.161619,
-        "zeroCrossingRateMean": 0.077221,
-        "dynamicRange": 0.275328
-      }
-    }
+    "audioFile": "Qeshi - Moshi moshi qeshi!.mp3"
   },
   {
     "id": "local-0f6cfd778575",
@@ -6778,7 +5110,8 @@
         "zeroCrossingRateMean": 0.071701,
         "dynamicRange": 0.170862
       }
-    }
+    },
+    "audioFile": "Realsmokers - daybreak.mp3"
   },
   {
     "id": "local-767d901dc475",
@@ -6830,7 +5163,8 @@
         "zeroCrossingRateMean": 0.100285,
         "dynamicRange": 0.297552
       }
-    }
+    },
+    "audioFile": "Realsmokers - lifedrive II (mp3 mix).mp3"
   },
   {
     "id": "local-4dd9a995e1e2",
@@ -6882,7 +5216,8 @@
         "zeroCrossingRateMean": 0.102942,
         "dynamicRange": 0.216186
       }
-    }
+    },
+    "audioFile": "Realsmokers - the legend.mp3"
   },
   {
     "id": "local-e72c6cc86c13",
@@ -6934,7 +5269,8 @@
         "zeroCrossingRateMean": 0.109945,
         "dynamicRange": 0.271231
       }
-    }
+    },
+    "audioFile": "Risch - Doppelversträker.mp3"
   },
   {
     "id": "local-dde16a1022ba",
@@ -6986,59 +5322,8 @@
         "zeroCrossingRateMean": 0.099272,
         "dynamicRange": 0.238066
       }
-    }
-  },
-  {
-    "id": "local-e44473a59caf",
-    "title": "addictive additive",
-    "artist": "aaron jasinski",
-    "album": "serpentine soiree",
-    "year": 2006,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 143.555,
-    "energy": 0.604717,
-    "danceability": 0.641026,
-    "valence": 0.545455,
-    "socialness": 0.5,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0.4479,
-      "onsetStrengthMean": 0.300571,
-      "onsetRate": 0.368687,
-      "spectralBrightness": 0.550995,
-      "dynamicRange": 0.435909
     },
-    "raw": {
-      "llm": {
-        "songId": "local-e44473a59caf",
-        "energy": 65,
-        "danceability": 60,
-        "valence": 50,
-        "socialness": 55,
-        "intensity": 50,
-        "description": "Electronic at ~144 BPM but with lower onset rate and moderate RMS — noticeable tempo and groove but less aggressive transient activity. Good for dancing with a more relaxed intensity; reasonably social‑compatible."
-      },
-      "audio": {
-        "bpm": 143.554688,
-        "durationSeconds": 360.045714,
-        "beatCount": 867,
-        "rmsMean": 0.158016,
-        "rmsMedian": 0.151733,
-        "rmsP95": 0.323994,
-        "rmsMax": 0.576832,
-        "onsetStrengthMean": 1.156925,
-        "onsetStrengthMedian": 0.699408,
-        "onsetStrengthP95": 3.911694,
-        "onsetRate": 2.888522,
-        "spectralCentroidMean": 2191.840791,
-        "spectralBandwidthMean": 2506.75864,
-        "spectralRolloffMean": 4952.8971,
-        "zeroCrossingRateMean": 0.099935,
-        "dynamicRange": 0.267939
-      }
-    }
+    "audioFile": "Risch - Observing Fractals In Clouds.mp3"
   },
   {
     "id": "local-dcbbb795d982",
@@ -7088,59 +5373,8 @@
         "zeroCrossingRateMean": 0.041922,
         "dynamicRange": 0.14756
       }
-    }
-  },
-  {
-    "id": "local-6be400475a7b",
-    "title": "bjeon",
-    "artist": "url",
-    "album": "octopus city",
-    "year": 2007,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 135.999,
-    "energy": 0.710421,
-    "danceability": 0.74359,
-    "valence": 0.454545,
-    "socialness": 0.571429,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.707136,
-      "onsetStrengthMean": 0.34521,
-      "onsetRate": 0.494771,
-      "spectralBrightness": 0.305244,
-      "dynamicRange": 0.496893
     },
-    "raw": {
-      "llm": {
-        "songId": "local-6be400475a7b",
-        "energy": 70,
-        "danceability": 68,
-        "valence": 45,
-        "socialness": 60,
-        "intensity": 60,
-        "description": "Electronic track ~136 BPM with higher RMS and sustained onset activity — lively and driving with clear groove. Strong danceability and energy while retaining enough textural space to function in social settings at moderate volumes; moderately intense."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 394.736327,
-        "beatCount": 863,
-        "rmsMean": 0.228666,
-        "rmsMedian": 0.239306,
-        "rmsP95": 0.37795,
-        "rmsMax": 0.490384,
-        "onsetStrengthMean": 1.288952,
-        "onsetStrengthMedian": 0.529112,
-        "onsetStrengthP95": 5.555066,
-        "onsetRate": 3.815205,
-        "spectralCentroidMean": 1342.727095,
-        "spectralBandwidthMean": 1862.406009,
-        "spectralRolloffMean": 2996.384481,
-        "zeroCrossingRateMean": 0.042578,
-        "dynamicRange": 0.295438
-      }
-    }
+    "audioFile": "Rubicante - Beyond.mp3"
   },
   {
     "id": "local-68b236b1b33c",
@@ -7190,7 +5424,8 @@
         "zeroCrossingRateMean": 0.072528,
         "dynamicRange": 0.164632
       }
-    }
+    },
+    "audioFile": "Rubicante - Cloe.mp3"
   },
   {
     "id": "local-0d8e3c4c38c9",
@@ -7240,109 +5475,8 @@
         "zeroCrossingRateMean": 0.117443,
         "dynamicRange": 0.246077
       }
-    }
-  },
-  {
-    "id": "local-4811890d4861",
-    "title": "occasional slide",
-    "artist": "aaron jasinski",
-    "album": "serpentine soiree",
-    "year": 2006,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 95.703,
-    "energy": 0.685392,
-    "danceability": 0.705128,
-    "valence": 0.545455,
-    "socialness": 0.5,
-    "intensity": 0.705882,
-    "normalizedAudio": {
-      "rmsMean": 0.441985,
-      "onsetStrengthMean": 0.468505,
-      "onsetRate": 0.505019,
-      "spectralBrightness": 0.442297,
-      "dynamicRange": 0.485743
     },
-    "raw": {
-      "llm": {
-        "songId": "local-4811890d4861",
-        "energy": 70,
-        "danceability": 65,
-        "valence": 50,
-        "socialness": 55,
-        "intensity": 70,
-        "description": "Lower tempo (~96 BPM) but notable onset peaks, higher RMS and dynamic range — lively and punchy with clear rhythmic accents. Moves well on the floor while still usable in social contexts; moderately intense."
-      },
-      "audio": {
-        "bpm": 95.703125,
-        "durationSeconds": 314.096327,
-        "beatCount": 474,
-        "rmsMean": 0.156404,
-        "rmsMedian": 0.160822,
-        "rmsP95": 0.333676,
-        "rmsMax": 0.393574,
-        "onsetStrengthMean": 1.653618,
-        "onsetStrengthMedian": 0.711391,
-        "onsetStrengthP95": 6.898448,
-        "onsetRate": 3.890526,
-        "spectralCentroidMean": 1816.271298,
-        "spectralBandwidthMean": 2148.118131,
-        "spectralRolloffMean": 3904.662297,
-        "zeroCrossingRateMean": 0.071087,
-        "dynamicRange": 0.29041
-      }
-    }
-  },
-  {
-    "id": "local-4ecfafb01907",
-    "title": "Premier Verset",
-    "artist": "Muhr",
-    "album": "Nulla Lullabies",
-    "year": null,
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.474491,
-    "danceability": 0.512821,
-    "valence": 0.727273,
-    "socialness": 0.714286,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.141688,
-      "onsetStrengthMean": 0.249578,
-      "onsetRate": 0.171905,
-      "spectralBrightness": 0.708409,
-      "dynamicRange": 0.23735
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-4ecfafb01907",
-        "energy": 60,
-        "danceability": 50,
-        "valence": 60,
-        "socialness": 70,
-        "intensity": 45,
-        "description": "Upbeat tempo (~136 BPM) but low average RMS and modest onset rate; very bright spectral centroid. Feels airy/bright rather than forceful — moderately energetic, pleasant for background/social settings, not highly aggressive."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 312.016689,
-        "beatCount": 703,
-        "rmsMean": 0.074564,
-        "rmsMedian": 0.049199,
-        "rmsP95": 0.180778,
-        "rmsMax": 0.329756,
-        "onsetStrengthMean": 1.006102,
-        "onsetStrengthMedian": 0.777355,
-        "onsetStrengthP95": 2.790298,
-        "onsetRate": 1.442231,
-        "spectralCentroidMean": 2735.73536,
-        "spectralBandwidthMean": 2646.869549,
-        "spectralRolloffMean": 5716.916405,
-        "zeroCrossingRateMean": 0.128225,
-        "dynamicRange": 0.178404
-      }
-    }
+    "audioFile": "Rubicante - Dark Noon.mp3"
   },
   {
     "id": "local-809a29a454a3",
@@ -7392,109 +5526,8 @@
         "zeroCrossingRateMean": 0.116316,
         "dynamicRange": 0.274259
       }
-    }
-  },
-  {
-    "id": "local-05a0a2224e66",
-    "title": "The Last Question",
-    "artist": "Muhr",
-    "album": "Nulla Lullabies",
-    "year": null,
-    "genres": [],
-    "bpm": 129.199,
-    "energy": 0.143363,
-    "danceability": 0.128205,
-    "valence": 0.363636,
-    "socialness": 0.857143,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.291947,
-      "onsetStrengthMean": 0.158053,
-      "onsetRate": 0.063632,
-      "spectralBrightness": 0.155572,
-      "dynamicRange": 0.110898
     },
-    "raw": {
-      "llm": {
-        "songId": "local-05a0a2224e66",
-        "energy": 30,
-        "danceability": 20,
-        "valence": 40,
-        "socialness": 80,
-        "intensity": 25,
-        "description": "Moderate tempo (~129 BPM) but very low onset rate, low dynamic range and low spectral centroid — calm, subdued and ambient-feeling. Low danceability, highly unobtrusive and suitable as social/background music."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 366.61551,
-        "beatCount": 783,
-        "rmsMean": 0.115514,
-        "rmsMedian": 0.124006,
-        "rmsP95": 0.175536,
-        "rmsMax": 0.307834,
-        "onsetStrengthMean": 0.735401,
-        "onsetStrengthMedian": 0.675129,
-        "onsetStrengthP95": 1.272281,
-        "onsetRate": 0.646454,
-        "spectralCentroidMean": 825.58194,
-        "spectralBandwidthMean": 1388.770557,
-        "spectralRolloffMean": 1421.26778,
-        "zeroCrossingRateMean": 0.035057,
-        "dynamicRange": 0.121385
-      }
-    }
-  },
-  {
-    "id": "local-e1797360ce5a",
-    "title": "translucent",
-    "artist": "url",
-    "album": "octopus city",
-    "year": 2007,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 92.285,
-    "energy": 0.604446,
-    "danceability": 0.641026,
-    "valence": 0.545455,
-    "socialness": 0.571429,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.331259,
-      "onsetStrengthMean": 0.330757,
-      "onsetRate": 0.454485,
-      "spectralBrightness": 0.66471,
-      "dynamicRange": 0.260882
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-e1797360ce5a",
-        "energy": 65,
-        "danceability": 60,
-        "valence": 50,
-        "socialness": 60,
-        "intensity": 60,
-        "description": "Laid-back tempo (~92 BPM) with solid onset activity and elevated spectral centroid/rolloff — energetic in texture though mid-tempo. Good groove for casual movement, reasonably compatible with mingling, moderately intense."
-      },
-      "audio": {
-        "bpm": 92.285156,
-        "durationSeconds": 356.623673,
-        "beatCount": 541,
-        "rmsMean": 0.126228,
-        "rmsMedian": 0.101612,
-        "rmsP95": 0.247017,
-        "rmsMax": 0.329722,
-        "onsetStrengthMean": 1.246203,
-        "onsetStrengthMedian": 0.721655,
-        "onsetStrengthP95": 4.494044,
-        "onsetRate": 3.519116,
-        "spectralCentroidMean": 2584.748611,
-        "spectralBandwidthMean": 2607.754924,
-        "spectralRolloffMean": 5581.388304,
-        "zeroCrossingRateMean": 0.107447,
-        "dynamicRange": 0.189015
-      }
-    }
+    "audioFile": "Rubicante - The Hussle.mp3"
   },
   {
     "id": "local-1f5c617fc977",
@@ -7546,7 +5579,8 @@
         "zeroCrossingRateMean": 0.085321,
         "dynamicRange": 0.172241
       }
-    }
+    },
+    "audioFile": "Same Nice Lamb - Archipelago.mp3"
   },
   {
     "id": "local-99de9c529682",
@@ -7598,7 +5632,8 @@
         "zeroCrossingRateMean": 0.083086,
         "dynamicRange": 0.071379
       }
-    }
+    },
+    "audioFile": "Same Nice Lamb - Feather.mp3"
   },
   {
     "id": "local-8b67b026b786",
@@ -7650,7 +5685,8 @@
         "zeroCrossingRateMean": 0.076165,
         "dynamicRange": 0.304091
       }
-    }
+    },
+    "audioFile": "Sense - Korma.mp3"
   },
   {
     "id": "local-9d06f24d1668",
@@ -7702,7 +5738,8 @@
         "zeroCrossingRateMean": 0.101095,
         "dynamicRange": 0.296798
       }
-    }
+    },
+    "audioFile": "Sense - Onel.mp3"
   },
   {
     "id": "local-462ec0844177",
@@ -7754,7 +5791,8 @@
         "zeroCrossingRateMean": 0.069368,
         "dynamicRange": 0.228274
       }
-    }
+    },
+    "audioFile": "SinQ - Be Brave.mp3"
   },
   {
     "id": "local-7359494e1b34",
@@ -7806,7 +5844,8 @@
         "zeroCrossingRateMean": 0.101342,
         "dynamicRange": 0.291629
       }
-    }
+    },
+    "audioFile": "SinQ - Who's Afraid Of Noises-.mp3"
   },
   {
     "id": "local-f43d9694aa18",
@@ -7856,7 +5895,8 @@
         "zeroCrossingRateMean": 0.120631,
         "dynamicRange": 0.285344
       }
-    }
+    },
+    "audioFile": "Skybax - a flowering sea.mp3"
   },
   {
     "id": "local-6568e135cf4f",
@@ -7908,7 +5948,8 @@
         "zeroCrossingRateMean": 0.092229,
         "dynamicRange": 0.210354
       }
-    }
+    },
+    "audioFile": "Skybax - Shore Story.mp3"
   },
   {
     "id": "local-225e1da04dbe",
@@ -7958,7 +5999,8 @@
         "zeroCrossingRateMean": 0.054355,
         "dynamicRange": 0.462975
       }
-    }
+    },
+    "audioFile": "Skyscape - kahvi038_skyscape-a_river_in_t.mp3"
   },
   {
     "id": "local-090ff8b01517",
@@ -8008,7 +6050,8 @@
         "zeroCrossingRateMean": 0.043088,
         "dynamicRange": 0.228791
       }
-    }
+    },
+    "audioFile": "Sleepy Town Manufacture - Oopon.mp3"
   },
   {
     "id": "local-b5790a6fc962",
@@ -8058,307 +6101,8 @@
         "zeroCrossingRateMean": 0.031694,
         "dynamicRange": 0.317309
       }
-    }
-  },
-  {
-    "id": "local-ebdca44eac19",
-    "title": "tmp",
-    "artist": "slem",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 112.347,
-    "energy": 0.482036,
-    "danceability": 0.641026,
-    "valence": 0.363636,
-    "socialness": 0.642857,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.196446,
-      "onsetStrengthMean": 0.664498,
-      "onsetRate": 0.668448,
-      "spectralBrightness": 0.397607,
-      "dynamicRange": 0.306368
     },
-    "raw": {
-      "llm": {
-        "songId": "local-ebdca44eac19",
-        "energy": 50,
-        "danceability": 60,
-        "valence": 40,
-        "socialness": 65,
-        "intensity": 55,
-        "description": "Lower rms but high onset‑peak behavior suggests sparse, punchy production at ~112 BPM. Moderate danceability (steady beats) but generally restrained/ambient-tinted and slightly dark in mood."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 250.408345,
-        "beatCount": 346,
-        "rmsMean": 0.089487,
-        "rmsMedian": 0.078408,
-        "rmsP95": 0.216547,
-        "rmsMax": 0.378908,
-        "onsetStrengthMean": 2.2333,
-        "onsetStrengthMedian": 0.439169,
-        "onsetStrengthP95": 11.465959,
-        "onsetRate": 5.091683,
-        "spectralCentroidMean": 1661.856715,
-        "spectralBandwidthMean": 1999.128594,
-        "spectralRolloffMean": 3522.22407,
-        "zeroCrossingRateMean": 0.079078,
-        "dynamicRange": 0.209526
-      }
-    }
-  },
-  {
-    "id": "local-1cca0361b201",
-    "title": "tmp",
-    "artist": "slem",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 80.75,
-    "energy": 0.38672,
-    "danceability": 0.320513,
-    "valence": 0.272727,
-    "socialness": 0.714286,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.277894,
-      "onsetStrengthMean": 0.583989,
-      "onsetRate": 0.593729,
-      "spectralBrightness": 0.53195,
-      "dynamicRange": 0.323221
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-1cca0361b201",
-        "energy": 40,
-        "danceability": 35,
-        "valence": 35,
-        "socialness": 70,
-        "intensity": 45,
-        "description": "Slowish (~81 BPM) with modest loudness and mid/high spectral centroid — feels downtempo and contemplative. Works well as unobtrusive social/background music; low danceability and somewhat somber/neutral mood."
-      },
-      "audio": {
-        "bpm": 80.749512,
-        "durationSeconds": 282.001995,
-        "beatCount": 355,
-        "rmsMean": 0.111684,
-        "rmsMedian": 0.1067,
-        "rmsP95": 0.238885,
-        "rmsMax": 0.34492,
-        "onsetStrengthMean": 1.995181,
-        "onsetStrengthMedian": 0.849189,
-        "onsetStrengthP95": 7.630903,
-        "onsetRate": 4.542521,
-        "spectralCentroidMean": 2126.038123,
-        "spectralBandwidthMean": 2340.080788,
-        "spectralRolloffMean": 4486.455725,
-        "zeroCrossingRateMean": 0.089052,
-        "dynamicRange": 0.217125
-      }
-    }
-  },
-  {
-    "id": "local-dd764872e74a",
-    "title": "seedless",
-    "artist": "slem",
-    "album": "sequia",
-    "year": null,
-    "genres": [],
-    "bpm": 143.555,
-    "energy": 0.727415,
-    "danceability": 0.833333,
-    "valence": 0.363636,
-    "socialness": 0.428571,
-    "intensity": 0.705882,
-    "normalizedAudio": {
-      "rmsMean": 0.225416,
-      "onsetStrengthMean": 0.417667,
-      "onsetRate": 0.612621,
-      "spectralBrightness": 0.388715,
-      "dynamicRange": 0.236847
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-dd764872e74a",
-        "energy": 78,
-        "danceability": 75,
-        "valence": 40,
-        "socialness": 50,
-        "intensity": 70,
-        "description": "Fast tempo (143 BPM), high onset rate and pronounced transient peaks (rmsP95 0.228) with mid-high spectral centroid — sounds driving and club-oriented. Strong momentum and percussion give high energy and danceability; darker timbral center suggests lower valence. Moderately intense and moderately usable for social settings."
-      },
-      "audio": {
-        "bpm": 143.554688,
-        "durationSeconds": 290.726893,
-        "beatCount": 668,
-        "rmsMean": 0.097383,
-        "rmsMedian": 0.074082,
-        "rmsP95": 0.228513,
-        "rmsMax": 0.348155,
-        "onsetStrengthMean": 1.503256,
-        "onsetStrengthMedian": 0.700073,
-        "onsetStrengthP95": 5.769474,
-        "onsetRate": 4.681369,
-        "spectralCentroidMean": 1631.136028,
-        "spectralBandwidthMean": 2085.80367,
-        "spectralRolloffMean": 3560.870527,
-        "zeroCrossingRateMean": 0.036773,
-        "dynamicRange": 0.178178
-      }
-    }
-  },
-  {
-    "id": "local-648ef4efff21",
-    "title": "ytskikt",
-    "artist": "slem",
-    "album": "sequia",
-    "year": null,
-    "genres": [],
-    "bpm": 107.666,
-    "energy": 0.636238,
-    "danceability": 0.641026,
-    "valence": 0.454545,
-    "socialness": 0.5,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.329717,
-      "onsetStrengthMean": 0.471107,
-      "onsetRate": 0.649613,
-      "spectralBrightness": 0.495436,
-      "dynamicRange": 0.322705
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-648ef4efff21",
-        "energy": 65,
-        "danceability": 60,
-        "valence": 45,
-        "socialness": 55,
-        "intensity": 60,
-        "description": "Moderate tempo (~108 BPM) with relatively high mean onset strength and rms (0.126) and bright spectral centroid — punchy, groove-forward track. Good for dancing but not maximal peak energy; neutral-to-slightly-dark mood. Fairly suitable for mingling when not foregrounded."
-      },
-      "audio": {
-        "bpm": 107.666016,
-        "durationSeconds": 326.250522,
-        "beatCount": 542,
-        "rmsMean": 0.125808,
-        "rmsMedian": 0.095718,
-        "rmsP95": 0.263281,
-        "rmsMax": 0.380661,
-        "onsetStrengthMean": 1.661314,
-        "onsetStrengthMedian": 0.570698,
-        "onsetStrengthP95": 7.069807,
-        "onsetRate": 4.953249,
-        "spectralCentroidMean": 1999.875917,
-        "spectralBandwidthMean": 2447.666617,
-        "spectralRolloffMean": 4460.304726,
-        "zeroCrossingRateMean": 0.069037,
-        "dynamicRange": 0.216893
-      }
-    }
-  },
-  {
-    "id": "local-c86db17b2007",
-    "title": "fluid",
-    "artist": "sound on canvas",
-    "album": "fluid",
-    "year": null,
-    "genres": [],
-    "bpm": 107.666,
-    "energy": 0.273541,
-    "danceability": 0.448718,
-    "valence": 0.545455,
-    "socialness": 0.785714,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.178453,
-      "onsetStrengthMean": 0.257798,
-      "onsetRate": 0.312946,
-      "spectralBrightness": 0.274747,
-      "dynamicRange": 0.189928
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-c86db17b2007",
-        "energy": 40,
-        "danceability": 45,
-        "valence": 50,
-        "socialness": 75,
-        "intensity": 30,
-        "description": "Mid tempo (~108 BPM) with low rms and low onset rate — sonically soft and restrained. Low perceived drive and sparse transients make it low-energy and easy to coexist with conversation. Neutral valence and low intensity."
-      },
-      "audio": {
-        "bpm": 107.666016,
-        "durationSeconds": 309.01551,
-        "beatCount": 509,
-        "rmsMean": 0.084584,
-        "rmsMedian": 0.07931,
-        "rmsP95": 0.176551,
-        "rmsMax": 0.299283,
-        "onsetStrengthMean": 1.030416,
-        "onsetStrengthMedian": 0.851349,
-        "onsetStrengthP95": 2.435031,
-        "onsetRate": 2.47884,
-        "spectralCentroidMean": 1237.353196,
-        "spectralBandwidthMean": 1808.082808,
-        "spectralRolloffMean": 2438.758622,
-        "zeroCrossingRateMean": 0.046916,
-        "dynamicRange": 0.157021
-      }
-    }
-  },
-  {
-    "id": "local-af7ee21439fe",
-    "title": "rift",
-    "artist": "sound on canvas",
-    "album": "fluid",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.877122,
-    "danceability": 0.641026,
-    "valence": 0.272727,
-    "socialness": 0.142857,
-    "intensity": 0.941176,
-    "normalizedAudio": {
-      "rmsMean": 0.870283,
-      "onsetStrengthMean": 0.237508,
-      "onsetRate": 0.536573,
-      "spectralBrightness": 0.216199,
-      "dynamicRange": 0.859308
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-af7ee21439fe",
-        "energy": 85,
-        "danceability": 60,
-        "valence": 35,
-        "socialness": 30,
-        "intensity": 90,
-        "description": "Upbeat tempo (~117 BPM) with very high rms mean/max and large dynamic range — loud, forceful and dramatic. Strong presence and punch create very high energy and intensity; less appropriate as background for socializing. Timbre is darker/serious (lower valence)."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 416.015964,
-        "beatCount": 626,
-        "rmsMean": 0.273129,
-        "rmsMedian": 0.261159,
-        "rmsP95": 0.535838,
-        "rmsMax": 0.789063,
-        "onsetStrengthMean": 0.970403,
-        "onsetStrengthMedian": 0.745007,
-        "onsetStrengthP95": 2.60209,
-        "onsetRate": 4.122438,
-        "spectralCentroidMean": 1035.06043,
-        "spectralBandwidthMean": 1551.743321,
-        "spectralRolloffMean": 2069.47879,
-        "zeroCrossingRateMean": 0.033997,
-        "dynamicRange": 0.458858
-      }
-    }
+    "audioFile": "Sleepy Town Manufacture - Trem.mp3"
   },
   {
     "id": "local-cf3434846fa7",
@@ -8408,7 +6152,8 @@
         "zeroCrossingRateMean": 0.085562,
         "dynamicRange": 0.16845
       }
-    }
+    },
+    "audioFile": "ST - Csanca.mp3"
   },
   {
     "id": "local-39fb8a740423",
@@ -8458,107 +6203,8 @@
         "zeroCrossingRateMean": 0.087066,
         "dynamicRange": 0.225805
       }
-    }
-  },
-  {
-    "id": "local-d0e442b5a6a4",
-    "title": "tmp",
-    "artist": "stuart elliott",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.020548,
-    "danceability": 0.128205,
-    "valence": 0.363636,
-    "socialness": 0.928571,
-    "intensity": 0.058824,
-    "normalizedAudio": {
-      "rmsMean": 0.042797,
-      "onsetStrengthMean": 0.249793,
-      "onsetRate": 0.103847,
-      "spectralBrightness": 0.27742,
-      "dynamicRange": 0.060731
     },
-    "raw": {
-      "llm": {
-        "songId": "local-d0e442b5a6a4",
-        "energy": 20,
-        "danceability": 20,
-        "valence": 40,
-        "socialness": 85,
-        "intensity": 15,
-        "description": "Moderate tempo (~117 BPM) but very low rms, very low onset rate and narrow dynamic range — sparse, low-drive piece. Quiet and unobtrusive, highly suitable as background for conversation; low intensity and subdued mood."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 432.049342,
-        "beatCount": 503,
-        "rmsMean": 0.047613,
-        "rmsMedian": 0.044475,
-        "rmsP95": 0.109303,
-        "rmsMax": 0.196637,
-        "onsetStrengthMean": 1.006738,
-        "onsetStrengthMedian": 0.950206,
-        "onsetStrengthP95": 1.70725,
-        "onsetRate": 0.942022,
-        "spectralCentroidMean": 1246.59058,
-        "spectralBandwidthMean": 1653.575676,
-        "spectralRolloffMean": 2399.449442,
-        "zeroCrossingRateMean": 0.063644,
-        "dynamicRange": 0.098764
-      }
-    }
-  },
-  {
-    "id": "local-8a096296a6c1",
-    "title": "tmp",
-    "artist": "stuart elliott",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 92.285,
-    "energy": 0.192917,
-    "danceability": 0.25641,
-    "valence": 0.454545,
-    "socialness": 0.714286,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.082825,
-      "onsetStrengthMean": 0.296235,
-      "onsetRate": 0.502595,
-      "spectralBrightness": 0.403397,
-      "dynamicRange": 0.065725
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-8a096296a6c1",
-        "energy": 30,
-        "danceability": 30,
-        "valence": 45,
-        "socialness": 70,
-        "intensity": 25,
-        "description": "Slower (~92 BPM) with low rms and modest transient activity. More active than the other 'tmp' but still restrained overall — gentle groove, pleasant background presence, higher social compatibility than a dance-floor track."
-      },
-      "audio": {
-        "bpm": 92.285156,
-        "durationSeconds": 425.025306,
-        "beatCount": 603,
-        "rmsMean": 0.058522,
-        "rmsMedian": 0.052056,
-        "rmsP95": 0.121598,
-        "rmsMax": 0.211109,
-        "onsetStrengthMean": 1.1441,
-        "onsetStrengthMedian": 0.822147,
-        "onsetStrengthP95": 3.417326,
-        "onsetRate": 3.872711,
-        "spectralCentroidMean": 1681.86267,
-        "spectralBandwidthMean": 1978.411083,
-        "spectralRolloffMean": 3570.568572,
-        "zeroCrossingRateMean": 0.07544,
-        "dynamicRange": 0.101015
-      }
-    }
+    "audioFile": "ST - I'll meet you there.mp3"
   },
   {
     "id": "local-240539441f81",
@@ -8610,7 +6256,8 @@
         "zeroCrossingRateMean": 0.045475,
         "dynamicRange": 0.134748
       }
-    }
+    },
+    "audioFile": "Stud - kahvi213a_stud-be_nice.mp3"
   },
   {
     "id": "local-52c50ae7ab9e",
@@ -8662,7 +6309,8 @@
         "zeroCrossingRateMean": 0.059924,
         "dynamicRange": 0.180522
       }
-    }
+    },
+    "audioFile": "Stud - kahvi213b_stud-respawn.mp3"
   },
   {
     "id": "local-25db92677699",
@@ -8714,7 +6362,8 @@
         "zeroCrossingRateMean": 0.040364,
         "dynamicRange": 0.271802
       }
-    }
+    },
+    "audioFile": "Stud - the person is tired.mp3"
   },
   {
     "id": "local-144da4fbb29a",
@@ -8766,7 +6415,8 @@
         "zeroCrossingRateMean": 0.04078,
         "dynamicRange": 0.225373
       }
-    }
+    },
+    "audioFile": "Stud - where the woman left.mp3"
   },
   {
     "id": "local-3b7d9968d0d5",
@@ -8816,7 +6466,8 @@
         "zeroCrossingRateMean": 0.095009,
         "dynamicRange": 0.171087
       }
-    }
+    },
+    "audioFile": "Substance - Phonk (Jungle Edit).mp3"
   },
   {
     "id": "local-861807ded284",
@@ -8866,7 +6517,8 @@
         "zeroCrossingRateMean": 0.044923,
         "dynamicRange": 0.21347
       }
-    }
+    },
+    "audioFile": "Substance - Phonk Phaq.mp3"
   },
   {
     "id": "local-fb488caff440",
@@ -8918,7 +6570,8 @@
         "zeroCrossingRateMean": 0.072021,
         "dynamicRange": 0.243535
       }
-    }
+    },
+    "audioFile": "Sushi Brother - demoner.mp3"
   },
   {
     "id": "local-f121f604e6c6",
@@ -8970,7 +6623,8 @@
         "zeroCrossingRateMean": 0.040566,
         "dynamicRange": 0.198866
       }
-    }
+    },
+    "audioFile": "Tatsu - sky and sea - daytime dream.mp3"
   },
   {
     "id": "local-7a2eab91422a",
@@ -9022,107 +6676,8 @@
         "zeroCrossingRateMean": 0.02646,
         "dynamicRange": 0.211452
       }
-    }
-  },
-  {
-    "id": "local-6bd27c9e9695",
-    "title": "mr yr",
-    "artist": "skruvmejsel",
-    "album": "female",
-    "year": null,
-    "genres": [],
-    "bpm": 103.359,
-    "energy": 0.587731,
-    "danceability": 0.576923,
-    "valence": 0.545455,
-    "socialness": 0.5,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.410524,
-      "onsetStrengthMean": 0.491444,
-      "onsetRate": 0.533096,
-      "spectralBrightness": 0.466213,
-      "dynamicRange": 0.368241
     },
-    "raw": {
-      "llm": {
-        "songId": "local-6bd27c9e9695",
-        "energy": 60,
-        "danceability": 55,
-        "valence": 50,
-        "socialness": 55,
-        "intensity": 60,
-        "description": "Mid-tempo track (≈103 BPM) with solid onset strength and mid/high spectral content — moderately driving and present without being overwhelmingly aggressive; versatile for casual social contexts."
-      },
-      "audio": {
-        "bpm": 103.359375,
-        "durationSeconds": 247.993469,
-        "beatCount": 408,
-        "rmsMean": 0.14783,
-        "rmsMedian": 0.149387,
-        "rmsP95": 0.279586,
-        "rmsMax": 0.381904,
-        "onsetStrengthMean": 1.721463,
-        "onsetStrengthMedian": 0.722617,
-        "onsetStrengthP95": 7.363613,
-        "onsetRate": 4.096882,
-        "spectralCentroidMean": 1898.903629,
-        "spectralBandwidthMean": 2206.665977,
-        "spectralRolloffMean": 4038.48864,
-        "zeroCrossingRateMean": 0.074602,
-        "dynamicRange": 0.237426
-      }
-    }
-  },
-  {
-    "id": "local-092833b31db1",
-    "title": "space pazta",
-    "artist": "sbindon",
-    "album": "female",
-    "year": null,
-    "genres": [],
-    "bpm": 123.047,
-    "energy": 0.315189,
-    "danceability": 0.448718,
-    "valence": 0.545455,
-    "socialness": 0.642857,
-    "intensity": 0.294118,
-    "normalizedAudio": {
-      "rmsMean": 0.273992,
-      "onsetStrengthMean": 0.29254,
-      "onsetRate": 0.358046,
-      "spectralBrightness": 0.479585,
-      "dynamicRange": 0.15466
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-092833b31db1",
-        "energy": 40,
-        "danceability": 45,
-        "valence": 50,
-        "socialness": 65,
-        "intensity": 35,
-        "description": "Spacey/electronic texture with low RMS and moderate spectral brightness; steady but not urgent — pleasant background material, mildly danceable but suited to social listening."
-      },
-      "audio": {
-        "bpm": 123.046875,
-        "durationSeconds": 203.535964,
-        "beatCount": 406,
-        "rmsMean": 0.110621,
-        "rmsMedian": 0.106144,
-        "rmsP95": 0.202403,
-        "rmsMax": 0.28939,
-        "onsetStrengthMean": 1.133169,
-        "onsetStrengthMedian": 0.878083,
-        "onsetStrengthP95": 2.847633,
-        "onsetRate": 2.810314,
-        "spectralCentroidMean": 1945.106261,
-        "spectralBandwidthMean": 2278.047703,
-        "spectralRolloffMean": 4104.120186,
-        "zeroCrossingRateMean": 0.086842,
-        "dynamicRange": 0.141118
-      }
-    }
+    "audioFile": "Tatsu - stillness - introspective me.mp3"
   },
   {
     "id": "local-2633d7e4d983",
@@ -9174,7 +6729,8 @@
         "zeroCrossingRateMean": 0.100103,
         "dynamicRange": 0.354053
       }
-    }
+    },
+    "audioFile": "Transient - all you can do.mp3"
   },
   {
     "id": "local-420a6220ebdf",
@@ -9226,1226 +6782,7 @@
         "zeroCrossingRateMean": 0.075376,
         "dynamicRange": 0.31734
       }
-    }
-  },
-  {
-    "id": "local-8ef06ce899b8",
-    "title": "pinocchio jazzhands",
-    "artist": "transient",
-    "album": "be ep",
-    "year": 2005,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 123.047,
-    "energy": 0.929235,
-    "danceability": 0.871795,
-    "valence": 0.581818,
-    "socialness": 0.357143,
-    "intensity": 0.682353,
-    "normalizedAudio": {
-      "rmsMean": 0.8474,
-      "onsetStrengthMean": 0.831797,
-      "onsetRate": 1,
-      "spectralBrightness": 0.542621,
-      "dynamicRange": 0.940284
     },
-    "raw": {
-      "llm": {
-        "songId": "local-8ef06ce899b8",
-        "energy": 75,
-        "danceability": 78,
-        "valence": 52,
-        "socialness": 45,
-        "intensity": 68,
-        "description": "Faster (≈123 BPM) electronic with higher RMS, strong onset rate and wide spectrum — energetic club-style feel. Clear rhythmic thrust and high danceability; fairly commanding and attention-grabbing, less suited for background socializing."
-      },
-      "audio": {
-        "bpm": 123.046875,
-        "durationSeconds": 299.661406,
-        "beatCount": 622,
-        "rmsMean": 0.266893,
-        "rmsMedian": 0.210631,
-        "rmsP95": 0.607402,
-        "rmsMax": 0.73553,
-        "onsetStrengthMean": 2.728116,
-        "onsetStrengthMedian": 0.903346,
-        "onsetStrengthP95": 10.346854,
-        "onsetRate": 7.528497,
-        "spectralCentroidMean": 2162.90745,
-        "spectralBandwidthMean": 2538.320746,
-        "spectralRolloffMean": 4933.26668,
-        "zeroCrossingRateMean": 0.053151,
-        "dynamicRange": 0.495371
-      }
-    }
-  },
-  {
-    "id": "local-674e5554f595",
-    "title": "toasted",
-    "artist": "transient",
-    "album": "play ep (work + play split lp)",
-    "year": 2005,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 99.384,
-    "energy": 0.806333,
-    "danceability": 0.666667,
-    "valence": 0.509091,
-    "socialness": 0.5,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.826478,
-      "onsetStrengthMean": 0.677887,
-      "onsetRate": 0.897021,
-      "spectralBrightness": 0.600256,
-      "dynamicRange": 0.56606
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-674e5554f595",
-        "energy": 66,
-        "danceability": 62,
-        "valence": 48,
-        "socialness": 55,
-        "intensity": 60,
-        "description": "Around 99 BPM with relatively high RMS and onsets — driven, punchy electronic track. Good groove for movement without being maximalist; moderately intense and workable in mixed social/dance contexts."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 229.929796,
-        "beatCount": 353,
-        "rmsMean": 0.261191,
-        "rmsMedian": 0.247721,
-        "rmsP95": 0.456163,
-        "rmsMax": 0.609861,
-        "onsetStrengthMean": 2.272901,
-        "onsetStrengthMedian": 0.825148,
-        "onsetStrengthP95": 8.97492,
-        "onsetRate": 6.771632,
-        "spectralCentroidMean": 2362.049424,
-        "spectralBandwidthMean": 2623.801786,
-        "spectralRolloffMean": 5436.589099,
-        "zeroCrossingRateMean": 0.099281,
-        "dynamicRange": 0.326627
-      }
-    }
-  },
-  {
-    "id": "local-019de6f96afd",
-    "title": "It's Complicated",
-    "artist": "Troupe",
-    "album": "It's Really Pretty Simple After All",
-    "year": 2007,
-    "genres": [],
-    "bpm": 135.999,
-    "energy": 0.642325,
-    "danceability": 0.615385,
-    "valence": 0.545455,
-    "socialness": 0.742857,
-    "intensity": 0.352941,
-    "normalizedAudio": {
-      "rmsMean": 0.90316,
-      "onsetStrengthMean": 0.296303,
-      "onsetRate": 0.373506,
-      "spectralBrightness": 0.551315,
-      "dynamicRange": 0.225121
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-019de6f96afd",
-        "energy": 60,
-        "danceability": 58,
-        "valence": 50,
-        "socialness": 72,
-        "intensity": 40,
-        "description": "Fast tempo (~136 BPM) but lower onset strength and modest dynamic range; bright spectrum but overall gentle in attack. Energetic yet non-demanding — comfortable as upbeat background music for socializing."
-      },
-      "audio": {
-        "bpm": 135.999178,
-        "durationSeconds": 240.770612,
-        "beatCount": 529,
-        "rmsMean": 0.282089,
-        "rmsMedian": 0.30288,
-        "rmsP95": 0.358139,
-        "rmsMax": 0.395147,
-        "onsetStrengthMean": 1.1443,
-        "onsetStrengthMedian": 0.863047,
-        "onsetStrengthP95": 3.049046,
-        "onsetRate": 2.923945,
-        "spectralCentroidMean": 2192.948577,
-        "spectralBandwidthMean": 2569.226111,
-        "spectralRolloffMean": 4986.511541,
-        "zeroCrossingRateMean": 0.07333,
-        "dynamicRange": 0.17289
-      }
-    }
-  },
-  {
-    "id": "local-895da431b30e",
-    "title": "The Way Things Would Have Been Another Time",
-    "artist": "Troupe",
-    "album": "It's Really Pretty Simple After All",
-    "year": 2007,
-    "genres": [],
-    "bpm": 107.666,
-    "energy": 0.625989,
-    "danceability": 0.512821,
-    "valence": 0.472727,
-    "socialness": 0.714286,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.954644,
-      "onsetStrengthMean": 0.393611,
-      "onsetRate": 0.574373,
-      "spectralBrightness": 0.480172,
-      "dynamicRange": 0.448204
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-895da431b30e",
-        "energy": 54,
-        "danceability": 50,
-        "valence": 46,
-        "socialness": 70,
-        "intensity": 45,
-        "description": "Moderate tempo (~108 BPM) with relatively high RMS and warm spectral content. Pleasant, mid-energy feel that is unobtrusive and suitable for conversational settings; moderate intensity."
-      },
-      "audio": {
-        "bpm": 107.666016,
-        "durationSeconds": 203.62449,
-        "beatCount": 363,
-        "rmsMean": 0.29612,
-        "rmsMedian": 0.328635,
-        "rmsP95": 0.388303,
-        "rmsMax": 0.435116,
-        "onsetStrengthMean": 1.432107,
-        "onsetStrengthMedian": 0.775909,
-        "onsetStrengthP95": 4.982795,
-        "onsetRate": 4.400257,
-        "spectralCentroidMean": 1947.135395,
-        "spectralBandwidthMean": 2274.309237,
-        "spectralRolloffMean": 4383.122781,
-        "zeroCrossingRateMean": 0.069282,
-        "dynamicRange": 0.273483
-      }
-    }
-  },
-  {
-    "id": "local-390108557eef",
-    "title": "mistral",
-    "artist": "vae",
-    "album": null,
-    "year": 2000,
-    "genres": [
-      "Other"
-    ],
-    "bpm": 99.384,
-    "energy": 0.432416,
-    "danceability": 0.384615,
-    "valence": 0.4,
-    "socialness": 0.828571,
-    "intensity": 0.294118,
-    "normalizedAudio": {
-      "rmsMean": 0.272335,
-      "onsetStrengthMean": 0.540659,
-      "onsetRate": 0.567092,
-      "spectralBrightness": 0.467935,
-      "dynamicRange": 0.501876
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-390108557eef",
-        "energy": 46,
-        "danceability": 40,
-        "valence": 42,
-        "socialness": 78,
-        "intensity": 35,
-        "description": "Lower RMS, mellow spectral centroid and moderate onsets at ~99 BPM — subdued and atmospheric. Not strongly danceable; very suitable for relaxed social environments, low intensity."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 273.998367,
-        "beatCount": 347,
-        "rmsMean": 0.11017,
-        "rmsMedian": 0.08939,
-        "rmsP95": 0.315838,
-        "rmsMax": 0.446307,
-        "onsetStrengthMean": 1.867027,
-        "onsetStrengthMedian": 0.555409,
-        "onsetStrengthP95": 8.861557,
-        "onsetRate": 4.346741,
-        "spectralCentroidMean": 1904.853517,
-        "spectralBandwidthMean": 1883.130775,
-        "spectralRolloffMean": 3665.156085,
-        "zeroCrossingRateMean": 0.102539,
-        "dynamicRange": 0.297685
-      }
-    }
-  },
-  {
-    "id": "local-18c460214df6",
-    "title": "07/10/99",
-    "artist": "lackluster",
-    "album": null,
-    "year": 1999,
-    "genres": [
-      "Pop"
-    ],
-    "bpm": 112.347,
-    "energy": 0.433407,
-    "danceability": 0.487179,
-    "valence": 0.363636,
-    "socialness": 0.785714,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.324545,
-      "onsetStrengthMean": 0.583251,
-      "onsetRate": 0.686516,
-      "spectralBrightness": 0.314449,
-      "dynamicRange": 0.293613
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-18c460214df6",
-        "energy": 44,
-        "danceability": 48,
-        "valence": 40,
-        "socialness": 75,
-        "intensity": 30,
-        "description": "Moderate tempo (~112 BPM) with low RMS and modest dynamics; darker spectral profile. Calm, understated track that supports conversation rather than commanding attention."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 225.477007,
-        "beatCount": 384,
-        "rmsMean": 0.124398,
-        "rmsMedian": 0.120914,
-        "rmsP95": 0.226861,
-        "rmsMax": 0.478082,
-        "onsetStrengthMean": 1.992998,
-        "onsetStrengthMedian": 0.527948,
-        "onsetStrengthP95": 8.852101,
-        "onsetRate": 5.22448,
-        "spectralCentroidMean": 1374.532864,
-        "spectralBandwidthMean": 1732.201787,
-        "spectralRolloffMean": 3037.229364,
-        "zeroCrossingRateMean": 0.047116,
-        "dynamicRange": 0.203775
-      }
-    }
-  },
-  {
-    "id": "local-94eac92bdfe1",
-    "title": "high low dump",
-    "artist": "psilodump",
-    "album": "autumn",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.361502,
-    "danceability": 0.461538,
-    "valence": 0.327273,
-    "socialness": 0.8,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.199978,
-      "onsetStrengthMean": 0.412437,
-      "onsetRate": 0.695881,
-      "spectralBrightness": 0.510232,
-      "dynamicRange": 0.283884
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-94eac92bdfe1",
-        "energy": 40,
-        "danceability": 46,
-        "valence": 38,
-        "socialness": 76,
-        "intensity": 30,
-        "description": "Longer, low-RMS electronic piece with moderate onsets and mid spectral centroid. Subtle, minimal energy and low intensity — easygoing background music, high social compatibility."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 432.24381,
-        "beatCount": 657,
-        "rmsMean": 0.09045,
-        "rmsMedian": 0.062043,
-        "rmsP95": 0.224586,
-        "rmsMax": 0.313794,
-        "onsetStrengthMean": 1.487787,
-        "onsetStrengthMedian": 0.815719,
-        "onsetStrengthP95": 5.753836,
-        "onsetRate": 5.293309,
-        "spectralCentroidMean": 2050.99922,
-        "spectralBandwidthMean": 2183.216938,
-        "spectralRolloffMean": 3996.027409,
-        "zeroCrossingRateMean": 0.105635,
-        "dynamicRange": 0.199388
-      }
-    }
-  },
-  {
-    "id": "local-d228c6463e7a",
-    "title": "kekkonen",
-    "artist": "pupuguru",
-    "album": null,
-    "year": 1999,
-    "genres": [
-      "Techno"
-    ],
-    "bpm": 80.75,
-    "energy": 0.849024,
-    "danceability": 0.717949,
-    "valence": 0.636364,
-    "socialness": 0.428571,
-    "intensity": 0.729412,
-    "normalizedAudio": {
-      "rmsMean": 1,
-      "onsetStrengthMean": 0.549661,
-      "onsetRate": 0.73646,
-      "spectralBrightness": 0.701336,
-      "dynamicRange": 0.266841
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-d228c6463e7a",
-        "energy": 70,
-        "danceability": 66,
-        "valence": 55,
-        "socialness": 50,
-        "intensity": 72,
-        "description": "Slower BPM (~81) but high RMS, bright spectral rolloff and strong presence — punchy techno vibe. Very forceful and intense despite lower tempo; good for movement or focused listening, less for quiet mingling."
-      },
-      "audio": {
-        "bpm": 80.749512,
-        "durationSeconds": 241.972245,
-        "beatCount": 323,
-        "rmsMean": 0.308481,
-        "rmsMedian": 0.309351,
-        "rmsP95": 0.416564,
-        "rmsMax": 0.517638,
-        "onsetStrengthMean": 1.893651,
-        "onsetStrengthMedian": 0.959178,
-        "onsetStrengthP95": 6.561957,
-        "onsetRate": 5.59155,
-        "spectralCentroidMean": 2711.299018,
-        "spectralBandwidthMean": 2772.33446,
-        "spectralRolloffMean": 6081.733045,
-        "zeroCrossingRateMean": 0.090738,
-        "dynamicRange": 0.191702
-      }
-    }
-  },
-  {
-    "id": "local-65d239628b89",
-    "title": "matmilk",
-    "artist": "sabi",
-    "album": "autumn",
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.339615,
-    "danceability": 0.307692,
-    "valence": 0.272727,
-    "socialness": 0.885714,
-    "intensity": 0.176471,
-    "normalizedAudio": {
-      "rmsMean": 0.24377,
-      "onsetStrengthMean": 0.475863,
-      "onsetRate": 0.732766,
-      "spectralBrightness": 0.147743,
-      "dynamicRange": 0.195244
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-65d239628b89",
-        "energy": 38,
-        "danceability": 34,
-        "valence": 35,
-        "socialness": 82,
-        "intensity": 25,
-        "description": "Low RMS, low spectral centroid and narrow bandwidth; sparse, quiet texture despite mid BPM. Gentle and unobtrusive — excellent for social backgrounds, not dance-forward or intense."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 252.318186,
-        "beatCount": 459,
-        "rmsMean": 0.102384,
-        "rmsMedian": 0.096976,
-        "rmsP95": 0.208965,
-        "rmsMax": 0.32279,
-        "onsetStrengthMean": 1.675382,
-        "onsetStrengthMedian": 0.491034,
-        "onsetStrengthP95": 7.756426,
-        "onsetRate": 5.564403,
-        "spectralCentroidMean": 798.532593,
-        "spectralBandwidthMean": 1169.393354,
-        "spectralRolloffMean": 1339.827127,
-        "zeroCrossingRateMean": 0.036404,
-        "dynamicRange": 0.159418
-      }
-    }
-  },
-  {
-    "id": "local-0d8c6cbced4f",
-    "title": "Crazy Juice (BT Remix)",
-    "artist": "Ramone",
-    "album": "End of an Era",
-    "year": 1999,
-    "genres": [],
-    "bpm": 112.347,
-    "energy": 0.694167,
-    "danceability": 0.705128,
-    "valence": 0.636364,
-    "socialness": 0.428571,
-    "intensity": 0.588235,
-    "normalizedAudio": {
-      "rmsMean": 0.343994,
-      "onsetStrengthMean": 0.480797,
-      "onsetRate": 0.601798,
-      "spectralBrightness": 0.655318,
-      "dynamicRange": 0.197825
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-0d8c6cbced4f",
-        "energy": 70,
-        "danceability": 65,
-        "valence": 55,
-        "socialness": 50,
-        "intensity": 60,
-        "description": "Mid-tempo (≈112 BPM) electronic remix with notable onset density and mid RMS; driving percussion and spectral brightness give it elevated energy and danceability, moderately positive/bright, moderately commanding."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 203.180408,
-        "beatCount": 379,
-        "rmsMean": 0.129699,
-        "rmsMedian": 0.137846,
-        "rmsP95": 0.209483,
-        "rmsMax": 0.285699,
-        "onsetStrengthMean": 1.689974,
-        "onsetStrengthMedian": 0.875569,
-        "onsetStrengthP95": 6.520858,
-        "onsetRate": 4.601822,
-        "spectralCentroidMean": 2552.296721,
-        "spectralBandwidthMean": 2663.243878,
-        "spectralRolloffMean": 5667.496739,
-        "zeroCrossingRateMean": 0.103777,
-        "dynamicRange": 0.160582
-      }
-    }
-  },
-  {
-    "id": "local-89a6801f2635",
-    "title": "High On Hate",
-    "artist": "Subi",
-    "album": "End of an Era",
-    "year": 1999,
-    "genres": [],
-    "bpm": 99.384,
-    "energy": 0.600545,
-    "danceability": 0.576923,
-    "valence": 0.181818,
-    "socialness": 0.357143,
-    "intensity": 0.647059,
-    "normalizedAudio": {
-      "rmsMean": 0.475205,
-      "onsetStrengthMean": 0.321119,
-      "onsetRate": 0.643751,
-      "spectralBrightness": 0.591859,
-      "dynamicRange": 0.13775
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-89a6801f2635",
-        "energy": 60,
-        "danceability": 55,
-        "valence": 30,
-        "socialness": 45,
-        "intensity": 65,
-        "description": "Slower (~99 BPM) track with modest loudness and onsets; darker tonal centroid and slightly aggressive RMS profile suggest moody, mid-energy material that leans intense/edgy rather than upbeat or social."
-      },
-      "audio": {
-        "bpm": 99.384014,
-        "durationSeconds": 258.443537,
-        "beatCount": 422,
-        "rmsMean": 0.165458,
-        "rmsMedian": 0.169474,
-        "rmsP95": 0.238713,
-        "rmsMax": 0.284617,
-        "onsetStrengthMean": 1.217698,
-        "onsetStrengthMedian": 0.839907,
-        "onsetStrengthP95": 3.417316,
-        "onsetRate": 4.910163,
-        "spectralCentroidMean": 2333.035065,
-        "spectralBandwidthMean": 2357.260172,
-        "spectralRolloffMean": 5006.299488,
-        "zeroCrossingRateMean": 0.103831,
-        "dynamicRange": 0.133493
-      }
-    }
-  },
-  {
-    "id": "local-860d1e4cb8be",
-    "title": "Clockworko",
-    "artist": "Vim",
-    "album": "Random Collection Of Consonants",
-    "year": 2003,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 129.199,
-    "energy": 0.745654,
-    "danceability": 0.897436,
-    "valence": 0.727273,
-    "socialness": 0.428571,
-    "intensity": 0.705882,
-    "normalizedAudio": {
-      "rmsMean": 0.64252,
-      "onsetStrengthMean": 0.337771,
-      "onsetRate": 0.368809,
-      "spectralBrightness": 0.537512,
-      "dynamicRange": 0.423142
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-860d1e4cb8be",
-        "energy": 75,
-        "danceability": 80,
-        "valence": 60,
-        "socialness": 50,
-        "intensity": 70,
-        "description": "Up-tempo (~129 BPM) electronic with relatively high RMS and clear rhythmic drive; steady groove and spectral brightness support strong danceability and elevated energy, fairly playful/positive but still forceful."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 279.640816,
-        "beatCount": 596,
-        "rmsMean": 0.211057,
-        "rmsMedian": 0.221338,
-        "rmsP95": 0.345468,
-        "rmsMax": 0.443437,
-        "onsetStrengthMean": 1.26695,
-        "onsetStrengthMedian": 0.558335,
-        "onsetStrengthP95": 5.136221,
-        "onsetRate": 2.889421,
-        "spectralCentroidMean": 2145.25409,
-        "spectralBandwidthMean": 2414.442581,
-        "spectralRolloffMean": 4769.305023,
-        "zeroCrossingRateMean": 0.073093,
-        "dynamicRange": 0.262182
-      }
-    }
-  },
-  {
-    "id": "local-b9c35f98e944",
-    "title": "Random Collection Of Consonants",
-    "artist": "Vim",
-    "album": "Random Collection Of Consonants",
-    "year": 2003,
-    "genres": [
-      "Electronic"
-    ],
-    "bpm": 129.199,
-    "energy": 0.842664,
-    "danceability": 0.833333,
-    "valence": 0.636364,
-    "socialness": 0.357143,
-    "intensity": 0.729412,
-    "normalizedAudio": {
-      "rmsMean": 0.651791,
-      "onsetStrengthMean": 0.649198,
-      "onsetRate": 0.614494,
-      "spectralBrightness": 0.44464,
-      "dynamicRange": 0.382458
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-b9c35f98e944",
-        "energy": 78,
-        "danceability": 75,
-        "valence": 55,
-        "socialness": 45,
-        "intensity": 72,
-        "description": "Similar tempo (~129 BPM) electronic piece with higher onset strength and punchy RMS — energetic and rhythm-forward, good for dancing, moderately intense and more track-focused than background-friendly."
-      },
-      "audio": {
-        "bpm": 129.199219,
-        "durationSeconds": 251.324082,
-        "beatCount": 448,
-        "rmsMean": 0.213583,
-        "rmsMedian": 0.205004,
-        "rmsP95": 0.345008,
-        "rmsMax": 0.423457,
-        "onsetStrengthMean": 2.188049,
-        "onsetStrengthMedian": 0.915899,
-        "onsetStrengthP95": 8.778414,
-        "onsetRate": 4.695133,
-        "spectralCentroidMean": 1824.364224,
-        "spectralBandwidthMean": 1957.897818,
-        "spectralRolloffMean": 3690.197977,
-        "zeroCrossingRateMean": 0.082484,
-        "dynamicRange": 0.243837
-      }
-    }
-  },
-  {
-    "id": "local-9b8fa59621e3",
-    "title": "Brancaster Packet",
-    "artist": "Vim!",
-    "album": "Chip Van Winkle - Best Of Vim! Chiptunes 1992-2000",
-    "year": 2000,
-    "genres": [],
-    "bpm": 143.555,
-    "energy": 0.82643,
-    "danceability": 0.961538,
-    "valence": 0.909091,
-    "socialness": 0.571429,
-    "intensity": 0.764706,
-    "normalizedAudio": {
-      "rmsMean": 0.698585,
-      "onsetStrengthMean": 0.427657,
-      "onsetRate": 0.519025,
-      "spectralBrightness": 0.372773,
-      "dynamicRange": 0.725634
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-9b8fa59621e3",
-        "energy": 80,
-        "danceability": 85,
-        "valence": 70,
-        "socialness": 60,
-        "intensity": 75,
-        "description": "Fast (~144 BPM) chiptune-style track with high RMS and bright spectrum; short, punchy and very propulsive — high danceability and upbeat valence while remaining fairly intense and attention-grabbing."
-      },
-      "audio": {
-        "bpm": 143.554688,
-        "durationSeconds": 122.450068,
-        "beatCount": 288,
-        "rmsMean": 0.226336,
-        "rmsMedian": 0.239509,
-        "rmsP95": 0.425353,
-        "rmsMax": 0.490701,
-        "onsetStrengthMean": 1.532802,
-        "onsetStrengthMedian": 0.641539,
-        "onsetStrengthP95": 6.139286,
-        "onsetRate": 3.993465,
-        "spectralCentroidMean": 1576.053247,
-        "spectralBandwidthMean": 1657.789629,
-        "spectralRolloffMean": 3197.531638,
-        "zeroCrossingRateMean": 0.063329,
-        "dynamicRange": 0.398581
-      }
-    }
-  },
-  {
-    "id": "local-cef8d057696e",
-    "title": "Catering-Sized",
-    "artist": "Vim!",
-    "album": "Chip Van Winkle - Best Of Vim! Chiptunes 1992-2000",
-    "year": 2000,
-    "genres": [],
-    "bpm": 76,
-    "energy": 0.358174,
-    "danceability": 0.384615,
-    "valence": 0.545455,
-    "socialness": 0.714286,
-    "intensity": 0.294118,
-    "normalizedAudio": {
-      "rmsMean": 0.525789,
-      "onsetStrengthMean": 0.355884,
-      "onsetRate": 0.324591,
-      "spectralBrightness": 0.336459,
-      "dynamicRange": 0.334182
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-cef8d057696e",
-        "energy": 40,
-        "danceability": 40,
-        "valence": 50,
-        "socialness": 70,
-        "intensity": 35,
-        "description": "Slow (~76 BPM) piece with moderate loudness and low onset rate; calmer, more spacious arrangement that fits relaxed social settings better than active dance, low to moderate intensity."
-      },
-      "audio": {
-        "bpm": 75.99954,
-        "durationSeconds": 153.640272,
-        "beatCount": 192,
-        "rmsMean": 0.179244,
-        "rmsMedian": 0.158958,
-        "rmsP95": 0.316028,
-        "rmsMax": 0.371638,
-        "onsetStrengthMean": 1.32052,
-        "onsetStrengthMedian": 0.889526,
-        "onsetStrengthP95": 4.246246,
-        "onsetRate": 2.564432,
-        "spectralCentroidMean": 1450.582237,
-        "spectralBandwidthMean": 1707.954361,
-        "spectralRolloffMean": 3153.400432,
-        "zeroCrossingRateMean": 0.05536,
-        "dynamicRange": 0.222068
-      }
-    }
-  },
-  {
-    "id": "local-9f9c48871215",
-    "title": "Chimier",
-    "artist": "Vim",
-    "album": "Perpetual Autumn",
-    "year": 2004,
-    "genres": [
-      "electronic"
-    ],
-    "bpm": 123.047,
-    "energy": 0.623989,
-    "danceability": 0.641026,
-    "valence": 0.454545,
-    "socialness": 0.571429,
-    "intensity": 0.470588,
-    "normalizedAudio": {
-      "rmsMean": 0.689401,
-      "onsetStrengthMean": 0.226188,
-      "onsetRate": 0.342833,
-      "spectralBrightness": 0.328267,
-      "dynamicRange": 0.566376
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-9f9c48871215",
-        "energy": 65,
-        "danceability": 60,
-        "valence": 45,
-        "socialness": 60,
-        "intensity": 50,
-        "description": "Mid-tempo (~123 BPM) electronic with solid RMS and moderate dynamics; steady groove and moderate spectral weight make it reasonably danceable and social, with a slightly brooding tone."
-      },
-      "audio": {
-        "bpm": 123.046875,
-        "durationSeconds": 213.080816,
-        "beatCount": 361,
-        "rmsMean": 0.223833,
-        "rmsMedian": 0.225969,
-        "rmsP95": 0.402427,
-        "rmsMax": 0.520035,
-        "onsetStrengthMean": 0.936923,
-        "onsetStrengthMedian": 0.464155,
-        "onsetStrengthP95": 3.879663,
-        "onsetRate": 2.698507,
-        "spectralCentroidMean": 1422.275649,
-        "spectralBandwidthMean": 1739.639719,
-        "spectralRolloffMean": 2889.249265,
-        "zeroCrossingRateMean": 0.06481,
-        "dynamicRange": 0.326769
-      }
-    }
-  },
-  {
-    "id": "local-044393162ca6",
-    "title": "Wall Of Squares (aka chip62)",
-    "artist": "Vim",
-    "album": "Perpetual Autumn",
-    "year": 2004,
-    "genres": [
-      "electronic"
-    ],
-    "bpm": 92.285,
-    "energy": 0.481071,
-    "danceability": 0.512821,
-    "valence": 0.363636,
-    "socialness": 0.714286,
-    "intensity": 0.411765,
-    "normalizedAudio": {
-      "rmsMean": 0.758309,
-      "onsetStrengthMean": 0.117752,
-      "onsetRate": 0.422402,
-      "spectralBrightness": 0.28252,
-      "dynamicRange": 0.210452
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-044393162ca6",
-        "energy": 50,
-        "danceability": 50,
-        "valence": 40,
-        "socialness": 70,
-        "intensity": 45,
-        "description": "Moderate tempo (~92 BPM) track with relatively high RMS but low onset strength; more laid-back, less percussive — suitable as background social music rather than peak dance-floor material."
-      },
-      "audio": {
-        "bpm": 92.285156,
-        "durationSeconds": 138.579592,
-        "beatCount": 205,
-        "rmsMean": 0.242613,
-        "rmsMedian": 0.258731,
-        "rmsP95": 0.318617,
-        "rmsMax": 0.411172,
-        "onsetStrengthMean": 0.616203,
-        "onsetStrengthMedian": 0.43738,
-        "onsetStrengthP95": 1.706201,
-        "onsetRate": 3.283312,
-        "spectralCentroidMean": 1264.211625,
-        "spectralBandwidthMean": 1540.697373,
-        "spectralRolloffMean": 2606.596222,
-        "zeroCrossingRateMean": 0.052436,
-        "dynamicRange": 0.166276
-      }
-    }
-  },
-  {
-    "id": "local-679bd8854dff",
-    "title": "banale concrete",
-    "artist": "vizion",
-    "album": "i am cinder",
-    "year": null,
-    "genres": [],
-    "bpm": 151.999,
-    "energy": 0.811633,
-    "danceability": 0.641026,
-    "valence": 0.363636,
-    "socialness": 0.214286,
-    "intensity": 0.882353,
-    "normalizedAudio": {
-      "rmsMean": 0.633941,
-      "onsetStrengthMean": 0.240984,
-      "onsetRate": 0.298302,
-      "spectralBrightness": 0.370932,
-      "dynamicRange": 0.721061
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-679bd8854dff",
-        "energy": 85,
-        "danceability": 60,
-        "valence": 40,
-        "socialness": 35,
-        "intensity": 85,
-        "description": "Very fast (~152 BPM) piece with high peak RMS and wide spectral content; forceful and aggressive sonic profile with strong energy and intensity, more attention-demanding than social/background."
-      },
-      "audio": {
-        "bpm": 151.999081,
-        "durationSeconds": 234.057143,
-        "beatCount": 453,
-        "rmsMean": 0.208718,
-        "rmsMedian": 0.209458,
-        "rmsP95": 0.451399,
-        "rmsMax": 0.637011,
-        "onsetStrengthMean": 0.980686,
-        "onsetStrengthMedian": 0.669782,
-        "onsetStrengthP95": 3.039528,
-        "onsetRate": 2.371216,
-        "spectralCentroidMean": 1569.690292,
-        "spectralBandwidthMean": 2019.793057,
-        "spectralRolloffMean": 3434.582211,
-        "zeroCrossingRateMean": 0.048463,
-        "dynamicRange": 0.396519
-      }
-    }
-  },
-  {
-    "id": "local-015d591509ac",
-    "title": "vanishing point",
-    "artist": "vizion",
-    "album": "i am cinder",
-    "year": null,
-    "genres": [],
-    "bpm": 172.266,
-    "energy": 0.921925,
-    "danceability": 0.769231,
-    "valence": 0.181818,
-    "socialness": 0.142857,
-    "intensity": 0.917647,
-    "normalizedAudio": {
-      "rmsMean": 0.731675,
-      "onsetStrengthMean": 0.436607,
-      "onsetRate": 0.521047,
-      "spectralBrightness": 0.186121,
-      "dynamicRange": 0.713619
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-015d591509ac",
-        "energy": 90,
-        "danceability": 70,
-        "valence": 30,
-        "socialness": 30,
-        "intensity": 88,
-        "description": "Very fast (~172 BPM) long track with high RMS peaks and strong onset P95 — extremely energetic and commanding, intense and driving; high dance potential but not well-suited for relaxed socializing."
-      },
-      "audio": {
-        "bpm": 172.265625,
-        "durationSeconds": 319.085714,
-        "beatCount": 872,
-        "rmsMean": 0.235354,
-        "rmsMedian": 0.226749,
-        "rmsP95": 0.469347,
-        "rmsMax": 0.727876,
-        "onsetStrengthMean": 1.559275,
-        "onsetStrengthMedian": 0.404722,
-        "onsetStrengthP95": 7.966226,
-        "onsetRate": 4.008327,
-        "spectralCentroidMean": 931.134357,
-        "spectralBandwidthMean": 1449.091076,
-        "spectralRolloffMean": 1886.496316,
-        "zeroCrossingRateMean": 0.031003,
-        "dynamicRange": 0.393163
-      }
-    }
-  },
-  {
-    "id": "local-56faceb47117",
-    "title": "fallsoundslike",
-    "artist": "Xhale",
-    "album": null,
-    "year": null,
-    "genres": [
-      "Abstract"
-    ],
-    "bpm": 112.347,
-    "energy": 0.255669,
-    "danceability": 0.25641,
-    "valence": 0.363636,
-    "socialness": 0.714286,
-    "intensity": 0.235294,
-    "normalizedAudio": {
-      "rmsMean": 0.118872,
-      "onsetStrengthMean": 0.406656,
-      "onsetRate": 0.492707,
-      "spectralBrightness": 0.29605,
-      "dynamicRange": 0.219988
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-56faceb47117",
-        "energy": 35,
-        "danceability": 30,
-        "valence": 40,
-        "socialness": 70,
-        "intensity": 30,
-        "description": "Abstract, mid-tempo (~112 BPM) with low RMS and low dynamic range — restrained, ambient textures and sparse transients. Works well as background/social music rather than an energetic or intense track."
-      },
-      "audio": {
-        "bpm": 112.347147,
-        "durationSeconds": 316.839184,
-        "beatCount": 507,
-        "rmsMean": 0.068346,
-        "rmsMedian": 0.049739,
-        "rmsP95": 0.186094,
-        "rmsMax": 0.318174,
-        "onsetStrengthMean": 1.47069,
-        "onsetStrengthMedian": 0.710707,
-        "onsetStrengthP95": 5.790536,
-        "onsetRate": 3.800035,
-        "spectralCentroidMean": 1310.961667,
-        "spectralBandwidthMean": 1876.566162,
-        "spectralRolloffMean": 2757.09659,
-        "zeroCrossingRateMean": 0.040674,
-        "dynamicRange": 0.170576
-      }
-    }
-  },
-  {
-    "id": "local-d3536bb39192",
-    "title": "Inheritor",
-    "artist": "Xhale",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 95.703,
-    "energy": 0.62096,
-    "danceability": 0.512821,
-    "valence": 0.454545,
-    "socialness": 0.285714,
-    "intensity": 0.764706,
-    "normalizedAudio": {
-      "rmsMean": 0.232672,
-      "onsetStrengthMean": 0.502966,
-      "onsetRate": 0.598539,
-      "spectralBrightness": 0.586141,
-      "dynamicRange": 0.730536
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-d3536bb39192",
-        "energy": 65,
-        "danceability": 50,
-        "valence": 45,
-        "socialness": 40,
-        "intensity": 75,
-        "description": "Slower (~96 BPM) but spectrally bright with high peaks (high RMS P95/Max), higher onset rate and wide dynamic range — perceptibly forceful and dramatic. Moderately danceable but more commanding and attention-grabbing than background music."
-      },
-      "audio": {
-        "bpm": 95.703125,
-        "durationSeconds": 524.042449,
-        "beatCount": 681,
-        "rmsMean": 0.09936,
-        "rmsMedian": 0.041456,
-        "rmsP95": 0.416528,
-        "rmsMax": 0.709385,
-        "onsetStrengthMean": 1.755542,
-        "onsetStrengthMedian": 0.883805,
-        "onsetStrengthP95": 6.522349,
-        "onsetRate": 4.577873,
-        "spectralCentroidMean": 2313.276255,
-        "spectralBandwidthMean": 2295.458538,
-        "spectralRolloffMean": 4699.517823,
-        "zeroCrossingRateMean": 0.091033,
-        "dynamicRange": 0.400792
-      }
-    }
-  },
-  {
-    "id": "local-774b2dd31827",
-    "title": "Wet Lens",
-    "artist": "Xhale",
-    "album": null,
-    "year": null,
-    "genres": [],
-    "bpm": 117.454,
-    "energy": 0.679634,
-    "danceability": 0.705128,
-    "valence": 0.636364,
-    "socialness": 0.357143,
-    "intensity": 0.682353,
-    "normalizedAudio": {
-      "rmsMean": 0.263038,
-      "onsetStrengthMean": 0.599101,
-      "onsetRate": 0.686079,
-      "spectralBrightness": 0.265795,
-      "dynamicRange": 0.446016
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-774b2dd31827",
-        "energy": 70,
-        "danceability": 65,
-        "valence": 55,
-        "socialness": 45,
-        "intensity": 68,
-        "description": "Up-tempo (~117 BPM) with strong onset activity (high onset P95 and rate) and moderate RMS — energetic and rhythmic with clear transients. Suits dancing or active listening; somewhat intense and less suited as purely conversational background."
-      },
-      "audio": {
-        "bpm": 117.453835,
-        "durationSeconds": 374.047347,
-        "beatCount": 613,
-        "rmsMean": 0.107636,
-        "rmsMedian": 0.075033,
-        "rmsP95": 0.28255,
-        "rmsMax": 0.577743,
-        "onsetStrengthMean": 2.039878,
-        "onsetStrengthMedian": 0.391326,
-        "onsetStrengthP95": 10.315481,
-        "onsetRate": 5.221264,
-        "spectralCentroidMean": 1206.421777,
-        "spectralBandwidthMean": 1749.23101,
-        "spectralRolloffMean": 2567.675069,
-        "zeroCrossingRateMean": 0.030808,
-        "dynamicRange": 0.272496
-      }
-    }
-  },
-  {
-    "id": "local-24af7e0fa9d9",
-    "title": "brampton road",
-    "artist": "zainetica",
-    "album": "quiet mountain",
-    "year": null,
-    "genres": [],
-    "bpm": 107.666,
-    "energy": 0.58566,
-    "danceability": 0.576923,
-    "valence": 0.545455,
-    "socialness": 0.571429,
-    "intensity": 0.529412,
-    "normalizedAudio": {
-      "rmsMean": 0.396609,
-      "onsetStrengthMean": 0.484737,
-      "onsetRate": 0.598061,
-      "spectralBrightness": 0.359063,
-      "dynamicRange": 0.666213
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-24af7e0fa9d9",
-        "energy": 60,
-        "danceability": 55,
-        "valence": 50,
-        "socialness": 60,
-        "intensity": 55,
-        "description": "Mid-tempo (~108 BPM) with relatively warm RMS and moderate spectral content. Feels lively but not aggressive — balanced for light dancing and social settings, neither overly bright nor very dark."
-      },
-      "audio": {
-        "bpm": 107.666016,
-        "durationSeconds": 352.399093,
-        "beatCount": 628,
-        "rmsMean": 0.144038,
-        "rmsMedian": 0.111889,
-        "rmsP95": 0.407421,
-        "rmsMax": 0.523481,
-        "onsetStrengthMean": 1.701628,
-        "onsetStrengthMedian": 0.843058,
-        "onsetStrengthP95": 6.455974,
-        "onsetRate": 4.574359,
-        "spectralCentroidMean": 1528.680776,
-        "spectralBandwidthMean": 1617.418918,
-        "spectralRolloffMean": 2998.045582,
-        "zeroCrossingRateMean": 0.079071,
-        "dynamicRange": 0.371787
-      }
-    }
-  },
-  {
-    "id": "local-aa2d4cb0f0fd",
-    "title": "no leaves left",
-    "artist": "zainetica",
-    "album": "quiet mountain",
-    "year": null,
-    "genres": [],
-    "bpm": 89.103,
-    "energy": 0.450029,
-    "danceability": 0.384615,
-    "valence": 0.454545,
-    "socialness": 0.785714,
-    "intensity": 0.352941,
-    "normalizedAudio": {
-      "rmsMean": 0.578309,
-      "onsetStrengthMean": 0.303873,
-      "onsetRate": 0.289274,
-      "spectralBrightness": 0.231209,
-      "dynamicRange": 0.500481
-    },
-    "raw": {
-      "llm": {
-        "songId": "local-aa2d4cb0f0fd",
-        "energy": 50,
-        "danceability": 40,
-        "valence": 45,
-        "socialness": 75,
-        "intensity": 40,
-        "description": "Laid-back (~89 BPM) with higher mean RMS but low onset rate and moderate dynamic range — mellow and unobtrusive. Pleasant as background/social music; not highly dance-inducing or intense."
-      },
-      "audio": {
-        "bpm": 89.102909,
-        "durationSeconds": 309.346395,
-        "beatCount": 435,
-        "rmsMean": 0.193557,
-        "rmsMedian": 0.178379,
-        "rmsP95": 0.367498,
-        "rmsMax": 0.479946,
-        "onsetStrengthMean": 1.16669,
-        "onsetStrengthMedian": 0.566674,
-        "onsetStrengthP95": 5.168724,
-        "onsetRate": 2.30486,
-        "spectralCentroidMean": 1086.923635,
-        "spectralBandwidthMean": 1943.733899,
-        "spectralRolloffMean": 2160.563505,
-        "zeroCrossingRateMean": 0.028549,
-        "dynamicRange": 0.297055
-      }
-    }
+    "audioFile": "Transient - ice.mp3"
   }
 ]

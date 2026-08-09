@@ -528,11 +528,15 @@ async function deleteOwnership(venueId) {
   else console.log('[auth] cleared ownership for', venueId);
 }
 
-const venueSummary = v => ({
-  id: v.id, name: v.name, subtitle: v.subtitle || '',
-  zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
-  hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId
-});
+const venueSummary = v => {
+  const { lat, lon } = venueLatLon(v);             // city pins need coordinates
+  return {
+    id: v.id, name: v.name, subtitle: v.subtitle || '',
+    zones: v.zones.length, calibrated: !!(v.geo && v.geo.calibrated),
+    hasPlan: fs.existsSync(planPath(v.id)), active: v.id === activeId,
+    lat, lon
+  };
+};
 
 // Venues owned by the logged-in account, plus the unclaimed pool — the owner
 // page shows both, and claiming is how a seed venue gets an owner at all now
@@ -1241,6 +1245,44 @@ function venueLatLon(v) {
   return { lat: +(o.lat - halfY).toFixed(6), lon: +(o.lon + halfX).toFixed(6) };
 }
 
+// Storage for captures: Supabase when configured; otherwise the same local
+// SQLite + disk that carries everything else in local mode. The vibe wall is
+// a headline feature — it must not be the one thing that requires cloud
+// setup when nothing else does.
+const CAPTURES_DIR = process.env.CAPTURES_DIR || path.join(__dirname, 'data', 'captures');
+let localCaps = null;
+if (snapDb) try {
+  snapDb.exec(`CREATE TABLE IF NOT EXISTS captures (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
+    venue_id TEXT NOT NULL, venue_name TEXT,
+    lat REAL, lon REAL,
+    photo_file TEXT NOT NULL,
+    energy REAL, sync REAL, arousal REAL,
+    vibe_label TEXT, captured_by TEXT, zone_id TEXT)`);
+  localCaps = {
+    insert: snapDb.prepare(`INSERT INTO captures
+      (id, created_at, venue_id, venue_name, lat, lon, photo_file, energy, sync, arousal, vibe_label, captured_by, zone_id)
+      VALUES (@id,@created_at,@venue_id,@venue_name,@lat,@lon,@photo_file,@energy,@sync,@arousal,@vibe_label,@captured_by,@zone_id)`),
+    list: snapDb.prepare('SELECT * FROM captures ORDER BY created_at DESC LIMIT ?'),
+    listVenue: snapDb.prepare('SELECT * FROM captures WHERE venue_id = ? ORDER BY created_at DESC LIMIT ?'),
+    one: snapDb.prepare('SELECT * FROM captures WHERE id = ?')
+  };
+} catch (e) { console.warn('[capture] local table failed:', e.message); }
+const capturesAvailable = () => !!(supabaseAdmin || localCaps);
+
+// The city map's premise is public pins for every located venue — unscoped
+// on purpose, unlike the dashboard's per-account /venues list. Names and
+// approximate coordinates only; geometry stays on /venues/:id.
+app.get('/api/city/venues', (_, res) => res.json({
+  venues: [...venues.values()]
+    .map(v => {
+      const { lat, lon } = venueLatLon(v);
+      return { id: v.id, name: v.name, lat, lon,
+               hasPlan: fs.existsSync(planPath(v.id)), live: v.id === activeId };
+    })
+    .filter(v => v.lat != null)
+}));
+
 // Light double-tap guard: one capture per venue+device every 30s.
 const captureCooldown = new Map();               // key -> expiresAt
 const CAPTURE_COOLDOWN_MS = 30_000;
@@ -1315,8 +1357,8 @@ function assertCaptureCheckIn(venueId, deviceId) {
 // Photo + frozen live metrics. Metrics always come from server-side `crowd`
 // (recomputed here) — never trust client-supplied energy/sync/arousal.
 app.post('/api/venues/:id/capture', async (req, res) => {
-  if (!AUTH_ENABLED || !supabaseAdmin) {
-    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env' });
+  if (!capturesAvailable()) {
+    return res.status(503).json({ error: 'captures unavailable — no Supabase and no local database' });
   }
   const id = req.params.id;
   const v = venues.get(id);
@@ -1353,6 +1395,35 @@ app.post('/api/venues/:id/capture', async (req, res) => {
   const capturedBy = (req.body && req.body.captured_by != null)
     ? String(req.body.captured_by).trim().slice(0, 24) || null
     : null;
+
+  // Local store: photo to disk, row to the shared SQLite db. Same response
+  // shape as the Supabase path — the clients cannot tell the difference.
+  if (!supabaseAdmin) {
+    try {
+      const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+      const name = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+      fs.mkdirSync(CAPTURES_DIR, { recursive: true });
+      fs.writeFileSync(path.join(CAPTURES_DIR, name), buf);
+      const row = {
+        id: 'c_' + crypto.randomBytes(8).toString('hex'),
+        created_at: new Date().toISOString(),
+        venue_id: id, venue_name: v.name || id,
+        lat, lon, photo_file: name,
+        energy, sync, arousal,
+        vibe_label: label, captured_by: capturedBy,
+        zone_id: captureZoneId(gate.person)
+      };
+      localCaps.insert.run(row);
+      const proxied = withProxiedPhoto(row);
+      console.log('[capture] ok (local)', row.id, id, label,
+        `zone=${row.zone_id || 'none'} e=${energy.toFixed(2)} s=${sync.toFixed(2)} bytes=${buf.length}`);
+      io.emit('capture', proxied);
+      return res.json({ ok: true, capture: proxied });
+    } catch (e) {
+      console.log('[capture] local fail:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
 
   try {
     // Create the public bucket on first use if schema.sql hasn't been run yet
@@ -1411,10 +1482,20 @@ app.post('/api/venues/:id/capture', async (req, res) => {
 
 // Same-origin photo bytes. Service role can read even when the public URL 403s.
 app.get('/api/captures/:id/photo', async (req, res) => {
-  if (!AUTH_ENABLED || !supabaseAdmin) {
-    return res.status(503).send('captures unavailable');
-  }
+  if (!capturesAvailable()) return res.status(503).send('captures unavailable');
   const id = String(req.params.id || '').slice(0, 64);
+  if (!supabaseAdmin) {
+    const row = localCaps.one.get(id);
+    // serve only names our uploader mints — no path traversal via the db
+    if (!row || !/^[0-9]+-[a-f0-9]+\.(png|jpe?g|webp)$/i.test(row.photo_file || ''))
+      return res.status(404).send('not found');
+    const p = path.join(CAPTURES_DIR, row.photo_file);
+    if (!fs.existsSync(p)) return res.status(404).send('missing file');
+    const ext = row.photo_file.split('.').pop().toLowerCase();
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.type(ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png');
+    return res.send(fs.readFileSync(p));
+  }
   try {
     const { data: row, error } = await supabaseAdmin
       .from('captures')
@@ -1475,11 +1556,15 @@ async function listCaptures(limit, venueFilter) {
 }
 
 app.get('/api/captures', async (req, res) => {
-  if (!AUTH_ENABLED || !supabaseAdmin) {
-    return res.status(503).json({ error: 'captures unavailable — configure SUPABASE_* in .env', captures: [] });
+  if (!capturesAvailable()) {
+    return res.status(503).json({ error: 'captures unavailable — no Supabase and no local database', captures: [] });
   }
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 200));
   const venueFilter = String(req.query.venue || '').trim().slice(0, 40);
+  if (!supabaseAdmin) {
+    const rows = venueFilter ? localCaps.listVenue.all(venueFilter, limit) : localCaps.list.all(limit);
+    return res.json({ captures: rows.map(withProxiedPhoto), venue: venueFilter || null });
+  }
   try {
     const { data, error } = await listCaptures(limit, venueFilter);
     if (error) {
@@ -1988,6 +2073,7 @@ function publicState() {
 io.on('connection', socket => {
   socket.emit('venue', venue);
   socket.emit('state', publicState());
+  socket.emit('music:state', music);   // a phone joining mid-song learns the track NOW, not on the host's next push
 
   // Check-in. Event-wide QR omits venue → join the live venue (GPS places the
   // zone). Per-venue QR passes v=<id>: must exist and must be the live venue,
@@ -2108,7 +2194,14 @@ io.on('connection', socket => {
   });
 
   // host deck -> everyone
-  socket.on('music:state', m => { music = { ...music, ...m }; io.emit('music:state', music); });
+  socket.on('music:state', m => {
+    music = { ...music, ...m };
+    // src tells every phone what audio to stream. Any socket can emit this
+    // event (the host does), so only library files may ever ride it — an
+    // arbitrary URL here would be an audio injection into the whole room.
+    if (music.src != null && !/^\/songs\/[^/\\]+$/.test(String(music.src))) music.src = null;
+    io.emit('music:state', music);
+  });
   socket.on('music:frame', f => { frame = f; socket.broadcast.emit('music:frame', f); });
 
   socket.on('disconnect', () => {
