@@ -601,7 +601,9 @@ async function refreshAuthLink() {
 
 async function loadVenueMeta() {
   try {
-    const res = await fetch('/venues');
+    // /api/city/venues is public and unscoped — /venues is the dashboard's
+    // per-account list and hides everything but the live venue when signed out
+    const res = await fetch('/api/city/venues');
     const body = await res.json();
     (body.venues || []).forEach(v => {
       venueMeta.set(v.id, {

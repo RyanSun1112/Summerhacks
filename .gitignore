@@ -50,3 +50,6 @@ Thumbs.db
 /data/rawAudioFeatures.json
 /data/rawLLMAnnotations.json
 /data/songPreprocessingReport.json
+
+# vibe-capture photos in local mode — user content, machine-specific
+/data/captures/
