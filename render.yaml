@@ -1,0 +1,42 @@
+# Pulse — Render Blueprint (forces Node; root requirements.txt is offline-only).
+# Free/Starter: venues/*.json edits after deploy do NOT persist across restarts —
+# only venues committed in git survive. Upgrade to Standard + a disk if needed.
+#
+# Manual steps (Render dashboard Environment tab if not using Blueprint sync):
+#   1. Set the env vars below (secrets from your Supabase project).
+#   2. Run supabase/schema.sql in that same project's SQL editor
+#      (venue_owners + captures + public "captures" storage bucket).
+#   3. Auth → Providers → Email → turn OFF "Confirm email" for instant signup.
+#   4. Language / runtime must be Node (this file sets runtime: node).
+
+services:
+  - type: web
+    name: pulse
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: AUTH_MODE
+        value: supabase
+      - key: FAKE
+        value: "0"
+      # Render injects RENDER_EXTERNAL_URL; PUBLIC_URL is optional override.
+      # Set PUBLIC_URL to https://<service>.onrender.com if QR posters look wrong.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DJ_AI_TOKEN
+        sync: false

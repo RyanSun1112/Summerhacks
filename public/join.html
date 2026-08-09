@@ -147,6 +147,7 @@
       anonymous id for the event's crowd research — your name is never attached to them and only appears
       on the host's screen.
     </div>
+    <div class="err" id="joinErr"></div>
   </div>
   <div class="dock">
     <input id="name" placeholder="Your name" autocomplete="given-name" maxlength="24" enterkeyhint="go">
@@ -219,7 +220,10 @@
 <script>
 const socket=io(), $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
-const zone=new URLSearchParams(location.search).get('zone')||'entrance1';
+const joinQs=new URLSearchParams(location.search);
+const zone=joinQs.get('zone')||'entrance1';
+// Per-venue QR encodes ?v=<id>. Event-wide QR omits it and joins whatever is live.
+const wantVenue=(joinQs.get('v')||'').trim()||null;
 
 let myId=localStorage.getItem('pulse:id')||('p-'+Math.random().toString(36).slice(2,10));
 localStorage.setItem('pulse:id',myId);
@@ -239,13 +243,27 @@ const show=id=>{
   if(id==='s-live'){ fitMini(); requestAnimationFrame(fitMini); }
 };
 
+function setJoinErr(msg){
+  const el=$('#joinErr');
+  if(el) el.textContent=msg||'';
+}
+function joinPayload(name){
+  const body={id:myId,name,zone};
+  if(wantVenue) body.venue=wantVenue;
+  return body;
+}
 function onJoined(res){
-  if(!res||!res.ok) return;
+  if(!res||!res.ok){
+    setJoinErr((res&&res.error)||'Could not check in');
+    return false;
+  }
+  setJoinErr('');
   checkedIn=true;
   checkedInVenueId=res.venueId||(venue&&venue.id)||null;
   if(checkedInVenueId) localStorage.setItem('pulse:venueId',checkedInVenueId);
   if(res.zoneLabel) $('#zoneTag').textContent=res.zoneLabel.toUpperCase();
   refreshCaptureGate();
+  return true;
 }
 function refreshCaptureGate(){
   const here=venue&&venue.id;
@@ -297,8 +315,9 @@ socket.on('music:state',m=>{
 $('#go').addEventListener('click',()=>{
   const name=$('#name').value.trim()||'Guest';
   localStorage.setItem('pulse:name',name);
-  socket.emit('join',{id:myId,name,zone},res=>{
-    if(res&&res.ok){ onJoined(res); show('s-sensors'); }
+  setJoinErr('');
+  socket.emit('join',joinPayload(name),res=>{
+    if(onJoined(res)) show('s-sensors');
   });
 });
 $('#name').addEventListener('keydown',e=>{if(e.key==='Enter')$('#go').click()});
@@ -306,9 +325,8 @@ $('#skipSensors').addEventListener('click',()=>show('s-live'));
 
 socket.on('connect',()=>{
   if(!savedName){ refreshCaptureGate(); return; }
-  socket.emit('join',{id:myId,name:savedName,zone},res=>{
-    if(!res||!res.ok){ refreshCaptureGate(); return; }
-    onJoined(res);
+  socket.emit('join',joinPayload(savedName),res=>{
+    if(!onJoined(res)){ refreshCaptureGate(); show('s-join'); return; }
     show(motionOn?'s-live':'s-sensors');
   });
 });
@@ -706,8 +724,8 @@ refreshCaptureGate();
 
 /* ---------------- state ---------------- */
 let myZone=zone;
-// whatever venue is LIVE right now — never a hardcoded name. A scan of any
-// venue's QR joins the live one, and this is where that's made visible.
+// Live venue geometry from the server. Per-venue QR (?v=) must match this id
+// at check-in; event-wide QR (no v) joins whatever is live.
 socket.on('venue',v=>{
   venue=v; fitMini();
   const lab=$('#venueLab');
@@ -720,13 +738,12 @@ socket.on('venue',v=>{
     img.onload=()=>{ miniPlan=img; };
     img.src='/venues/'+v.id+'/plan?t='+Date.now();
   }
-  // Host switched the live venue — check-in follows the active event.
+  // Host switched the live venue — attendees already in are remapped server-side.
   if(checkedIn&&v&&v.id){
     checkedInVenueId=v.id;
     localStorage.setItem('pulse:venueId',v.id);
   }
   refreshCaptureGate();
-
 });
 socket.on('state',s=>{
   state=s;

@@ -1552,8 +1552,8 @@ async function showQr(id){
   const v=venueIndex.venues.find(x=>x.id===id);
   $('#qrVenueName').textContent=v?v.name:id;
   $('#qrNote').textContent = id===venueIndex.active
-    ? 'This venue is LIVE — scans join it right now.'
-    : 'Scans always join the LIVE venue. Make this one active before the event.';
+    ? 'This venue is LIVE — scans check into it right now.'
+    : 'Not live yet — phones scanning this QR will see “This venue isn\'t live right now” until you activate it.';
   $('#qrImg').src='/qr/venue/'+encodeURIComponent(id)+'.svg?t='+Date.now();
   $('#qrPoster').href='/qr?v='+encodeURIComponent(id);
   // The server knows the address phones can actually reach (PUBLIC_URL — set

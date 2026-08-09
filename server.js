@@ -40,11 +40,11 @@ const FAKE = process.env.FAKE !== '0';          // fake crowd on by default
 const FAKE_N = parseInt(process.env.FAKE_N || '58', 10);
 
 // ----------------------------------------------------------- the database
-// One SQLite file for everything that persists: the collaborator's sensor
-// snapshot tables (their schema, untouched) plus the account/ownership tables
-// beside them. Opened first so both the auth layer and the data-collection
-// routes share the connection. Guarded: if the native module is broken, the
-// demo still boots — snapshots disable, auth falls back to a JSON file.
+// Optional local SQLite for research snapshots (Data tab). better-sqlite3 is
+// NOT a package dependency — its native build fails on some hosts (Render's
+// default Node). Deployed demo uses Supabase for auth/captures; the store
+// disables cleanly when the module is absent. To turn snapshots on locally:
+//   npm install better-sqlite3@11
 const SNAPSHOT_DB = process.env.SNAPSHOT_DB || path.join(__dirname, 'backend', 'data.db');
 let snapDb = null;
 try {
@@ -54,22 +54,41 @@ try {
   snapDb.pragma('journal_mode = WAL');           // concurrent phone uploads
   console.log(`[db] ${path.relative(__dirname, SNAPSHOT_DB)} (WAL)`);
 } catch (e) {
-  console.warn('[db] better-sqlite3 unavailable —', e.message);
-  console.warn('[db] (npm install better-sqlite3@11 — v12+ needs Node 22)');
+  console.warn('[db] snapshot store off — better-sqlite3 not installed (' + e.message + ')');
+  console.warn('[db] Auth/captures use Supabase; Flask backend/ can still read the same schema locally.');
 }
 
 // -------------------------------------------------------------- owner auth
 // Venue JSON stays on disk (venues/) in every mode. Three modes:
-//   supabase — SUPABASE_* set in .env: accounts live in Supabase, ownership in
-//              its venue_owners table. Service role never leaves this process.
-//   local    — the default: accounts + ownership live in data/owners.json on
-//              this machine, so sign-up works with zero external setup.
+//   supabase — accounts in Supabase Auth, ownership in venue_owners.
+//              Set AUTH_MODE=supabase explicitly on deploy (and all three
+//              SUPABASE_* keys). Never put the service role in client JS.
+//   local    — intended zero-setup accounts; currently incomplete in HEAD —
+//              do not select this for a judged demo.
 //   off      — AUTH_MODE=off: venue writes stay open, no accounts anywhere.
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const AUTH_MODE = (process.env.AUTH_MODE || '').toLowerCase() === 'off' ? 'off'
-  : (SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY) ? 'supabase' : 'local';
+const hasSupabaseKeys = !!(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY);
+
+function resolveAuthMode() {
+  const raw = (process.env.AUTH_MODE || '').toLowerCase().trim();
+  if (raw === 'off') return 'off';
+  if (raw === 'supabase') {
+    // Explicit supabase must never fall through to broken local mode.
+    if (!hasSupabaseKeys) {
+      console.error('[auth] AUTH_MODE=supabase but SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY are incomplete.');
+      console.error('[auth] Refusing local fallback — auth disabled until keys are set.');
+      return 'off';
+    }
+    return 'supabase';
+  }
+  if (raw === 'local') return 'local';
+  // Auto: prefer Supabase when fully configured, else local (dev default).
+  return hasSupabaseKeys ? 'supabase' : 'local';
+}
+
+const AUTH_MODE = resolveAuthMode();
 const AUTH_ENABLED = AUTH_MODE !== 'off';
 
 const supabaseAuth = AUTH_MODE === 'supabase'
@@ -79,11 +98,12 @@ const supabaseAdmin = AUTH_MODE === 'supabase'
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
-if (!AUTH_ENABLED) {
-  console.warn('[auth] DISABLED — set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env');
-  console.warn('[auth] Venue create/update/delete stay open until auth is configured.');
+if (AUTH_MODE === 'off') {
+  console.warn('[auth] mode=off — venue create/update/delete stay open.');
+} else if (AUTH_MODE === 'supabase') {
+  console.log('[auth] mode=supabase — venue-owner routes + vibe captures');
 } else {
-  console.log('[auth] Supabase enabled — venue-owner routes + vibe captures');
+  console.warn('[auth] mode=local — local account store is incomplete in this build; prefer AUTH_MODE=supabase for deploy.');
 }
 
 // ----------------------------------------------------------------- venues
@@ -1511,13 +1531,22 @@ app.post('/api/dj/next', (req, res) => {
     .catch(e => res.status(500).json({ error: e.message }));
 });
 
-// What a phone should type to reach us. PUBLIC_URL wins; otherwise trust the
-// proxy headers, because a tunnel terminates TLS and forwards plain HTTP — so
-// req.headers.host is the public hostname while the scheme looks like http.
-// Hardcoding http:// there produced a QR that pointed at an HTTPS-only host
-// and silently killed the sensors.
+// Fixed public origin for QR posters. PUBLIC_URL wins; on Render,
+// RENDER_EXTERNAL_URL is injected automatically so QR codes work without a
+// second manual step once the service has a hostname.
+function configuredPublicUrl() {
+  const u = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '';
+  return u ? u.replace(/\/+$/, '') : '';
+}
+
+// What a phone should type to reach us. Fixed PUBLIC_URL / RENDER_EXTERNAL_URL
+// wins; otherwise trust the proxy headers, because a tunnel terminates TLS and
+// forwards plain HTTP — so req.headers.host is the public hostname while the
+// scheme looks like http. Hardcoding http:// there produced a QR that pointed
+// at an HTTPS-only host and silently killed the sensors.
 function publicOrigin(req) {
-  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  const fixed = configuredPublicUrl();
+  if (fixed) return fixed;
   const fwd = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
   const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
   const proto = fwd || (req.socket.encrypted ? 'https' : 'http');
@@ -1540,7 +1569,7 @@ function originProblem(origin) {
 // it happened to be opened.
 app.get('/public-url', (req, res) => {
   const origin = publicOrigin(req);
-  res.json({ origin, fixed: !!process.env.PUBLIC_URL, problem: originProblem(origin) });
+  res.json({ origin, fixed: !!configuredPublicUrl(), problem: originProblem(origin) });
 });
 
 const qrUrlFor = (req, opts = {}) => {
@@ -1600,7 +1629,7 @@ app.get('/qr', async (req, res) => {
   ${await qrSvg(url).then(s => s.replace('<svg', '<svg class="qr"'))}
   <div class="url">${url}</div>
   ${forVenue && forVenue.id !== activeId
-    ? `<div class="warn"><b>“${forVenue.name}” is not the live venue.</b><br>Scans always join whichever venue is active — make this one active before the event.</div>` : ''}
+    ? `<div class="warn"><b>“${forVenue.name}” is not the live venue.</b><br>Scanning this QR will say “This venue isn't live right now” until you make it active.</div>` : ''}
   ${problem
     ? `<div class="warn"><b>This QR will not work for phones.</b><br>${problem}</div>`
     : `<div class="ok">HTTPS · reachable from any phone</div>`}
@@ -1771,7 +1800,25 @@ io.on('connection', socket => {
   socket.emit('venue', venue);
   socket.emit('state', publicState());
 
-  socket.on('join', ({ id, name, zone }, ack) => {
+  // Check-in. Event-wide QR omits venue → join the live venue (GPS places the
+  // zone). Per-venue QR passes v=<id>: must exist and must be the live venue,
+  // otherwise the phone gets a clear error instead of silently landing on the
+  // wrong map. One active venue drives the dashboard; we do not support
+  // multiple simultaneously-live venues.
+  socket.on('join', ({ id, name, zone, venue: requestedVenue }, ack) => {
+    const want = requestedVenue != null && String(requestedVenue).trim()
+      ? String(requestedVenue).trim() : null;
+    if (want) {
+      if (!venues.has(want)) {
+        if (ack) ack({ ok: false, error: 'Venue not found' });
+        return;
+      }
+      if (want !== activeId) {
+        if (ack) ack({ ok: false, error: 'This venue isn\'t live right now' });
+        return;
+      }
+    }
+
     const pid = id || socket.id;
     const z = zoneById[zone] ? zone : defaultZone();
     const existing = attendees.get(pid);
@@ -1783,6 +1830,7 @@ io.on('connection', socket => {
     if (name) person.name = name.slice(0, 24);
     if (!existing || person.zone !== z) person.anchor = anchorInZone(z);
     person.zone = z; person.lastSeen = Date.now();
+    // want is either null (event QR → live) or equals activeId (venue QR).
     person.venueId = activeId;                   // capture gated to this venue
     attendees.set(pid, person);
     socket.data.pid = pid;
@@ -1984,6 +2032,7 @@ server.on('error', e => {
 });
 
 server.listen(PORT, () => {
+  const pub = configuredPublicUrl();
   console.log(`\n  Venue      ${venue.name}  (${venues.size} available, active: ${activeId})`);
   console.log(`  Dashboard  http://localhost:${PORT}/dashboard.html`);
   console.log(`  Owner      http://localhost:${PORT}/owner.html`);
@@ -1991,10 +2040,11 @@ server.listen(PORT, () => {
   console.log(`  City map   http://localhost:${PORT}/city.html`);
   console.log(`  QR poster  http://localhost:${PORT}/qr/event.svg`);
   console.log(`  QR page    http://localhost:${PORT}/qr`);
-  console.log(`  Auth       ${AUTH_ENABLED ? 'on (venue writes gated)' : 'off (set SUPABASE_* in .env)'}`);
-  console.log(process.env.PUBLIC_URL
-    ? `\n  QR codes encode ${process.env.PUBLIC_URL} (PUBLIC_URL)\n`
+  console.log(`  Auth       mode=${AUTH_MODE}${AUTH_ENABLED ? ' (venue writes gated)' : ''}`);
+  console.log(`  Crowd      FAKE=${FAKE ? 'on' : '0'} (n=${crowdCfg.n})`);
+  console.log(pub
+    ? `\n  QR codes encode ${pub} (${process.env.PUBLIC_URL ? 'PUBLIC_URL' : 'RENDER_EXTERNAL_URL'})\n`
     : `\n  PUBLIC_URL is not set, so QR codes encode whatever address you opened\n` +
-      `  the page with. Open /qr through your tunnel, not localhost — the poster\n` +
-      `  tells you outright whether the code will work on a phone.\n`);
+      `  the page with. On Render, RENDER_EXTERNAL_URL is used automatically;\n` +
+      `  locally, run npm run dev (tunnel) or set PUBLIC_URL yourself.\n`);
 });
