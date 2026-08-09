@@ -52,6 +52,14 @@
   nav button:hover{color:var(--ink);border-color:var(--rule)}
   nav button[aria-selected="true"]{color:#080A18;background:var(--accent);border-color:var(--accent)}
   nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* public pages — same weight as tabs, sit by the account chip like owner.html */
+  a.toplink{
+    font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);text-decoration:none;padding:9px 14px;border:1px solid transparent;border-radius:4px;
+    display:inline-flex;align-items:center;transition:color .2s,border-color .2s;flex:none;
+  }
+  a.toplink:hover,a.toplink:active{color:var(--ink);border-color:var(--rule)}
+  a.toplink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
   .stage{position:relative;flex:1;min-height:0;z-index:1}
   #map{position:absolute;inset:0;width:100%;height:100%}
@@ -131,7 +139,34 @@
 
   /* ---------------- venue editor ---------------- */
   #sheet-venues{padding:0;overflow:hidden}
-  .ved{display:grid;grid-template-columns:236px minmax(0,1fr) 262px;height:100%}
+  .ved-browse{
+    display:none;height:100%;overflow:auto;padding:28px 24px 36px;
+    max-width:720px;margin:0 auto;box-sizing:border-box;
+  }
+  .ved-browse.on{display:block}
+  .ved-browse h2{font-size:20px;font-weight:600;margin:6px 0 8px;letter-spacing:-.01em}
+  .ved-browse .sub{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 18px}
+  .ved-browse .actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .ved-browse .actions .vbtn{width:auto;margin:0;padding:11px 16px}
+  #vedBrowseList,#vedBrowseUnclaimed{display:flex;flex-direction:column;gap:8px}
+  .ved-browse .brow{
+    display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 14px;
+    border:1px solid var(--rule);border-radius:7px;background:rgba(8,10,24,.4);
+  }
+  .ved-browse .brow .vn{font-size:15px;font-weight:600;flex:1;min-width:140px}
+  .ved-browse .brow .meta{font-family:var(--mono);font-size:11px;color:var(--muted);width:100%;order:5}
+  .ved-browse .brow .vbtn{width:auto;margin:0;padding:9px 12px;font-size:10px}
+  .ved-browse .empty{font-size:14px;color:var(--muted);padding:18px 0}
+  .ved-browse .sec{margin-top:22px}
+  #vedEditor{display:none;flex-direction:column;height:100%;min-height:0}
+  #vedEditor.on-edit{display:flex}
+  .ved-back{
+    font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);background:none;border:1px solid var(--rule);border-radius:4px;
+    padding:8px 12px;cursor:pointer;margin:10px 14px 0;width:fit-content;flex:none;
+  }
+  .ved-back:hover{color:var(--ink);border-color:var(--accent)}
+  .ved{display:grid;grid-template-columns:236px minmax(0,1fr) 262px;flex:1;min-height:0}
   .ved-col{overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px}
   .ved-col:first-child{border-right:1px solid var(--rule)}
   .ved-col:last-child{border-left:1px solid var(--rule)}
@@ -206,6 +241,7 @@
     nav button{
       flex:none;min-height:44px;padding:10px 14px;font-size:11px;letter-spacing:.12em;
     }
+    a.toplink{min-height:44px;padding:10px 12px;font-size:11px;letter-spacing:.12em}
     #ownerLink{margin-left:0!important;min-height:44px;display:inline-flex;align-items:center;padding:8px}
     #leftrail{
       top:auto;left:10px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));
@@ -254,6 +290,8 @@
     <button role="tab" data-v="dj" aria-selected="false">DJ</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
+  <a class="toplink" href="/">Home</a>
+  <a class="toplink" href="/city.html">City Map</a>
   <button id="acctBtn" type="button">Sign in</button>
 </header>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -412,7 +450,26 @@
   </div>
 
   <div class="sheet" id="sheet-venues">
-   <div class="ved">
+   <!-- List first — same idea as owner.html. Editor opens only via Edit / Create. -->
+   <div id="vedBrowse" class="ved-browse on">
+     <div class="lab">Venues</div>
+     <h2>Your venues</h2>
+     <p class="sub">Pick a venue to edit its floor plan, or create a new one. The live event is marked LIVE.</p>
+     <div class="actions">
+       <button type="button" class="vbtn go" id="vedCreateBtn">Create new venue</button>
+       <a class="vbtn" href="/owner.html" style="text-decoration:none;text-align:center">Owner page</a>
+     </div>
+     <div id="vedBrowseList"><div class="empty">Loading venues…</div></div>
+     <div id="vedBrowseUnclaimedWrap" class="sec" style="display:none">
+       <div class="lab">Unclaimed venues</div>
+       <p class="sub" style="margin-top:6px">Nobody owns these. Claim one and it’s yours to edit.</p>
+       <div id="vedBrowseUnclaimed"></div>
+     </div>
+   </div>
+
+   <div id="vedEditor">
+    <button type="button" class="ved-back" id="vedBackList">← All venues</button>
+    <div class="ved">
 
     <div class="ved-col">
       <div class="vsec">
@@ -1137,7 +1194,8 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
   if(view==='zones'&&state) renderZones();
   if(view==='data') renderData();
   if(view==='dj'){ renderDjLive(); renderDjDecision(); }
-  if(view==='venues') vedFit();
+  // Venues tab always lands on the list first (editor is Edit / Create only).
+  if(view==='venues'){ showVenuesList(); loadVenueList(); }
 }));
 
 /* ================================================================ AUTO-DJ
@@ -1494,6 +1552,93 @@ function drawSnapChart(cvs,rs){
 setInterval(()=>{ if(view==='data') renderData(); },10000);
 
 /* ========================================================= VENUE SWITCHER */
+let venuesPane='list';                       // 'list' | 'edit' — Venues tab default
+function showVenuesList(){
+  venuesPane='list';
+  $('#vedBrowse').classList.add('on');
+  $('#vedEditor').classList.remove('on-edit');
+  renderVedBrowse();
+}
+function showVenuesEditor(){
+  venuesPane='edit';
+  $('#vedBrowse').classList.remove('on');
+  $('#vedEditor').classList.add('on-edit');
+  requestAnimationFrame(()=>vedFit());
+}
+
+function renderVedBrowse(){
+  const listEl=$('#vedBrowseList');
+  if(!listEl) return;
+  const venues=(venueIndex&&venueIndex.venues)||[];
+  if(!venues.length){
+    listEl.innerHTML='<div class="empty">No venues yet. Create one to open the editor.</div>';
+  }else{
+    listEl.innerHTML=venues.map(v=>{
+      const meta=[
+        v.zones!=null?(v.zones+' zones'):null,
+        v.calibrated?'calibrated':null,
+        v.mine?'yours':(v.unclaimed?'unclaimed':null)
+      ].filter(Boolean).join(' · ');
+      return `<div class="brow" data-id="${esc(v.id)}">
+        <div class="vn">${esc(v.name||v.id)}${v.id===venueIndex.active?' <span class="live">LIVE</span>':''}</div>
+        <button type="button" class="vbtn" data-act="edit">Edit</button>
+        <button type="button" class="vbtn" data-act="qr">QR</button>
+        <div class="meta">${esc(meta||v.id)}</div>
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('.brow').forEach(row=>{
+      row.querySelector('[data-act="edit"]').addEventListener('click',async()=>{
+        if(!(await requireOwnerSession('Editing a venue'))) return;
+        await vedLoad(row.dataset.id);
+        showVenuesEditor();
+      });
+      row.querySelector('[data-act="qr"]').addEventListener('click',()=>showQr(row.dataset.id));
+    });
+  }
+  // Unclaimed pool — same source owner.html uses (/api/me/venues)
+  refreshVedUnclaimed();
+}
+
+async function refreshVedUnclaimed(){
+  const wrap=$('#vedBrowseUnclaimedWrap'), box=$('#vedBrowseUnclaimed');
+  if(!wrap||!box) return;
+  if(!(ownerAuthOn()&&ownerToken)){ wrap.style.display='none'; box.innerHTML=''; return; }
+  try{
+    const res=await fetch('/api/me/venues',{headers:ownerHeaders()});
+    const body=await res.json().catch(()=>({}));
+    if(!res.ok){ wrap.style.display='none'; return; }
+    const un=body.unclaimed||[];
+    wrap.style.display=un.length?'block':'none';
+    box.innerHTML=un.map(v=>`<div class="brow" data-id="${esc(v.id)}">
+      <div class="vn">${esc(v.name||v.id)}${v.active?' <span class="live">LIVE</span>':''}</div>
+      <button type="button" class="vbtn" data-act="claim">Claim</button>
+      <div class="meta">${(+v.zones||0)} zones · unclaimed</div>
+    </div>`).join('');
+    box.querySelectorAll('[data-act="claim"]').forEach(btn=>btn.addEventListener('click',async()=>{
+      const id=btn.closest('.brow').dataset.id;
+      btn.disabled=true;
+      const r=await fetch('/venues/'+encodeURIComponent(id)+'/claim',{method:'POST',headers:ownerHeaders()});
+      const b=await r.json().catch(()=>({}));
+      if(!r.ok){ alert(b.error||'Claim failed'); btn.disabled=false; return; }
+      await loadVenueList();
+    }));
+  }catch(e){ wrap.style.display='none'; }
+}
+
+async function openNewVenueEditor(){
+  if(!(await requireOwnerSession('Creating a venue'))) return;
+  vedNew();
+  // Switch to the Venues tab without bouncing through the list handler's
+  // default — set chrome manually, then open the blank editor.
+  view='venues';
+  document.querySelectorAll('nav button').forEach(x=>
+    x.setAttribute('aria-selected',x.dataset.v==='venues'));
+  ['#sheet-people','#sheet-zones','#sheet-data','#sheet-dj'].forEach(s=>$(s).classList.remove('on'));
+  $('#sheet-venues').classList.add('on');
+  ['#leftrail','#legend'].forEach(s=>$(s).style.display='none');
+  showVenuesEditor();
+}
+
 async function loadVenueList(){
   // the token scopes the list: your venues + the live one + unclaimed seeds
   try{ venueIndex=await fetch('/venues',{headers:ownerHeaders()}).then(r=>r.json()); }catch(e){ return; }
@@ -1515,6 +1660,7 @@ async function loadVenueList(){
   $('#liveNote').style.display =
     (ownerAuthOn()&&ownerToken&&liveRow&&!liveRow.mine) ? 'block' : 'none';
   applyOwnerScope();
+  if(view==='venues'&&venuesPane==='list') renderVedBrowse();
 
   // An uncalibrated venue silently rejects every GPS fix and pins everyone to
   // their check-in zone. That looks identical to "nobody is moving", so say it
@@ -1523,15 +1669,16 @@ async function loadVenueList(){
   const warn=$('#gpsWarn');
   if(live&&!live.calibrated){
     warn.style.display='block';
-    warn.innerHTML='⚠ GPS is off — this venue has no location yet, so phones stay in their check-in zone. Venues tab → "Where is it?" → type the address.';
+    warn.innerHTML='⚠ GPS is off — this venue has no location yet, so phones stay in their check-in zone. Venues tab → pick the venue → "Where is it?" → type the address.';
   } else warn.style.display='none';
 }
 
 /* ---- restricted mode ----
    An account that owns no venues gets no live dashboard: someone else's (or
    the seed) event is none of its business. Only the Venues tab exists, opened
-   on a blank editor — build or claim a venue and the rest unlocks. Recomputed
-   on every list refresh, so the first successful save lifts it immediately. */
+   on the venue list (empty + Create) — build or claim a venue and the rest
+   unlocks. Recomputed on every list refresh, so the first successful save
+   lifts it immediately. */
 let scopeRestricted=null;
 function applyOwnerScope(){
   const mine=(venueIndex.venues||[]).filter(v=>v.mine).length;
@@ -1543,8 +1690,11 @@ function applyOwnerScope(){
     document.querySelector('nav button[data-v="venues"]').click();
   if(restricted){
     // a loaded venue that isn't theirs never belongs in a restricted editor —
-    // swap to a blank one. An unsaved draft (edId null) is never touched.
-    if(!ed||(edId&&!(venueIndex.venues||[]).some(v=>v.id===edId&&v.mine))) vedNew();
+    // clear it. Don't yank the user out of an intentional Create/Edit draft.
+    if(edId&&!(venueIndex.venues||[]).some(v=>v.id===edId&&v.mine)){
+      ed=null; edId=null; edPlan=null;
+      if(view==='venues'&&venuesPane==='edit') showVenuesList();
+    }
   }
   scopeRestricted=restricted;
 }
@@ -1572,10 +1722,9 @@ $('#pvActivate').addEventListener('click',async()=>{
   await fetch('/venues/'+previewId+'/activate',{method:'POST'});
   previewId=null; $('#previewBar').classList.remove('on');
 });
-$('#newVenueBtn').addEventListener('click',async()=>{
-  if(!(await requireOwnerSession('Creating a venue'))) return;
-  vedNew(); document.querySelector('nav button[data-v="venues"]').click();
-});
+$('#newVenueBtn').addEventListener('click',()=>openNewVenueEditor());
+$('#vedCreateBtn').addEventListener('click',()=>openNewVenueEditor());
+$('#vedBackList').addEventListener('click',()=>{ showVenuesList(); loadVenueList(); });
 loadVenueList();
 
 /* ---- check-in QR ----
@@ -1622,8 +1771,10 @@ addEventListener('keydown',e=>{
   if(edit==='new'){
     if(!(await requireOwnerSession('Creating a venue'))) return;
     vedNew();
+    showVenuesEditor();
   }else{
     await vedLoad(edit);
+    showVenuesEditor();
   }
 })();
 
@@ -2540,9 +2691,10 @@ fetch('/crowd').then(r=>r.json()).then(c=>{
   $('#cwHr').value=Math.round(c.hrPct*100); $('#cwSpread').value=c.spread;
 });
 
-// open the editor on whatever is live, so the tab is never blank
+// Warm the editor model for the live venue in the background — the Venues tab
+// itself always opens on the list, not this draft.
 socket.on('venue',()=>{ if(!ed&&venueIndex.active) vedLoad(venueIndex.active); });
-setTimeout(()=>{ if(!ed) venueIndex.active?vedLoad(venueIndex.active):vedNew(); },600);
+setTimeout(()=>{ if(!ed) venueIndex.active?vedLoad(venueIndex.active):null; },600);
 </script>
 </body>
 </html>
