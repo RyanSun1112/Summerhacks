@@ -524,6 +524,14 @@ ownerAuthReady=(async()=>{
     }
     console.log('[owner-auth] mode',ownerMode,ownerToken?'— signed in as '+ownerEmail:'— signed out');
   }catch(e){ console.warn('[owner-auth]',e); }
+  // The dashboard is the venue owner's tool, so signed-out visitors go to the
+  // sign-in page instead of a read-only view. Front-door UX, not a security
+  // boundary — the state/socket APIs stay open, join.html stays anonymous,
+  // and AUTH_MODE=off keeps the dashboard open (there are no accounts then).
+  if(ownerAuthOn()&&!ownerToken){
+    location.replace('/owner.html?next='+encodeURIComponent(location.pathname+location.search));
+    return false;
+  }
   renderAcct();
   loadVenueList();          // the list is scoped by who's asking — refresh now that we know
   return !!ownerToken;
@@ -605,7 +613,8 @@ $('#acctOut').addEventListener('click',async()=>{
   if(ownerMode==='local'){ fetch('/auth/logout',{method:'POST',headers:ownerHeaders()}).catch(()=>{}); ownerStore(null); }
   else if(ownerSb){ try{ await withDeadline(ownerSb.auth.signOut(),'Sign out'); }catch(e){} }
   ownerToken=null; ownerEmail=null;
-  renderAcct(); renderAcctModal(); loadVenueList(); setAcctMsg('Signed out.','ok');
+  // signed out of an owner-gated page → back to the sign-in page
+  location.replace('/owner.html');
 });
 $('#acctCancel').addEventListener('click',()=>closeAcct(false));
 $('#acctModal').addEventListener('pointerdown',e=>{ if(e.target===e.currentTarget) closeAcct(false); });

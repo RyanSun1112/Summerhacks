@@ -37,9 +37,11 @@ Then open **http://localhost:3000/dashboard.html**.
 
 ### Venue-owner accounts
 
-Attendees on `/join.html` stay anonymous — accounts only gate venue create/update/delete. Sign in
-from the **Sign in** button in the dashboard header; saving a venue prompts you automatically. The
-server picks one of three modes at boot (the log says which):
+Attendees on `/join.html` stay anonymous — accounts gate the **host dashboard** and venue
+create/update/delete. With accounts on, opening `/dashboard.html` signed out sends you to
+`/owner.html` to sign in (and straight back afterwards); signing out returns you there. This is
+front-door UX, not a security boundary — the live state APIs stay open for phones. The server picks
+one of three modes at boot (the log says which):
 
 - **local** — the default, zero setup. Accounts live on the Pulse server itself in
   `data/owners.json` (passwords scrypt-hashed, never stored). Sign up takes ten seconds and works

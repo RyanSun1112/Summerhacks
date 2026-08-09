@@ -110,7 +110,8 @@
     <h1>Owner dashboard</h1>
     <p class="who">Signed in as <b id="who"></b></p>
     <div class="actions">
-      <button class="primary" id="btnNew" type="button">Create new venue</button>
+      <button class="primary" id="btnDash" type="button">Live dashboard</button>
+      <button class="ghost" id="btnNew" type="button">Create new venue</button>
       <button class="ghost" id="btnLogout" type="button">Log out</button>
     </div>
     <div id="venueList" class="vlist"></div>
@@ -128,6 +129,18 @@ const $ = s => document.querySelector(s);
 let sb = null;
 let accessToken = null;
 let busy = false;
+
+// Where to go after sign-in. Same-origin paths only — a next of
+// "https://evil.example" or "//evil.example" must never be followed.
+const nextParam = (() => {
+  const n = new URLSearchParams(location.search).get('next') || '';
+  return /^\/(?!\/)/.test(n) ? n : '';
+})();
+function goNext() {
+  if (!nextParam) return false;
+  location.replace(nextParam);
+  return true;
+}
 
 // A paused Supabase project (free tier sleeps) or a wrong URL makes the client
 // hang with no rejection, so the button sits on "Signing in…" forever with an
@@ -262,7 +275,7 @@ async function init() {
   // getSession refreshes an expired token over the network, so it can stall too.
   const { data: { session } } = await withTimeout(sb.auth.getSession(), 'Restoring session');
   accessToken = session ? session.access_token : null;
-  if (session) showDash(session);
+  if (session) { if (goNext()) return; showDash(session); }
 }
 
 async function showDash(session) {
@@ -366,6 +379,7 @@ $('#btnLogin').addEventListener('click', guard('Signing in', async () => {
   console.log('[owner] login ok', data.user && data.user.id);
   accessToken = data.session.access_token;
   setMsg($('#authMsg'), 'Signed in.', 'ok');
+  if (goNext()) return;
   showDash(data.session);
 }));
 
@@ -381,6 +395,7 @@ $('#btnSignup').addEventListener('click', guard('Creating account', async () => 
     console.log('[owner] signup ok', data.user && data.user.id);
     accessToken = data.session.access_token;
     setMsg($('#authMsg'), 'Account created.', 'ok');
+    if (goNext()) return;
     showDash(data.session);
   } else {
     setMsg($('#authMsg'),
@@ -399,6 +414,9 @@ $('#btnLogout').addEventListener('click', async () => {
 
 $('#btnNew').addEventListener('click', () => {
   location.href = '/dashboard.html?edit=new';
+});
+$('#btnDash').addEventListener('click', () => {
+  location.href = '/dashboard.html';
 });
 
 init().catch(e => {
