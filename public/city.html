@@ -41,6 +41,12 @@
     text-decoration:none;padding:10px 8px;min-height:44px;display:inline-flex;align-items:center;
   }
   header a:hover,header a:active{color:var(--ink)}
+  header .join-scan{
+    color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    background:none;border:0;padding:10px 8px;min-height:44px;display:inline-flex;align-items:center;
+    cursor:pointer;font-family:var(--sans);
+  }
+  header .join-scan:hover,header .join-scan:active{color:var(--ink)}
   #map{flex:1;min-height:0;background:#0c1024}
   .leaflet-control-zoom a{
     width:44px!important;height:44px!important;line-height:44px!important;font-size:18px!important;
@@ -255,7 +261,7 @@
   <div class="mark"><b>Pulse</b><span>City vibe map</span></div>
   <div class="hc"><b id="count">0</b> captures</div>
   <a href="/owner.html" class="auth-link" id="authLink">Sign in</a>
-  <a href="/join.html">Join a venue</a>
+  <button type="button" class="join-scan" id="joinScanBtn">Join a venue</button>
   <a href="/dashboard.html">Dashboard</a>
 </header>
 
@@ -296,6 +302,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="/qr-scanner.js"></script>
 <script>
 const VIBE_COLOR = { hype:'#F05A3C', calm:'#5B9CFF', mixed:'#F0A93B' };
 const TORONTO = [43.6532, -79.3832];
@@ -627,6 +635,10 @@ const socket = io();
 socket.on('capture', c => {
   addLiveCapture(c);
   if (!fitted) fitIfNeeded();
+});
+
+$('#joinScanBtn').addEventListener('click', () => {
+  PulseQr.open({ onScan: href => { location.assign(href); } });
 });
 
 (async () => {

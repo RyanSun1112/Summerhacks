@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080A18">
+<title>Pulse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#080A18; --accent:#3B4FE0; --accent2:#7B3FD4;
+    --ink:#F0EFF7; --muted:#7E7D99;
+    --rule:rgba(240,239,247,.10); --glass:rgba(12,15,34,.72);
+    --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    min-height:100dvh;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    display:flex;flex-direction:column;font-size:15px;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 70% 50% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  }
+  .wrap{
+    position:relative;z-index:1;flex:1;display:flex;flex-direction:column;
+    width:100%;max-width:920px;margin:0 auto;
+    padding:28px 18px max(28px,env(safe-area-inset-bottom));
+    padding-top:max(28px,env(safe-area-inset-top));
+  }
+  header{display:flex;align-items:center;gap:10px;margin-bottom:clamp(24px,5vh,40px)}
+  .beacon{
+    width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 12px var(--accent);animation:bl 2.2s ease-in-out infinite;
+  }
+  @keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+  .mark{
+    font-size:clamp(22px,5vw,28px);font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  }
+  .lab{
+    font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  }
+  .hero{margin-bottom:clamp(22px,4vh,32px);max-width:38em}
+  .hero .lab{margin-bottom:10px}
+  .hero h1{
+    font-size:clamp(22px,4.8vw,30px);font-weight:600;line-height:1.25;letter-spacing:-.015em;
+  }
+  .explain{
+    max-width:40em;margin-bottom:clamp(24px,4.5vh,36px);
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .explain p{
+    font-size:clamp(15px,2.4vw,16px);line-height:1.55;color:var(--muted);
+  }
+  .explain p strong{color:var(--ink);font-weight:600}
+  .steps{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+    margin-bottom:clamp(28px,5vh,40px);
+  }
+  .step{
+    display:flex;flex-direction:column;gap:8px;
+    padding:16px 14px;border:1px solid var(--rule);border-radius:10px;
+    background:rgba(8,10,24,.35);
+  }
+  .step .n{
+    font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.08em;
+    color:var(--accent);
+  }
+  .step p{font-size:14px;line-height:1.4;color:var(--ink)}
+  .choose{margin-bottom:12px}
+  .paths{
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start;
+  }
+  .path{
+    display:flex;flex-direction:column;gap:14px;
+    background:var(--glass);border:1px solid var(--rule);border-radius:12px;
+    padding:22px 18px 18px;backdrop-filter:blur(18px);
+    box-shadow:0 18px 50px rgba(0,0,0,.35);
+    animation:rise .55s ease both;
+  }
+  .path:nth-child(2){animation-delay:.08s}
+  @keyframes rise{
+    from{opacity:0;transform:translateY(10px)}
+    to{opacity:1;transform:none}
+  }
+  .path .lab{color:var(--muted)}
+  .path h2{font-size:clamp(18px,3.5vw,22px);font-weight:600;letter-spacing:-.01em;line-height:1.2}
+  .path p{font-size:14px;color:var(--muted);line-height:1.5;flex:1}
+  a.cta{
+    display:flex;align-items:center;justify-content:center;text-align:center;width:100%;
+    min-height:52px;padding:14px 16px;border-radius:8px;text-decoration:none;border:0;cursor:pointer;
+    font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    background:var(--accent);color:#080A18;
+  }
+  a.cta:hover,a.cta:active,button.cta:hover,button.cta:active{filter:brightness(1.08)}
+  a.cta:focus-visible,button.cta:focus-visible{outline:2px solid var(--accent2);outline-offset:3px}
+  a.cta.ghost,button.cta.ghost{
+    background:transparent;color:var(--ink);border:1px solid var(--rule);
+    min-height:48px;font-weight:600;
+  }
+  a.cta.ghost:hover,a.cta.ghost:active{border-color:var(--accent);color:var(--ink);filter:none}
+  a.secondary{
+    display:block;text-align:center;padding:10px 8px;min-height:44px;
+    font-size:13px;color:var(--muted);text-decoration:none;line-height:1.4;
+  }
+  a.secondary:hover,a.secondary:active{color:var(--ink)}
+  footer{
+    margin-top:auto;padding-top:28px;text-align:center;
+    font-size:13px;color:var(--muted);line-height:1.5;
+  }
+  footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+  footer a:hover,footer a:active{color:var(--accent)}
+  @media (max-width:640px){
+    .paths,.steps{grid-template-columns:1fr}
+    .path{padding:20px 16px 16px}
+    a.cta{min-height:54px}
+    .step{flex-direction:row;align-items:flex-start;gap:12px}
+    .step .n{flex:none;min-width:1.5em;padding-top:1px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .beacon,.path{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="beacon" aria-hidden="true"></span>
+    <div class="mark">Pulse</div>
+  </header>
+
+  <section class="hero">
+    <div class="lab">Live venue energy</div>
+    <h1>A live map of how events feel — built from the people actually there.</h1>
+  </section>
+
+  <section class="explain" aria-label="What Pulse is">
+    <p>
+      When someone captures a moment, Pulse freezes a <strong>photo</strong> together with the
+      venue’s <strong>live measured energy</strong> — motion, sync, and crowd reading from the
+      phones in the room, not a typed rating.
+    </p>
+    <p>
+      That isn’t a static review left behind later. It’s a timestamped reading of how the place
+      actually felt <strong>right then</strong>, taken by people who were there.
+    </p>
+    <p>
+      Every capture stays on a <strong>public city map</strong>. As more people check in, each
+      venue’s story keeps growing — permanent, browsable, and open to anyone.
+    </p>
+  </section>
+
+  <section class="steps" aria-label="How it works">
+    <div class="step">
+      <span class="n">01</span>
+      <p>Check in at a venue</p>
+    </div>
+    <div class="step">
+      <span class="n">02</span>
+      <p>Capture the moment — a photo plus the live vibe reading</p>
+    </div>
+    <div class="step">
+      <span class="n">03</span>
+      <p>It joins the city map, permanently, for anyone to see</p>
+    </div>
+  </section>
+
+  <div class="lab choose">Choose your path</div>
+  <div class="paths">
+    <article class="path">
+      <div class="lab">Attendee</div>
+      <h2>I'm at an event</h2>
+      <p>Check in, share the vibe, see what's happening around you.</p>
+      <button type="button" class="cta" id="checkInBtn">Check in</button>
+      <a class="secondary" href="/city.html">Just here to look? View the city map</a>
+    </article>
+
+    <article class="path">
+      <div class="lab">Organizer</div>
+      <h2>I run a venue</h2>
+      <p>Add your space, see live activity, manage your floor plan.</p>
+      <a class="cta ghost" href="/owner.html">Owner sign in</a>
+    </article>
+  </div>
+
+  <footer>
+    Anyone can browse — <a href="/city.html">open the city map</a>
+  </footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="/qr-scanner.js"></script>
+<script>
+document.getElementById('checkInBtn').addEventListener('click', () => {
+  PulseQr.open({ onScan: href => { location.assign(href); } });
+});
+</script>
+</body>
+</html>
