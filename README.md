@@ -39,9 +39,10 @@ Then open **http://localhost:3000/dashboard.html**.
 
 Attendees on `/join.html` stay anonymous — accounts gate the **host dashboard** and venue
 create/update/delete. With accounts on, opening `/dashboard.html` signed out sends you to
-`/owner.html` to sign in (and straight back afterwards); signing out returns you there. This is
-front-door UX, not a security boundary — the live state APIs stay open for phones. The server picks
-one of three modes at boot (the log says which):
+`/owner.html`; signing in lands you on the owner screen (your venues, unclaimed pool, **Live
+dashboard** button), and signing out returns you there. This is front-door UX, not a security
+boundary — the live state APIs stay open for phones. The server picks one of three modes at boot
+(the log says which):
 
 - **local** — the default, zero setup. Accounts live on the Pulse server itself, in the same SQLite
   database as the collected sensor data (`backend/data.db` — passwords scrypt-hashed, never stored).
