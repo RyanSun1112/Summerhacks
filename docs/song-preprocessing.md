@@ -61,11 +61,11 @@ or track ID, then embedded tags, then normalized artist/title filenames. Ambiguo
 matches are skipped and reported rather than guessed.
 
 For a redistribution-safe catalogue that ships with the deployed app, place its
-audio under `data/songs/` and run:
+audio under `songs/` and run:
 
 ```bash
 python preprocess_songs.py \
-  --audio-dir ./data/songs \
+  --audio-dir ./songs \
   --output ./data/songProfiles.json
 ```
 

@@ -1221,7 +1221,7 @@ async function djStart(){
     const song=djPlayable(b);
     if(!song){
       djStatus(b.library&&b.library.example
-        ? 'No playable audio: add redistribution-safe tracks to data/songs/ (or private tracks to songs/), preprocess them, then restart.'
+        ? 'No playable audio: add redistribution-safe tracks to songs/, preprocess them, then restart.'
         : 'No audio file matches a profile — regenerate data/songProfiles.json from the same audio directory so each profile has the correct audioFile path.','err');
       return;
     }

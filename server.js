@@ -1613,9 +1613,9 @@ function computeCrowdState() {
   };
 }
 
-// Audio files for the profiled songs live in songs/ (gitignored). A profile
-// plays when a file's name matches its id or title; everything else still
-// ranks — it just can't be auto-played.
+// Audio files for the profiled songs live in songs/. A profile plays when its
+// exact audioFile path exists; conservative name inference remains for older
+// profile databases.
 const AUDIO_EXT = /\.(mp3|m4a|wav|flac|ogg)$/i;
 function audioFiles(root, relative = '') {
   let entries = [];
@@ -1629,9 +1629,7 @@ function audioFiles(root, relative = '') {
   }
   return files;
 }
-const deployedSongsDir = path.join(__dirname, 'data', 'songs');
-const SONGS_DIR = process.env.SONGS_DIR
-  || (audioFiles(deployedSongsDir).length ? deployedSongsDir : path.join(__dirname, 'songs'));
+const SONGS_DIR = process.env.SONGS_DIR || path.join(__dirname, 'songs');
 const audioUrl = relative => '/songs/' + relative.split(path.sep).map(encodeURIComponent).join('/');
 const safeAudioRelative = value => {
   if (typeof value !== 'string' || !value.trim()) return null;

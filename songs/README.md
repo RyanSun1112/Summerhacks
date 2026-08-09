@@ -1,11 +1,13 @@
-# Local event song library
+# Event song library
 
 Put legitimately obtained `.mp3`, `.wav`, `.flac`, or `.m4a` files in this
 directory before an event. Subdirectories are supported, so organizing files by
 artist, album, or crate is fine.
 
-Audio in this directory is intentionally ignored by Git. It is analyzed in place;
-the preprocessor does not copy audio into `data/`, its cache, or an API request.
+Audio is analyzed in place; the preprocessor does not copy audio into `data/`, its
+cache, or an API request. Only commit tracks whose licences permit redistribution;
+keep private or commercial event catalogues outside the repository and point
+`--audio-dir` and `SONGS_DIR` at that external directory instead.
 
 From the repository root, test five tracks without an API call:
 

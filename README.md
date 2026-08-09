@@ -74,7 +74,7 @@ Environment variables, all optional:
 | `PUBLIC_URL` | — | Host encoded into QR posters. Required when tunnelling |
 | `DJ_PROFILES_PATH` | `data/songProfiles.json` | Override the preprocessed song-profile database
 |
-| `SONGS_DIR` | `data/songs` if it contains audio, otherwise `songs` | Audio directory served to Auto-DJ |
+| `SONGS_DIR` | `songs` | Audio directory served to Auto-DJ |
 | `OPENAI_DJ_MODEL` | `gpt-5-mini` | Optional final-selector model |
 | `DJ_AI_TOKEN` | — | Required in `X-DJ-Token` before the HTTP endpoint may spend AI credits |
 | `OPENAI_API_KEY` | — | Enables OpenAI-backed venue-plan reading and optional DJ selection; server-side only |
@@ -127,14 +127,11 @@ profile database; it does not run librosa or call an LLM for song features. See
 [the preprocessing guide](docs/song-preprocessing.md) for setup, metadata matching,
 caching, audio-only testing, and full-library commands.
 
-The private local event library is `songs/`: copy local MP3/WAV/FLAC/M4A files there
-and run `python preprocess_songs.py`. Its audio contents are Git-ignored and analyzed
-in place. A metadata template is available at `data/tracks.example.json`.
-
-For a small redistribution-safe catalogue that must ship with the deployed demo,
-put the files under `data/songs/` and preprocess with `--audio-dir ./data/songs`.
-New profiles contain an exact `audioFile` mapping; the live server prefers that over
-filename guessing and automatically serves `data/songs/` when it contains audio.
+The event library is `songs/`: copy MP3/WAV/FLAC/M4A files there and run
+`python preprocess_songs.py`. Redistribution-safe files in this directory can ship
+with the deployed demo; do not commit private or commercially licensed event audio.
+A metadata template is available at `data/tracks.example.json`. New profiles contain
+an exact `audioFile` mapping, which the live server prefers over filename guessing.
 
 ## Auto-DJ — the crowd chooses the next song
 
@@ -149,9 +146,9 @@ The final loop is closed: the room's sensors pick the music. Press **Auto-DJ** i
 3. The DJ engine turns that moment into a target, ranks the whole library, and queues the winner.
 4. When the song ends, the queued pick plays. Repeat.
 
-Setup: put private local tracks in `songs/`, or redistribution-safe deployed tracks in
-`data/songs/`; run `python preprocess_songs.py --audio-dir <that-directory>` to build
-`data/songProfiles.json`, then restart. New profiles use their exact relative `audioFile` path;
+Setup: put redistribution-safe deployed tracks in `songs/`; run
+`python preprocess_songs.py --audio-dir ./songs` to build `data/songProfiles.json`,
+then restart. New profiles use their exact relative `audioFile` path;
 older profiles fall back to conservative title/ID matching. Until a profile and file are both
 present, the track can rank but cannot play, and the DJ tab says so.
 
