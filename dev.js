@@ -119,7 +119,11 @@ process.on('SIGTERM', shutdown);
 
   function startTunnel() {
     console.log('[dev] starting cloudflared quick tunnel…');
-    tun = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`]);
+    // --protocol http2 is load-bearing: cloudflared defaults to QUIC (UDP),
+    // and networks that blackhole UDP produce tunnels that REGISTER but never
+    // serve — hostname resolves, page shows Cloudflare 1033/530, everything
+    // local looks healthy. One full day was lost to this. TCP always works.
+    tun = spawn(bin, ['tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', `http://localhost:${PORT}`]);
     let buf = '';
     const onData = d => {
       buf = (buf + d).slice(-4096); keepTail(d);
