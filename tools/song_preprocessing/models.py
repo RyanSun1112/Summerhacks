@@ -137,6 +137,21 @@ class FinalSongProfile(PipelineModel):
     album: str | None = None
     year: int | None = None
     genres: list[str] = Field(default_factory=list)
+
+    @field_validator("year", mode="before")
+    @classmethod
+    def plausible_year(cls, value: Any) -> int | None:
+        # Mirror the Node selector's validator (lib/dj/models.js): a year must
+        # be a plausible integer or absent. Real-world ID3 tags produced 1002,
+        # 7002 and 2 from old netlabel MP3s, and the selector refused the
+        # whole library over them — better to drop the field than the song.
+        if value is None or value == "":
+            return None
+        try:
+            year = int(str(value).strip()[:4])
+        except (TypeError, ValueError):
+            return None
+        return year if 1800 <= year <= 3000 else None
     bpm: float = Field(ge=0)
     energy: float = Field(ge=0, le=1)
     danceability: float = Field(ge=0, le=1)

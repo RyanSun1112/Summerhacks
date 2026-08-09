@@ -148,6 +148,11 @@ Setup: copy MP3/WAV/FLAC files into `songs/`, run `python preprocess_songs.py` t
 song's title). Until then the fictional example profiles rank — visible in the DJ tab — but nothing
 can play, and the tab says so.
 
+No music of your own? `node tools/fetch_cc_songs.js` fills `songs/` with ~200 Creative-Commons
+electronic tracks from the Internet Archive's netlabel collections (Kahvi, Monotonik, Thinner…) —
+legal to play, and the committed `data/songProfiles.json` was built from exactly that set, so after
+downloading, the library plays without re-running preprocessing.
+
 The **DJ tab** (host-only, like the whole dashboard) shows the decision being made: the song meter
 with the capture marker at the midpoint, the captured moment's factors with trend arrows next to the
 policy's target and what the chosen song actually delivers, every candidate's score with the

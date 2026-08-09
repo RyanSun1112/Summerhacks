@@ -188,6 +188,7 @@ function saveVenue(v) {
 const requestedProfilePath = process.env.DJ_PROFILES_PATH || path.join(__dirname, 'data', 'songProfiles.json');
 const exampleProfilePath = path.join(__dirname, 'data', 'songProfiles.example.json');
 const djProfilePath = fs.existsSync(requestedProfilePath) ? requestedProfilePath : exampleProfilePath;
+const DJ_USING_EXAMPLE = path.resolve(djProfilePath) === path.resolve(exampleProfilePath);
 let djSongs = [];
 let djSongIndex = new Map();
 try {
@@ -1436,15 +1437,19 @@ function computeCrowdState() {
 // ranks — it just can't be auto-played.
 const SONGS_DIR = process.env.SONGS_DIR || path.join(__dirname, 'songs');
 const AUDIO_EXT = /\.(mp3|m4a|wav|flac|ogg)$/i;
-function audioFor(song) {
+// One directory read per call site, matched against every profile — id,
+// title, and "artist - title" all count, since tags and filenames disagree
+// in the wild.
+function audioIndex() {
   let files = [];
-  try { files = fs.readdirSync(SONGS_DIR).filter(f => AUDIO_EXT.test(f)); } catch { return null; }
-  const want = [slug(song.id), slug(song.title)].filter(Boolean);
-  const hit = files.find(f => {
-    const s = slug(f.replace(AUDIO_EXT, ''));
-    return want.some(w => s === w || s.includes(w) || w.includes(s));
-  });
-  return hit ? '/songs/' + encodeURIComponent(hit) : null;
+  try { files = fs.readdirSync(SONGS_DIR).filter(f => AUDIO_EXT.test(f)); } catch {}
+  const slugs = files.map(f => ({ f, s: slug(f.replace(AUDIO_EXT, '')) }));
+  return song => {
+    const want = [slug(song.id), slug(song.title), slug(`${song.artist} ${song.title}`)]
+      .filter(w => w && w.length >= 3);
+    const hit = slugs.find(({ s }) => want.some(w => s === w || s.includes(w) || w.includes(s)));
+    return hit ? '/songs/' + encodeURIComponent(hit.f) : null;
+  };
 }
 app.use('/songs', express.static(SONGS_DIR));
 
@@ -1483,12 +1488,13 @@ app.post('/api/dj/next', (req, res) => {
     .map(id => djSongIndex.get(id)).filter(Boolean);
   selectNextSong({ crowdState, songs: djSongs, currentSong, recentHistory, useAI: false })
     .then(decision => {
+      const match = audioIndex();
       const candidates = decision.candidates.map(c => ({
         id: c.song.id, title: c.song.title, artist: c.song.artist, bpm: c.song.bpm,
         energy: c.song.energy, danceability: c.song.danceability, valence: c.song.valence,
         socialness: c.song.socialness, intensity: c.song.intensity,
         score: +c.score.toFixed(4), reasons: c.reasons,
-        audioUrl: audioFor(c.song)
+        audioUrl: match(c.song)
       }));
       res.json({
         crowdState, sources,
@@ -1496,8 +1502,10 @@ app.post('/api/dj/next', (req, res) => {
         candidates,
         selected: { ...candidates.find(c => c.id === decision.selectedSong.id) },
         selectionMethod: decision.selectionMethod,
-        library: { count: djSongs.length, playable: candidates.filter(c => c.audioUrl).length,
-                   example: djProfilePath === exampleProfilePath }
+        // playable measured across the WHOLE library, not the top candidates —
+        // this number is what tells the host whether tonight can actually play
+        library: { count: djSongs.length, playable: djSongs.filter(s => match(s)).length,
+                   example: DJ_USING_EXAMPLE }
       });
     })
     .catch(e => res.status(500).json({ error: e.message }));
