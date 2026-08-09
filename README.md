@@ -130,9 +130,35 @@ The default event library is `songs/`: copy local MP3/WAV/FLAC/M4A files there a
 run `python preprocess_songs.py`. Its audio contents are Git-ignored and analyzed in
 place. A metadata template is available at `data/tracks.example.json`.
 
+## Auto-DJ — the crowd chooses the next song
+
+The final loop is closed: the room's sensors pick the music. Press **Auto-DJ** in the radio player
+(or **Start Auto-DJ** on the DJ tab — one tap, browsers refuse audio without a gesture) and:
+
+1. A profiled song with a matching audio file starts on the deck.
+2. At the song's **midpoint**, the server captures *the moment* — a real `CrowdState` built from
+   everyone's sensors: movement energy, the sync metric as rhythm, zone clustering, phone-mic
+   loudness from the snapshot store, steps-per-minute as mobility, and each one's trend vs a minute
+   ago.
+3. The DJ engine turns that moment into a target, ranks the whole library, and queues the winner.
+4. When the song ends, the queued pick plays. Repeat.
+
+Setup: copy MP3/WAV/FLAC files into `songs/`, run `python preprocess_songs.py` to build
+`data/songProfiles.json`, restart. Audio is matched to profiles by filename (it should contain the
+song's title). Until then the fictional example profiles rank — visible in the DJ tab — but nothing
+can play, and the tab says so.
+
+The **DJ tab** (host-only, like the whole dashboard) shows the decision being made: the song meter
+with the capture marker at the midpoint, the captured moment's factors with trend arrows next to the
+policy's target and what the chosen song actually delivers, every candidate's score with the
+engine's reasons, and live 2-second averages of everyone's sensors with sparklines.
+
+Selection is deterministic by design — the optional OpenAI judge stays behind `DJ_AI_TOKEN` on
+`/api/dj/select`, so a dead API can cost a suggestion, never the playlist.
+
 ## Adaptive song selection
 
-The deterministic DJ engine consumes a validated mock/future `CrowdState` and the
+The deterministic DJ engine consumes a validated `CrowdState` and the
 preprocessed profiles. It converts the room state into an explicit musical target,
 ranks eligible songs, explains its scores, and optionally lets OpenAI choose among
 only the top ten. AI is server-side and never required: missing keys, timeouts,

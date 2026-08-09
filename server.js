@@ -1051,6 +1051,7 @@ if (snapDb) try {
     );
     CREATE INDEX IF NOT EXISTS idx_readings_snapshot ON snapshot_readings(snapshot_id);
     CREATE INDEX IF NOT EXISTS idx_snapshots_session ON snapshots(session_id);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_captured ON snapshots(captured_at);
   `);
   snapStmts = {
     insertSnap: snapDb.prepare(`INSERT INTO snapshots
@@ -1076,7 +1077,12 @@ if (snapDb) try {
         s.lat, s.lng, s.gps_accuracy,
         r.reading_index, r.offset_ms, r.accel_x, r.accel_y, r.accel_z, r.alpha, r.beta, r.gamma, r.audio_level
       FROM snapshots s JOIN snapshot_readings r ON r.snapshot_id = s.snapshot_id
-      ORDER BY datetime(s.captured_at) ASC, s.snapshot_id ASC, r.reading_index ASC`)
+      ORDER BY datetime(s.captured_at) ASC, s.snapshot_id ASC, r.reading_index ASC`),
+    // room loudness for the DJ's CrowdState: mean mic RMS across every
+    // reading phones uploaded recently (ISO strings compare lexicographically)
+    recentAudio: snapDb.prepare(`SELECT AVG(r.audio_level) AS rms, COUNT(*) AS n
+      FROM snapshots s JOIN snapshot_readings r ON r.snapshot_id = s.snapshot_id
+      WHERE s.captured_at >= ?`)
   };
   console.log(`[data] snapshot store ready`);
 } catch (e) {
@@ -1215,6 +1221,140 @@ app.post('/api/dj/select', async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 });
+// ----------------------------------------------------- live crowd → DJ
+// The bridge the DJ engine was waiting for: a real CrowdState built from the
+// sensors instead of a mock scenario. Every dimension is an honest proxy and
+// says so — this mapping is the product, keep it inspectable:
+//   energy     mean per-person movement energy (already 0..1)
+//   rhythm     the sync metric — the room moving as one body is the closest
+//              live observable to "moving in rhythm"
+//   clustering Herfindahl concentration of people across zones, normalized
+//   volume     mean mic RMS from the snapshot store's last 90s (phones
+//              measure the actual room); host's own audio level as fallback
+//   mobility   steps per person per minute over the last minute, ~40/min = 1
+//   *Trend     0.5 flat, 1 rising, 0 falling — each metric now vs ~60s ago
+const djHist = [];                                  // {t, energy, rhythm, clustering, volume, mobility}
+function djMetricsNow() {
+  const list = [...attendees.values()].filter(alive);
+  const zc = Object.values(zoneCounts());
+  const total = zc.reduce((s, z) => s + z.n, 0);
+  const K = Math.max(zc.length, 1);
+  let clustering = 0;
+  if (total && K > 1) {
+    const hhi = zc.reduce((s, z) => s + (z.n / total) ** 2, 0);
+    clustering = clamp((hhi - 1 / K) / (1 - 1 / K), 0, 1);
+  }
+  let volume = clamp((frame.level || 0), 0, 1), volumeFrom = 'host-audio';
+  if (snapStmts) {
+    try {
+      const row = snapStmts.recentAudio.get(new Date(Date.now() - 90000).toISOString());
+      if (row && row.n > 0 && row.rms != null) { volume = clamp(row.rms * 4, 0, 1); volumeFrom = `phone-mics (${row.n} readings)`; }
+    } catch {}
+  }
+  const steps = list.reduce((s, p) => s + (p.steps || 0), 0);
+  const old = djHist.find(h => h.t <= Date.now() - 55000) || djHist[0];
+  const stepsPerMin = old && list.length
+    ? Math.max(0, steps - old.steps) / ((Date.now() - old.t) / 60000) / list.length
+    : 0;
+  return {
+    t: Date.now(), steps,
+    energy: clamp(crowd.energy, 0, 1),
+    rhythm: clamp(crowd.sync, 0, 1),
+    clustering, volume, volumeFrom,
+    mobility: clamp(stepsPerMin / 40, 0, 1),
+    stepsPerMin
+  };
+}
+function computeCrowdState() {
+  const now = djMetricsNow();
+  const then = djHist.find(h => h.t <= now.t - 55000) || djHist[0] || now;
+  const trend = (a, b) => clamp(0.5 + (a - b) * 2, 0, 1);
+  const cs = {
+    energy: now.energy, rhythm: now.rhythm, clustering: now.clustering,
+    volume: now.volume, mobility: now.mobility,
+    energyTrend: trend(now.energy, then.energy),
+    rhythmTrend: trend(now.rhythm, then.rhythm),
+    clusteringTrend: trend(now.clustering, then.clustering),
+    mobilityTrend: trend(now.mobility, then.mobility),
+    volumeTrend: trend(now.volume, then.volume),
+    timestamp: now.t
+  };
+  if (Number.isFinite(music.bpm) && music.bpm > 0) cs.currentBpm = music.bpm;
+  return { crowdState: cs, sources: { volumeFrom: now.volumeFrom, stepsPerMin: +now.stepsPerMin.toFixed(1) } };
+}
+
+// Audio files for the profiled songs live in songs/ (gitignored). A profile
+// plays when a file's name matches its id or title; everything else still
+// ranks — it just can't be auto-played.
+const SONGS_DIR = process.env.SONGS_DIR || path.join(__dirname, 'songs');
+const AUDIO_EXT = /\.(mp3|m4a|wav|flac|ogg)$/i;
+function audioFor(song) {
+  let files = [];
+  try { files = fs.readdirSync(SONGS_DIR).filter(f => AUDIO_EXT.test(f)); } catch { return null; }
+  const want = [slug(song.id), slug(song.title)].filter(Boolean);
+  const hit = files.find(f => {
+    const s = slug(f.replace(AUDIO_EXT, ''));
+    return want.some(w => s === w || s.includes(w) || w.includes(s));
+  });
+  return hit ? '/songs/' + encodeURIComponent(hit) : null;
+}
+app.use('/songs', express.static(SONGS_DIR));
+
+// Live tiles + sparklines for the DJ tab. Polled while the tab is open.
+app.get('/api/dj/crowdstate', (_, res) => {
+  const { crowdState, sources } = computeCrowdState();
+  const list = [...attendees.values()].filter(alive);
+  const withHr = list.filter(p => p.hr);
+  res.json({
+    crowdState, sources,
+    live: {
+      count: list.length,
+      avgEnergy: +crowd.energy.toFixed(3),
+      avgHr: withHr.length ? Math.round(withHr.reduce((s, p) => s + p.hr, 0) / withHr.length) : null,
+      hrCount: withHr.length,
+      avgSteps: list.length ? Math.round(list.reduce((s, p) => s + (p.steps || 0), 0) / list.length) : 0,
+      stepsPerMin: sources.stepsPerMin,
+      located: crowd.located,
+      sync: +crowd.sync.toFixed(3),
+      arousal: +crowd.arousal.toFixed(3)
+    },
+    history: djHist.slice(-90).map(h => ({ t: h.t, energy: +h.energy.toFixed(3), rhythm: +h.rhythm.toFixed(3),
+      clustering: +h.clustering.toFixed(3), volume: +h.volume.toFixed(3), mobility: +h.mobility.toFixed(3) }))
+  });
+});
+
+// The auto-DJ's one call: the moment (live CrowdState) in, the decision out.
+// Deterministic by design — the AI judge stays behind its token on
+// /api/dj/select; a dead OpenAI must never stall the night's playlist.
+app.post('/api/dj/next', (req, res) => {
+  if (!djSongs.length) return res.status(503).json({ error: 'song profile database is unavailable' });
+  const input = req.body || {};
+  const { crowdState, sources } = computeCrowdState();
+  const currentSong = input.currentSongId ? djSongIndex.get(input.currentSongId) || null : null;
+  const recentHistory = (Array.isArray(input.recentSongIds) ? input.recentSongIds : [])
+    .map(id => djSongIndex.get(id)).filter(Boolean);
+  selectNextSong({ crowdState, songs: djSongs, currentSong, recentHistory, useAI: false })
+    .then(decision => {
+      const candidates = decision.candidates.map(c => ({
+        id: c.song.id, title: c.song.title, artist: c.song.artist, bpm: c.song.bpm,
+        energy: c.song.energy, danceability: c.song.danceability, valence: c.song.valence,
+        socialness: c.song.socialness, intensity: c.song.intensity,
+        score: +c.score.toFixed(4), reasons: c.reasons,
+        audioUrl: audioFor(c.song)
+      }));
+      res.json({
+        crowdState, sources,
+        target: decision.target,
+        candidates,
+        selected: { ...candidates.find(c => c.id === decision.selectedSong.id) },
+        selectionMethod: decision.selectionMethod,
+        library: { count: djSongs.length, playable: candidates.filter(c => c.audioUrl).length,
+                   example: djProfilePath === exampleProfilePath }
+      });
+    })
+    .catch(e => res.status(500).json({ error: e.message }));
+});
+
 // What a phone should type to reach us. PUBLIC_URL wins; otherwise trust the
 // proxy headers, because a tunnel terminates TLS and forwards plain HTTP — so
 // req.headers.host is the public hostname while the scheme looks like http.
@@ -1556,7 +1696,12 @@ io.on('connection', socket => {
   });
 });
 
-setInterval(computeCrowd, 2000);
+setInterval(() => {
+  computeCrowd();
+  // the DJ's rolling memory — trends need a minute of past to compare against
+  djHist.push(djMetricsNow());
+  if (djHist.length > 200) djHist.shift();
+}, 2000);
 setInterval(() => io.emit('state', publicState()), 400);
 
 // -------------------------------------------------------------- fake data

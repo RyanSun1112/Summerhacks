@@ -204,6 +204,7 @@
     <button role="tab" data-v="people" aria-selected="false">People</button>
     <button role="tab" data-v="zones" aria-selected="false">Zones</button>
     <button role="tab" data-v="data" aria-selected="false">Data</button>
+    <button role="tab" data-v="dj" aria-selected="false">DJ</button>
     <button role="tab" data-v="venues" aria-selected="false">Venues</button>
   </nav>
   <button id="acctBtn" type="button">Sign in</button>
@@ -256,6 +257,7 @@
     <div class="times"><span id="tNow">0:00</span><span id="tEnd">0:00</span></div>
     <div class="ctrls">
       <button class="rbtn" id="play" disabled aria-label="Play"><svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="load" id="djBtn" title="The crowd picks the next song">Auto-DJ</button>
       <button class="load" id="loadBtn">Load track</button>
       <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
     </div>
@@ -278,6 +280,59 @@
       <thead><tr><th>Zone</th><th>Type</th><th>People</th><th>Capacity</th><th>Movement</th></tr></thead>
       <tbody id="zoneRows"></tbody>
     </table>
+  </div>
+
+  <!-- The DJ decision, made visible. Host-only like every tab: the dashboard
+       is owner-gated and venue-less accounts see none of this. -->
+  <div class="sheet" id="sheet-dj">
+    <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:start;margin-bottom:22px">
+      <div class="panel" style="position:static;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="lab">Now playing</span>
+          <span style="flex:1"></span>
+          <button class="vbtn go" id="djToggle" style="margin:0;width:auto;padding:9px 16px">Start Auto-DJ</button>
+        </div>
+        <div style="font-size:17px;font-weight:600;margin-top:10px" id="djNowTitle">Nothing yet</div>
+        <div class="dim" id="djNowSub" style="margin-top:2px">Auto-DJ picks from the profiled library and lets the crowd choose what's next.</div>
+        <!-- the song meter: progress + the midpoint where the moment is taken -->
+        <div style="position:relative;height:8px;background:rgba(240,239,247,.10);border-radius:4px;margin-top:16px">
+          <div id="djMeterFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--accent);border-radius:4px"></div>
+          <div id="djMidMark" style="position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;background:var(--muted);opacity:.8"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span class="dim" id="djMeterT" style="font-family:var(--mono);font-size:10px">0:00 / 0:00</span>
+          <span class="dim" id="djMidLab" style="font-family:var(--mono);font-size:10px">▲ the moment — captured mid-song</span>
+        </div>
+        <div class="msgline" id="djStatus"></div>
+      </div>
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Next up — the crowd's pick</span>
+        <div style="font-size:17px;font-weight:600;margin-top:10px" id="djNextTitle">No decision yet</div>
+        <div class="dim" id="djNextSub" style="margin-top:2px">Appears when the moment is captured at mid-song.</div>
+        <div id="djIntent" style="font-size:12px;line-height:1.55;margin-top:12px;color:var(--ink)"></div>
+        <div class="dim" id="djPolicy" style="font-family:var(--mono);font-size:10.5px;margin-top:6px"></div>
+        <div class="dim" id="djLib" style="font-family:var(--mono);font-size:10.5px;margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="position:static;padding:16px 18px;margin-bottom:22px">
+      <span class="lab">The moment — factors that chose the song</span>
+      <div class="dim" id="djMomentSub" style="margin-top:4px">Left: the crowd as measured. Right: the target the policy asked for (line) vs what the chosen song delivers (bar).</div>
+      <canvas id="djMoment" style="width:100%;height:230px;display:block;margin-top:12px"></canvas>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:start">
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Candidates — score of the moment</span>
+        <div id="djCands" style="margin-top:12px"></div>
+      </div>
+      <div class="panel" style="position:static;padding:16px 18px">
+        <span class="lab">Live crowd — average of everyone's sensors</span>
+        <div id="djTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px;margin-top:12px"></div>
+        <canvas id="djSpark" style="width:100%;height:110px;display:block;margin-top:14px"></canvas>
+        <div class="dim" id="djSparkLegend" style="font-family:var(--mono);font-size:10px;margin-top:6px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- The data-collection pipeline: raw sensor snapshots phones upload every
@@ -679,6 +734,7 @@ let music={title:'—',artist:'',playing:false,position:0,duration:0};
 $('#loadBtn').addEventListener('click',()=>$('#file').click());
 $('#file').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f) return;
+  if(dj.on) djStop(true);                          // manual load takes the deck back
   deck.src=URL.createObjectURL(f);
   const nice=f.name.replace(/\.[^.]+$/,'').replace(/[_]+/g,' ').trim();
   const parts=nice.split(/\s+[-–]\s+/);
@@ -763,6 +819,7 @@ setInterval(()=>{
   $('#seekFill').style.width=(deck.currentTime/deck.duration*100)+'%';
   $('#tNow').textContent=fmt(deck.currentTime);
   $('#tEnd').textContent=fmt(deck.duration);
+  djTick(deck.currentTime,deck.duration);          // the mid-song moment capture
   pushMusic();
 },500);
 
@@ -1025,14 +1082,242 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
   $('#sheet-people').classList.toggle('on',view==='people');
   $('#sheet-zones').classList.toggle('on',view==='zones');
   $('#sheet-data').classList.toggle('on',view==='data');
+  $('#sheet-dj').classList.toggle('on',view==='dj');
   $('#sheet-venues').classList.toggle('on',view==='venues');
   ['#leftrail','#legend'].forEach(s=>$(s).style.display=(view==='map'?'':'none'));
   if(view==='map') fit();
   if(view==='people'&&state) renderPeople();
   if(view==='zones'&&state) renderZones();
   if(view==='data') renderData();
+  if(view==='dj'){ renderDjLive(); renderDjDecision(); }
   if(view==='venues') vedFit();
 }));
+
+/* ================================================================ AUTO-DJ
+   The crowd chooses the next song. One tap starts it (browsers demand a
+   gesture before audio); from then on: play → capture THE MOMENT at the
+   song's midpoint (a real CrowdState built server-side from everyone's
+   sensors) → the collaborator's engine ranks the library → the pick queues →
+   plays when this song ends. Deterministic on purpose: a dead API can cost a
+   suggestion, never the playlist. */
+const dj={on:false,current:null,next:null,captured:false,recent:[],decision:null,live:null};
+
+function djStatus(t,k){ const el=$('#djStatus'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }
+
+async function djSelect(){
+  const r=await fetch('/api/dj/next',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({currentSongId:dj.current?dj.current.id:undefined,
+                         recentSongIds:dj.recent.slice(-8)})});
+  const b=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(b.error||('HTTP '+r.status));
+  dj.decision=b;
+  renderDjDecision();
+  return b;
+}
+const djPlayable=b=>b.selected&&b.selected.audioUrl?b.selected:(b.candidates||[]).find(c=>c.audioUrl)||null;
+
+function djPlay(song){
+  dj.current=song; dj.captured=false; dj.next=null;
+  dj.recent.push(song.id); if(dj.recent.length>12) dj.recent.shift();
+  music.title=song.title; music.artist=song.artist; music.bpm=song.bpm; pushMusic();
+  $('#rTitle').textContent=song.title;
+  $('#rArtist').textContent=song.artist+' · '+song.bpm+' bpm · auto-DJ';
+  $('#djNowTitle').textContent=song.title;
+  $('#djNowSub').textContent=song.artist+' · '+song.bpm+' bpm · picked '+(dj.decision?dj.decision.selectionMethod:'deterministic');
+  deck.src=song.audioUrl;
+  $('#play').disabled=false;
+  deck.play().then(()=>djStatus('Auto-DJ on — the moment is captured at mid-song.','ok'))
+    .catch(e=>djStatus('The browser blocked autoplay — press play once: '+e.message,'err'));
+}
+
+async function djStart(){
+  djStatus('Reading the room…');
+  try{
+    const b=await djSelect();
+    const song=djPlayable(b);
+    if(!song){
+      djStatus(b.library&&b.library.example
+        ? 'No playable audio: the library is the fictional example set. Drop MP3s into songs/, run python preprocess_songs.py, restart.'
+        : 'No audio file matches any profiled song — file names in songs/ must contain the song title or id.','err');
+      return;
+    }
+    dj.on=true;
+    $('#djToggle').textContent='Stop Auto-DJ';
+    $('#djBtn').textContent='Auto-DJ ● on';
+    djPlay(song);
+  }catch(e){ djStatus(e.message,'err'); }
+}
+function djStop(silent){
+  dj.on=false;
+  $('#djToggle').textContent='Start Auto-DJ';
+  $('#djBtn').textContent='Auto-DJ';
+  if(!silent){ deck.pause(); djStatus('Auto-DJ off — deck is yours.',''); }
+}
+$('#djToggle').addEventListener('click',()=>dj.on?djStop():djStart());
+$('#djBtn').addEventListener('click',()=>{ if(!dj.on&&view!=='dj') document.querySelector('nav button[data-v="dj"]').click(); dj.on?djStop():djStart(); });
+
+// called every 500ms with the deck's position — split out so the capture
+// logic is testable without faking a media element
+function djTick(pos,dur){
+  if(dur){
+    $('#djMeterFill').style.width=(pos/dur*100)+'%';
+    $('#djMeterT').textContent=fmt(pos)+' / '+fmt(dur);
+  }
+  if(!dj.on||!dur||dj.captured||pos<dur/2) return;
+  dj.captured=true;
+  $('#djMidMark').style.background='var(--accent)';
+  $('#djMidLab').textContent='▲ moment captured ✓';
+  djSelect().then(b=>{
+    dj.next=djPlayable(b);
+    if(dj.next) djStatus('Next up: '+dj.next.title+' — plays when this one ends.','ok');
+  }).catch(e=>djStatus('Capture failed ('+e.message+') — will retry at song end.','err'));
+}
+function djOnEnded(){
+  if(!dj.on) return;
+  $('#djMidMark').style.background='var(--muted)';
+  $('#djMidLab').textContent='▲ the moment — captured mid-song';
+  if(dj.next){ djPlay(dj.next); return; }
+  djSelect().then(b=>{ const s=djPlayable(b); if(s) djPlay(s); else djStop(); })
+    .catch(e=>{ djStatus(e.message,'err'); djStop(); });
+}
+deck.addEventListener('ended',djOnEnded);
+
+/* ---- DJ tab rendering ---- */
+const DJ_CROWD_DIMS=[['energy','energy'],['rhythm','rhythm'],['clustering','cluster'],['volume','volume'],['mobility','mobility']];
+const DJ_SONG_DIMS=['energy','danceability','socialness','intensity','valence'];
+
+function renderDjDecision(){
+  const b=dj.decision;
+  if(b&&b.selected&&b.selected.id){
+    $('#djNextTitle').textContent=b.selected.title;
+    $('#djNextSub').textContent=b.selected.artist+' · '+b.selected.bpm+' bpm · score '
+      +b.selected.score.toFixed(3)+(b.selected.audioUrl?'':' · no audio file');
+    $('#djIntent').textContent='“'+b.target.intention+'”';
+    $('#djPolicy').textContent='policy: '+b.target.policyCase+' · mode: '+b.target.selectionMode
+      +(b.target.bpmTarget?' · bpm target '+Math.round(b.target.bpmTarget)+' ('+Math.round(b.target.bpmMin)+'–'+Math.round(b.target.bpmMax)+')':'');
+    $('#djLib').textContent='library: '+b.library.count+' songs, '+b.library.playable+' playable'
+      +(b.library.example?' · FICTIONAL EXAMPLE SET — add real songs + profiles':'');
+  }
+  drawDjMoment();
+  renderDjCands();
+}
+
+function drawDjMoment(){
+  const cvs=$('#djMoment'), dpr=devicePixelRatio||1;
+  const w=cvs.clientWidth||700, h=230;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  const a=accentNow(), a2=accent2Now();
+  const b=dj.decision;
+  const cs=b?b.crowdState:(dj.live?dj.live.crowdState:null);
+  if(!cs){ c.fillStyle='rgba(240,239,247,.4)'; c.font='11px "IBM Plex Mono",monospace';
+           c.fillText('waiting for crowd data…',10,20); return; }
+  const dim=!b;                                    // live preview until a capture exists
+  const half=w/2, baseY=h-34, barMax=h-78;
+  const bar=(x,bw,v,color)=>{ const bh=Math.max(2,v*barMax); c.fillStyle=color; c.fillRect(x,baseY-bh,bw,bh); };
+  const label=(x,t,y)=>{ c.fillStyle='rgba(240,239,247,.55)'; c.font='9px "IBM Plex Mono",monospace'; c.textAlign='center'; c.fillText(t,x,y); };
+
+  // left: the crowd, with trend arrows
+  c.textAlign='left'; c.fillStyle='rgba(240,239,247,.7)'; c.font='600 10px "IBM Plex Mono",monospace';
+  c.fillText(dim?'CROWD (live preview)':'CROWD AT THE MOMENT',8,16);
+  const lw=(half-40)/5;
+  DJ_CROWD_DIMS.forEach(([k,short],i)=>{
+    const x=14+i*lw, bw=lw*0.52, v=cs[k];
+    bar(x,bw,v,dim?rgba(a,.35):rgba(a,.85));
+    const tr=cs[k+'Trend'];
+    const arrow=tr>0.55?'▲':tr<0.40?'▼':'—';
+    c.fillStyle=tr>0.55?'#3ECF8E':tr<0.40?'#E85D5D':'rgba(240,239,247,.45)';
+    c.font='10px "IBM Plex Mono",monospace'; c.textAlign='center';
+    c.fillText(arrow,x+bw/2,baseY-Math.max(2,v*barMax)-8);
+    label(x+bw/2,short,baseY+12);
+    label(x+bw/2,v.toFixed(2),baseY+23);
+  });
+
+  // divider
+  c.strokeStyle='rgba(240,239,247,.12)'; c.beginPath(); c.moveTo(half,8); c.lineTo(half,h-8); c.stroke();
+
+  // right: target line vs the chosen song's bars
+  c.textAlign='left'; c.fillStyle='rgba(240,239,247,.7)'; c.font='600 10px "IBM Plex Mono",monospace';
+  c.fillText('TARGET (line) vs CHOSEN SONG (bar)',half+10,16);
+  const rw=(half-50)/5;
+  DJ_SONG_DIMS.forEach((k,i)=>{
+    const x=half+18+i*rw, bw=rw*0.52;
+    const sv=b&&b.selected?b.selected[k]:null;
+    const tv=b?b.target[k]:null;
+    if(sv!=null) bar(x,bw,sv,rgba(a2,.8));
+    if(tv!=null){
+      const ty=baseY-tv*barMax;
+      c.strokeStyle=rgb(a); c.lineWidth=2;
+      c.beginPath(); c.moveTo(x-4,ty); c.lineTo(x+bw+4,ty); c.stroke();
+    }
+    label(x+bw/2,k.slice(0,6),baseY+12);
+    if(sv!=null) label(x+bw/2,sv.toFixed(2),baseY+23);
+  });
+  if(!b){ c.fillStyle='rgba(240,239,247,.45)'; c.font='10px "IBM Plex Mono",monospace';
+          c.fillText('no capture yet — start Auto-DJ',half+10,34); }
+  c.textAlign='left';
+}
+
+function renderDjCands(){
+  const b=dj.decision;
+  if(!b){ $('#djCands').innerHTML='<div class="dim">No ranking yet — the first capture fills this in.</div>'; return; }
+  const max=Math.max(...b.candidates.map(c=>c.score),0.0001);
+  $('#djCands').innerHTML=b.candidates.map((c,i)=>{
+    const sel=c.id===b.selected.id;
+    return `<div title="${esc((c.reasons||[]).join(' · '))}" style="display:flex;align-items:center;gap:9px;padding:5px 0;${sel?'':'opacity:.75'}">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:16px">${i+1}</span>
+      <span style="font-size:12px;${sel?'font-weight:600':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:38%">${esc(c.title)} <span class="dim">· ${esc(c.artist)}</span></span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:52px">${c.bpm} bpm</span>
+      <span style="flex:1;height:7px;background:rgba(240,239,247,.08);border-radius:3px;position:relative">
+        <span style="position:absolute;left:0;top:0;bottom:0;width:${Math.round(c.score/max*100)}%;background:${sel?'var(--accent)':'rgba(240,239,247,.28)'};border-radius:3px"></span>
+      </span>
+      <span style="font-family:var(--mono);font-size:10.5px;width:46px;text-align:right;${sel?'color:var(--accent)':''}">${c.score.toFixed(3)}</span>
+    </div>`;
+  }).join('')
+  +`<div class="dim" style="margin-top:9px;font-size:11px">why the pick: ${esc((b.selected.reasons||[]).join(' · ')||'highest score')}</div>`;
+}
+
+async function renderDjLive(){
+  let b=null;
+  try{ b=await fetch('/api/dj/crowdstate').then(r=>r.json()); }catch(e){ return; }
+  dj.live=b;
+  const L=b.live;
+  const tiles=[
+    ['In venue',L.count],
+    ['Avg movement',L.avgEnergy.toFixed(2)],
+    ['Avg heart',L.avgHr?L.avgHr+' bpm':'—'],
+    ['Steps/min ea.',L.stepsPerMin],
+    ['Avg steps',L.avgSteps.toLocaleString()],
+    ['Located',L.located],
+    ['Sync',L.sync.toFixed(2)],
+    ['Arousal',L.arousal.toFixed(2)],
+    ['Room volume',b.crowdState.volume.toFixed(2)]
+  ];
+  $('#djTiles').innerHTML=tiles.map(([l,v])=>
+    `<div style="border:1px solid var(--rule);border-radius:7px;padding:9px 11px">
+      <span class="lab" style="font-size:8.5px">${l}</span>
+      <b style="display:block;font-family:var(--mono);font-size:16px;font-weight:500;margin-top:4px">${v}</b>
+    </div>`).join('');
+  // sparkline of the five dims the DJ actually decides on
+  const cvs=$('#djSpark'), dpr=devicePixelRatio||1;
+  const w=cvs.clientWidth||400, h=110;
+  cvs.width=w*dpr; cvs.height=h*dpr;
+  const c=cvs.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  const a=accentNow(), a2=accent2Now();
+  const series=[['energy',rgb(a)],['rhythm',rgb(a2)],['volume','#F0A93B'],['mobility','#3ECF8E'],['clustering','rgba(240,239,247,.45)']];
+  const hist=b.history||[];
+  if(hist.length>1){
+    series.forEach(([k,color])=>{
+      c.beginPath();
+      hist.forEach((p,i)=>{ const x=i/(hist.length-1)*w, y=h-3-p[k]*(h-8); i?c.lineTo(x,y):c.moveTo(x,y); });
+      c.strokeStyle=color; c.lineWidth=1.3; c.stroke();
+    });
+  }
+  $('#djSparkLegend').innerHTML=series.map(([k,color])=>`<span style="color:${color}">━ ${k}</span>`).join(' &nbsp;')
+    +` &nbsp;<span class="dim">· volume from ${esc(b.sources.volumeFrom)}</span>`;
+  if(!dj.decision) drawDjMoment();                 // live preview until first capture
+}
+setInterval(()=>{ if(view==='dj') renderDjLive(); },2000);
 
 /* ============================================================== DATA TAB
    Browses the sensor-snapshot store. session_id is the phone's anonymous

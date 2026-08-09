@@ -69,10 +69,21 @@ Do not swap these for defaults; they were chosen deliberately.
 Built: host dashboard (map/people/zones/data/venues tabs), phone check-in + participant view, radio player on both, audio-derived palette, runtime-configurable simulator, multi-venue store with an in-dashboard editor (floor plan tracing, zone drawing, one-location GPS centring, two-point GPS calibration), venue-owner accounts (local by default, Supabase optional) with in-dashboard sign-in, per-venue check-in QR codes surfaced in a dashboard modal, and the sensor data-collection pipeline: phones auto-upload raw snapshot batches into the collaborator's SQLite schema, browsable and CSV-exportable from the Data tab, with `/sensor-test` serving the original capture page.
 
 Also built: an offline Python song-profile generator and a deterministic-first Node
-song-selection engine. The selector accepts mock/future `CrowdState`, produces an
-explicit target, ranks the preprocessed library, and can optionally use a server-side
-OpenAI final judge with mandatory deterministic fallback. It does not control the
-host deck yet.
+song-selection engine (explicit target, ranked library, optional server-side OpenAI
+judge with mandatory deterministic fallback) — and, as of 2026-08-08 night, the
+**auto-DJ that closes the loop**: `computeCrowdState()` builds a REAL CrowdState from
+the sensors every 2s (documented proxies: energy=mean movement, rhythm=sync,
+clustering=normalized zone Herfindahl, volume=phone-mic RMS from the snapshot store's
+last 90s with host-audio fallback, mobility=steps/person/min ÷ 40; trends = now vs
+~60s ago, 0.5 flat). `POST /api/dj/next` runs the engine on it — deterministic ONLY;
+the AI judge stays behind its token on `/api/dj/select`, a dead API must never stall
+the playlist. The dashboard's deck plays matched audio from `songs/` (filename slug ⊇
+profile id/title slug; `SONGS_DIR` overridable), captures THE MOMENT once at each
+song's midpoint, queues the pick, and advances on `ended`. One tap starts it —
+browsers refuse audio without a gesture, don't fight that. The DJ tab (host-only like
+the whole dashboard) shows the song meter with the capture marker, the moment's
+factors vs the policy target vs the chosen song, ranked candidate scores with
+reasons, and 2s-polled live crowd averages + sparklines via `GET /api/dj/crowdstate`.
 
 Positioning is GPS-based off a single event-wide QR (`/qr/event.svg`). Per-venue QRs exist too
 (`/qr/venue/:id.svg`, poster `/qr?v=<id>`, dashboard "Check-in QR" modal) — the `v` param is a label,
@@ -103,8 +114,7 @@ Measured misassignment against the traced geometry: 1.2% at ±3m, 5.8% at ±5m, 
 few metres deep in `y`, below GPS resolution regardless of fix quality.
 
 Deliberately not built yet:
-- Real sensor-to-`CrowdState` analysis or automatic playback (music remains host-controlled). The raw
-  material for it now exists in the snapshot store; the analysis itself does not.
+- Crossfading / beat-matched transitions between auto-DJ songs (hard cut on `ended`)
 - Persistence for live state (snapshot research data does persist, in SQLite)
 - BLE trilateration and accelerometer dead reckoning — both evaluated and rejected as hackathon-infeasible.
 
