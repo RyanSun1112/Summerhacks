@@ -47,13 +47,16 @@
     cursor:pointer;font-family:var(--sans);
   }
   header .join-scan:hover,header .join-scan:active{color:var(--ink)}
-  #map{flex:1;min-height:0;background:#0c1024}
+  #map{height:100%;width:100%;background:#0c1024}
+  /* Trap Leaflet's high pane z-indexes so modals/scrims outside can paint above the map */
+  .map-wrap{flex:1;min-height:0;position:relative;z-index:0;isolation:isolate}
   .leaflet-control-zoom a{
     width:44px!important;height:44px!important;line-height:44px!important;font-size:18px!important;
   }
-  /* Compact map triggers — open info modals on demand */
+  /* Above Leaflet panes/controls (~400–1000) so the key never vanishes under tiles */
   .map-fab{
-    position:absolute;z-index:4;left:10px;bottom:max(14px,env(safe-area-inset-bottom));
+    position:absolute;z-index:1100;left:10px;bottom:max(14px,env(safe-area-inset-bottom));
+    display:inline-flex;align-items:center;
     min-height:44px;padding:10px 14px;border-radius:8px;border:1px solid var(--rule);
     background:var(--glass);backdrop-filter:blur(14px);color:var(--ink);cursor:pointer;
     font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
@@ -101,19 +104,19 @@
   }
   .toast.on{opacity:1}
   .errbar{
-    position:absolute;z-index:4;top:12px;left:50%;transform:translateX(-50%);
+    position:absolute;z-index:1100;top:12px;left:50%;transform:translateX(-50%);
     background:rgba(232,93,93,.15);border:1px solid rgba(232,93,93,.4);color:#FFB4A8;
     font-size:13px;padding:10px 14px;border-radius:6px;display:none;max-width:min(92vw,420px);
   }
   .errbar.on{display:block}
 
-  /* Shared modal layer (legend, venue filter, capture detail) */
+  /* Shared modal layer (legend, venue filter, capture detail) — above map-wrap */
   .modal-scrim{
-    position:fixed;inset:0;z-index:25;background:rgba(4,6,16,.55);opacity:0;pointer-events:none;transition:opacity .2s;
+    position:fixed;inset:0;z-index:2000;background:rgba(4,6,16,.55);opacity:0;pointer-events:none;transition:opacity .2s;
   }
   .modal-scrim.on{opacity:1;pointer-events:auto}
   .modal{
-    position:fixed;z-index:26;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);
+    position:fixed;z-index:2001;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);
     width:min(360px,calc(100vw - 24px));max-height:min(80dvh,520px);overflow:auto;
     background:rgba(12,15,34,.96);border:1px solid var(--rule);border-radius:12px;
     box-shadow:0 24px 70px rgba(0,0,0,.65);padding:16px 16px 18px;opacity:0;pointer-events:none;
@@ -128,8 +131,12 @@
     background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer;
   }
   .modal-x:active{border-color:var(--accent)}
-  .modal .row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin-top:8px}
+  .modal .row{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--ink);margin-top:14px;line-height:1.4}
   .modal .row:first-of-type{margin-top:0}
+  .modal .row .sw{margin-top:4px}
+  .modal .row .mean{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .modal .row .mean b{font-size:14px;font-weight:600}
+  .modal .row .mean span{font-size:13px;color:var(--muted);font-weight:400}
   .modal .actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .modal .actions button,.modal .actions a{
     display:flex;align-items:center;justify-content:center;min-height:44px;padding:12px;border-radius:6px;
@@ -141,12 +148,12 @@
 
   /* Venue capture gallery — opens from the pin popup */
   .gallery-scrim{
-    position:fixed;inset:0;z-index:20;background:rgba(4,6,16,.55);opacity:0;pointer-events:none;
+    position:fixed;inset:0;z-index:2000;background:rgba(4,6,16,.55);opacity:0;pointer-events:none;
     transition:opacity .2s;
   }
   .gallery-scrim.on{opacity:1;pointer-events:auto}
   .gallery{
-    position:fixed;z-index:21;left:0;right:0;bottom:0;
+    position:fixed;z-index:2001;left:0;right:0;bottom:0;
     max-height:min(88dvh,720px);height:min(88dvh,720px);
     background:rgba(10,12,28,.96);border-top:1px solid var(--rule);
     border-radius:14px 14px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.55);
@@ -214,11 +221,11 @@
   .plan-dot img{width:100%;height:100%;object-fit:cover;display:block}
   .plan-dot:hover,.plan-dot:active{transform:scale(1.1);z-index:3}
   .detail-scrim{
-    position:fixed;inset:0;z-index:30;background:rgba(4,6,16,.7);opacity:0;pointer-events:none;transition:opacity .2s;
+    position:fixed;inset:0;z-index:2010;background:rgba(4,6,16,.7);opacity:0;pointer-events:none;transition:opacity .2s;
   }
   .detail-scrim.on{opacity:1;pointer-events:auto}
   .detail{
-    position:fixed;z-index:31;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);
+    position:fixed;z-index:2011;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);
     width:min(420px,calc(100vw - 24px));max-height:min(86dvh,640px);overflow:auto;
     background:rgba(12,15,34,.96);border:1px solid var(--rule);border-radius:12px;
     box-shadow:0 24px 70px rgba(0,0,0,.65);padding:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
@@ -265,10 +272,12 @@
   <a href="/dashboard.html">Dashboard</a>
 </header>
 
-<div id="map"></div>
-<button type="button" class="map-fab" id="legendBtn" aria-haspopup="dialog">Vibe key</button>
-<button type="button" class="map-fab filter-fab" id="filterChip" aria-haspopup="dialog">Venue filter</button>
-<div class="errbar" id="err"></div>
+<div class="map-wrap">
+  <div id="map"></div>
+  <button type="button" class="map-fab" id="legendBtn" aria-haspopup="dialog">Vibe key</button>
+  <button type="button" class="map-fab filter-fab" id="filterChip" aria-haspopup="dialog">Venue filter</button>
+  <div class="errbar" id="err"></div>
+</div>
 <div class="toast" id="toast">New capture landed</div>
 
 <div class="modal-scrim" id="legendScrim"></div>
@@ -280,9 +289,21 @@
     </div>
     <button type="button" class="modal-x" id="legendClose" aria-label="Close">×</button>
   </div>
-  <div class="row"><i class="sw" style="background:#F05A3C"></i> Hype</div>
-  <div class="row"><i class="sw" style="background:#F0A93B"></i> Mixed</div>
-  <div class="row"><i class="sw" style="background:#5B9CFF"></i> Calm</div>
+  <p style="font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 4px">
+    Pin colour is the latest capture at that venue — photo plus the room’s measured energy and sync at that moment.
+  </p>
+  <div class="row">
+    <i class="sw" style="background:#F05A3C"></i>
+    <div class="mean"><b>Hype</b><span>High movement and the room is moving together</span></div>
+  </div>
+  <div class="row">
+    <i class="sw" style="background:#F0A93B"></i>
+    <div class="mean"><b>Mixed</b><span>Some energy, but not fully locked in as one crowd</span></div>
+  </div>
+  <div class="row">
+    <i class="sw" style="background:#5B9CFF"></i>
+    <div class="mean"><b>Calm</b><span>Quieter floor — low measured movement</span></div>
+  </div>
 </div>
 
 <div class="modal-scrim" id="filterScrim"></div>
