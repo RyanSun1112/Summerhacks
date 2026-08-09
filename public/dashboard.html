@@ -233,6 +233,7 @@
       <div id="gpsWarn" style="display:none;font-size:10.5px;line-height:1.45;color:var(--warn);margin-top:8px"></div>
       <button class="vbtn" id="qrBtn">Check-in QR</button>
       <button class="vbtn" id="newVenueBtn">+ New venue</button>
+      <a id="railOwner" href="/owner.html" style="display:none;margin-top:9px;text-align:center;font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:none">Owner page →</a>
     </div>
   </div>
 
@@ -531,10 +532,13 @@ ownerAuthReady=(async()=>{
 /* ---- account chip + modal ---- */
 function renderAcct(){
   const b=$('#acctBtn');
-  if(!ownerAuthOn()){ b.style.display='none'; return; }
-  b.style.display='';
+  // the stylesheet hides it by default, so showing needs an explicit value —
+  // display:'' only clears the inline style and the CSS rule wins again,
+  // which kept this button invisible for a whole evening
+  b.style.display=ownerAuthOn()?'inline-block':'none';
   b.textContent=ownerToken?(ownerEmail||'Account'):'Sign in';
   b.title=ownerToken?'Signed in as '+(ownerEmail||'?'):'Sign in to manage venues';
+  $('#railOwner').style.display=ownerAuthOn()?'block':'none';
 }
 let acctResolve=null, acctBusy=false;
 function setAcctMsg(t,k){ const el=$('#acctMsg'); el.textContent=t||''; el.className='msgline'+(k?' '+k:''); }

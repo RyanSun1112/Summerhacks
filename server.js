@@ -457,8 +457,10 @@ async function getAllOwners() {
 
 // ------------------------------------------------------------ venue CRUD
 // The venue LIST is scoped to the asker when auth is on: the live venue is
-// public (it's on the projector), unclaimed venues stay visible so they can
-// be claimed, but a venue someone owns appears only in its owner's list.
+// public (it's on the projector); signed-in accounts also get their own
+// venues plus unclaimed ones (visible so they can be claimed — save one and
+// it's yours); a venue someone owns appears only in its owner's list, and a
+// signed-out viewer sees nothing but the live venue.
 // This is tidiness, not security — GET /venues/:id stays public because the
 // map needs geometry, and writes are what ownership actually protects.
 app.get('/venues', async (req, res) => {
@@ -467,8 +469,9 @@ app.get('/venues', async (req, res) => {
   const visible = [...venues.values()].filter(v => {
     if (!AUTH_ENABLED) return true;
     if (v.id === activeId) return true;
+    if (!user) return false;
     const owner = owners[v.id];
-    return !owner || (user && owner === user.id);
+    return !owner || owner === user.id;
   });
   res.json({
     active: activeId,
